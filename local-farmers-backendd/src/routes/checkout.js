@@ -19,11 +19,15 @@ router.post('/create-checkout-session', requireAuth, async (req, res) => {
      return res.status(400).json({ error: rpcData?.error || rpcError?.message || 'Stoc insuficient, tranzactie anulata.' });
   }
 
-  // 2. Ia produsele din order_items pentru aceasta comanda
+  // 2. Ia produsele din order_items pentru aceasta comanda (fara join pe tabelul de products pentru a evita erori de schema)
   const { data: items, error: itemsError } = await supabase
     .from(TABLES.orderItems)
-    .select('*, products("product name", "Unit")')
+    .select('*')
     .eq('order_id', orderId);
+
+  if (itemsError) {
+    console.error('Supabase items query error:', itemsError);
+  }
 
   if (itemsError || !items || items.length === 0) {
     return res.status(400).json({ error: 'Failed to retrieve order items.' });
@@ -38,8 +42,8 @@ router.post('/create-checkout-session', requireAuth, async (req, res) => {
     // We send quantity=1 to Stripe, and pre-calculate the total price for this line item based on our decimal quantity
     const totalAmountInCents = Math.round(unitPriceCents * quantityMultiplier);
 
-    const productName = item.products ? item.products['product name'] : item.product_name;
-    const productUnit = item.products ? item.products.Unit : item.product_unit;
+    const productName = item.product_name || 'Produs Ferma Mea';
+    const productUnit = item.product_unit || 'unitate';
 
     return {
       price_data: {
