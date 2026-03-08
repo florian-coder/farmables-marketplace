@@ -53,6 +53,7 @@ export default function VendorPublicProfilePage() {
   const { user } = useAuth();
   const [state, setState] = useState(initialState);
   const [cartFeedback, setCartFeedback] = useState({});
+  const [cartQuantities, setCartQuantities] = useState({});
 
   const setFeedbackForProduct = (productId, status, message) => {
     if (!productId) {
@@ -83,11 +84,12 @@ export default function VendorPublicProfilePage() {
 
     setFeedbackForProduct(product.id, 'loading', 'Adding to cart...');
     try {
+      const quantity = cartQuantities[product.id] || 1;
       const response = await apiFetch('/api/orders/cart/items', {
         method: 'POST',
         body: JSON.stringify({
           productId: product.id,
-          quantity: 1,
+          quantity: quantity,
         }),
       });
       const data = await response.json();
@@ -281,10 +283,28 @@ export default function VendorPublicProfilePage() {
                         {product.instantBuy ? 'Instant buy' : 'Inquiry only'}
                       </p>
                       {vendor?.id && (
-                        <div className="button-group">
+                        <div className="button-group" style={{ alignItems: 'center', flexWrap: 'wrap' }}>
                           <Link className="button ghost small" to={`/chat?vendorId=${vendor.id}`}>
                             Send inquiry
                           </Link>
+                          {product.instantBuy && (
+                            <input
+                              type="number"
+                              min="1"
+                              max={product.quantity || 1}
+                              step="any"
+                              value={cartQuantities[product.id] ?? 1}
+                              onChange={(e) => {
+                                const val = e.target.value === '' ? '' : parseFloat(e.target.value);
+                                setCartQuantities((prev) => ({
+                                  ...prev,
+                                  [product.id]: val,
+                                }));
+                              }}
+                              style={{ width: '80px', padding: '0.4rem', border: '1px solid #ccc', borderRadius: '4px' }}
+                              title="Quantity"
+                            />
+                          )}
                           <button
                             className="button secondary small"
                             type="button"

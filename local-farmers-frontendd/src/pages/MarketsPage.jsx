@@ -35,6 +35,7 @@ export default function MarketsPage() {
   const [productImages, setProductImages] = useState({});
   const requestedImagesRef = useRef(new Set());
   const [cartFeedback, setCartFeedback] = useState({});
+  const [cartQuantities, setCartQuantities] = useState({});
 
   // Search and filter state
   const [searchQuery, setSearchQuery] = useState('');
@@ -221,11 +222,12 @@ export default function MarketsPage() {
 
     setFeedbackForProduct(product.id, 'loading', 'Adding to cart...');
     try {
+      const quantity = cartQuantities[product.id] || 1;
       const response = await apiFetch('/api/orders/cart/items', {
         method: 'POST',
         body: JSON.stringify({
           productId: product.id,
-          quantity: 1,
+          quantity: quantity,
         }),
       });
       const data = await response.json();
@@ -451,13 +453,31 @@ export default function MarketsPage() {
                                             {`Rating ${Number(product.rating ?? 0)}/5`}
                                           </div>
                                           {product.vendor?.id && (
-                                            <div className="button-group">
+                                            <div className="button-group" style={{ alignItems: 'center', flexWrap: 'wrap' }}>
                                               <Link
                                                 className="button ghost small market-chat-link"
                                                 to={`/chat?vendorId=${product.vendor.id}`}
                                               >
                                                 Send inquiry
                                               </Link>
+                                              {product.instantBuy && (
+                                                <input
+                                                  type="number"
+                                                  min="1"
+                                                  max={product.quantity || 1}
+                                                  step="any"
+                                                  value={cartQuantities[product.id] ?? 1}
+                                                  onChange={(e) => {
+                                                    const val = e.target.value === '' ? '' : parseFloat(e.target.value);
+                                                    setCartQuantities((prev) => ({
+                                                      ...prev,
+                                                      [product.id]: val,
+                                                    }));
+                                                  }}
+                                                  style={{ width: '80px', padding: '0.4rem', border: '1px solid #ccc', borderRadius: '4px' }}
+                                                  title="Quantity"
+                                                />
+                                              )}
                                               <button
                                                 className="button secondary small market-cart-button"
                                                 type="button"
