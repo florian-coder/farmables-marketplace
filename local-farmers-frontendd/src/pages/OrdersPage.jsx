@@ -170,6 +170,30 @@ export default function OrdersPage() {
       return;
     }
 
+    if (user?.role === 'customer' && nextState === 'pending_order') {
+      setActionStatusForOrder(orderId, 'loading', 'Redirecting to payment...');
+      try {
+        const response = await apiFetch('/api/checkout/create-checkout-session', {
+          method: 'POST',
+          body: JSON.stringify({ orderId }),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || 'Unable to start checkout session.');
+        }
+        if (data.url) {
+          window.location.href = data.url;
+        }
+      } catch (error) {
+        setActionStatusForOrder(
+          orderId,
+          'error',
+          error.message || 'Unable to start checkout.',
+        );
+      }
+      return;
+    }
+
     setActionStatusForOrder(orderId, 'loading', 'Updating order...');
     try {
       const response = await apiFetch(`/api/orders/${orderId}/state`, {

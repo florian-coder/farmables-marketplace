@@ -23,6 +23,7 @@
     "helmet": "^7.1.0",
     "morgan": "^1.10.0",
     "multer": "^2.0.2",
+    "stripe": "^20.4.1",
     "superagent": "^10.3.0"
   },
   "devDependencies": {

@@ -74,7 +74,7 @@ const ORDER_BUCKETS = {
 
 const ALLOWED_TRANSITIONS = {
   customer: {
-    placed_order: [{ nextState: 'pending_order', label: 'Place order' }],
+    placed_order: [{ nextState: 'pending_order', label: 'Pay & Place order' }],
     arrived: [{ nextState: 'received', label: 'Confirm received' }],
   },
   vendor: {
