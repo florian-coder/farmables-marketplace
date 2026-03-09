@@ -1,21 +1,27 @@
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@400;600;700&family=Manrope:wght@300;400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Lora:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap');
 
 :root {
   color-scheme: light;
-  font-family: 'Manrope', 'Helvetica Neue', sans-serif;
+  font-family: 'Inter', 'Helvetica Neue', system-ui, sans-serif;
   line-height: 1.6;
   font-weight: 400;
-  --canvas: #f3efe7;
-  --canvas-deep: #e6dac7;
-  --ink: #2f261d;
-  --ink-muted: #6a5b4b;
-  --accent: #c97d4c;
+  /* --- Cottagecore Design Tokens --- */
+  --canvas: #F6F1EB;
+  --canvas-deep: #EFE7DE;
+  --ink: #332B25;
+  --ink-muted: #8A7D70;
+  --accent: #C47C56;
   --accent-strong: #a85b2f;
-  --surface: #fff8f0;
-  --surface-strong: #fffdf9;
-  --surface-shadow: rgba(47, 38, 29, 0.1);
-  --highlight: #f8ead7;
-  --stroke: rgba(47, 38, 29, 0.16);
+  --accent-hover: #b36d47;
+  --surface: #FDFAF6;
+  --surface-strong: #FFFDF9;
+  --surface-shadow: rgba(139, 115, 85, 0.08);
+  --highlight: #f0e4d5;
+  --stroke: rgba(51, 43, 37, 0.12);
+  --radius-card: 24px;
+  --radius-pill: 9999px;
+  --shadow-card: 0 12px 30px rgba(139, 115, 85, 0.08);
+  --shadow-float: 0 20px 40px rgba(139, 115, 85, 0.12);
 }
 
 * {
@@ -24,15 +30,10 @@
 
 body {
   margin: 0;
-  background:
-    radial-gradient(circle at top, #f9f5ee 0%, var(--canvas) 45%, #e9ddce 100%),
-    repeating-linear-gradient(
-      45deg,
-      rgba(255, 255, 255, 0.15),
-      rgba(255, 255, 255, 0.15) 12px,
-      transparent 12px,
-      transparent 24px
-    );
+  background-color: var(--canvas);
+  background-image:
+    radial-gradient(ellipse at top left, rgba(255,255,255,0.55) 0%, transparent 50%),
+    radial-gradient(ellipse at bottom right, rgba(196, 124, 86, 0.06) 0%, transparent 50%);
   color: var(--ink);
   min-height: 100vh;
 }
@@ -40,9 +41,10 @@ body {
 h1,
 h2,
 h3 {
-  font-family: 'Fraunces', 'Georgia', serif;
+  font-family: 'Playfair Display', 'Lora', 'Georgia', serif;
   margin: 0 0 12px;
-  line-height: 1.1;
+  line-height: 1.15;
+  color: var(--ink);
 }
 
 p {
@@ -72,9 +74,11 @@ a {
 }
 
 .brand {
-  font-family: 'Fraunces', 'Georgia', serif;
+  font-family: 'Playfair Display', 'Lora', 'Georgia', serif;
   font-size: 1.2rem;
   font-weight: 700;
+  color: var(--ink);
+  letter-spacing: -0.01em;
 }
 
 .nav-links {
@@ -425,7 +429,7 @@ a {
 
 .certificate-name {
   margin: 0;
-  font-family: 'Fraunces', 'Georgia', serif;
+  font-family: 'Playfair Display', 'Lora', 'Georgia', serif;
   font-size: 1.08rem;
   line-height: 1.2;
 }
@@ -658,10 +662,11 @@ a {
 }
 
 .card {
-  background: #fffdf9;
-  padding: 20px;
-  border-radius: 16px;
-  box-shadow: 0 12px 24px -20px var(--surface-shadow);
+  background: var(--surface-strong);
+  padding: 24px;
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  border: 1px solid var(--stroke);
 }
 
 .card-value {
@@ -782,14 +787,20 @@ a {
 }
 
 .market-card {
-  background: #fffdf9;
-  padding: 20px;
-  border-radius: 18px;
-  border: 1px solid rgba(47, 38, 29, 0.08);
-  box-shadow: 0 12px 24px -20px var(--surface-shadow);
+  background: var(--surface-strong);
+  padding: 24px;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--stroke);
+  box-shadow: var(--shadow-card);
   display: flex;
   flex-direction: column;
   gap: 16px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.market-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-float);
 }
 
 .market-card-header {
@@ -891,14 +902,14 @@ a {
 }
 
 .form-card {
-  background: var(--surface);
-  padding: 24px;
-  border-radius: 20px;
-  border: 1px solid rgba(47, 38, 29, 0.08);
-  box-shadow: 0 18px 30px -20px var(--surface-shadow);
+  background: var(--surface-strong);
+  padding: 32px;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--stroke);
+  box-shadow: var(--shadow-card);
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px;
 }
 
 .form-actions {
@@ -1032,11 +1043,22 @@ a {
 .field input,
 .field select,
 .field textarea {
-  border-radius: 12px;
-  border: 1px solid rgba(47, 38, 29, 0.2);
-  padding: 10px 12px;
+  border-radius: var(--radius-pill);
+  border: 1px solid rgba(51, 43, 37, 0.18);
+  padding: 10px 18px;
   font-family: inherit;
   font-size: 0.95rem;
+  background: var(--surface-strong);
+  color: var(--ink);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.field input:focus,
+.field select:focus,
+.field textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(196, 124, 86, 0.15);
 }
 
 .field-row {
@@ -1779,7 +1801,9 @@ a {
   }
 }
 
-/* Markets & Product Custom Styles */
+/* ================================================
+   Markets & Product Cards — Cottagecore Theme
+   ================================================ */
 .product-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -1790,27 +1814,29 @@ a {
 }
 
 .product-card {
-  background: white;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  padding: 1.25rem;
+  background: var(--surface-strong);
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius-card);
+  padding: 1.5rem;
   display: flex;
   flex-direction: column;
   gap: 1rem;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  box-shadow: var(--shadow-card);
 }
 
 .product-card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 12px 20px -5px rgba(0,0,0,0.15);
+  box-shadow: var(--shadow-float);
 }
 
 .product-card-title {
+  font-family: 'Playfair Display', 'Lora', 'Georgia', serif;
   font-weight: 600;
-  font-size: 1.125rem;
-  color: #111827;
+  font-size: 1.1rem;
+  color: var(--ink);
   margin: 0;
+  line-height: 1.3;
 }
 
 .product-card-price-container {
@@ -1824,36 +1850,38 @@ a {
 .product-card-price {
   font-weight: 700;
   font-size: 1.35rem;
-  color: #16a34a;
+  color: var(--accent-strong);
   margin: 0;
 }
 
 .product-card-unit {
-  color: #4b5563;
+  color: var(--ink-muted);
   font-size: 0.9rem;
   font-weight: 500;
 }
 
 .product-card-farm {
-  color: #4b5563; /* Higher contrast gray */
+  color: var(--ink-muted);
   font-size: 0.875rem;
   margin: 0;
   font-weight: 500;
 }
 
-/* Market Hero Banner - Amber Theme */
+/* Market Hero Banner — Cottagecore Warm */
 .market-hero-banner {
-  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-  color: #451a03 !important;
+  background: linear-gradient(135deg, #f5e6d3 0%, #ead5bb 55%, #dfc5a5 100%);
+  color: var(--ink) !important;
   padding: 3rem 2rem;
-  border-radius: 20px;
+  border-radius: var(--radius-card);
   text-align: center;
   margin-bottom: 2.5rem;
-  box-shadow: 0 10px 25px -5px rgba(217, 119, 6, 0.3);
+  border: 1px solid rgba(196, 124, 86, 0.2);
+  box-shadow: var(--shadow-float);
 }
 
 .market-hero-banner h2 {
-  color: #451a03;
+  color: var(--ink);
+  font-family: 'Playfair Display', 'Lora', 'Georgia', serif;
   font-size: 2.25rem;
   margin-bottom: 2rem;
 }
@@ -1872,35 +1900,37 @@ a {
   align-items: center;
   gap: 0.5rem;
   padding: 1rem;
-  background: rgba(255, 255, 255, 0.4);
-  border-radius: 12px;
+  background: rgba(255, 253, 249, 0.65);
+  border-radius: 20px;
+  border: 1px solid rgba(196, 124, 86, 0.18);
   backdrop-filter: blur(4px);
-  color: #451a03;
+  color: var(--ink);
 }
 
 .market-stat-icon {
   width: 24px;
   height: 24px;
-  color: #451a03;
+  color: var(--accent);
 }
 
 .market-stat-label {
   font-size: 0.75rem;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.07em;
   font-weight: 700;
-  color: #78350f;
+  color: var(--ink-muted);
 }
 
 .market-stat-value {
   font-size: 1.75rem;
   font-weight: 800;
+  color: var(--accent-strong);
 }
 
 /* Stock Badges */
 .stock-badge {
-  padding: 0.15rem 0.6rem;
-  border-radius: 9999px;
+  padding: 0.2rem 0.75rem;
+  border-radius: var(--radius-pill);
   font-size: 0.75rem;
   font-weight: 700;
   display: inline-flex;
@@ -1909,18 +1939,18 @@ a {
 }
 
 .stock-badge-out {
-  background-color: #fee2e2;
-  color: #dc2626;
+  background-color: #fce4e0;
+  color: #8c3020;
 }
 
 .stock-badge-low {
-  background-color: #fef3c7;
-  color: #d97706;
+  background-color: #fdefd6;
+  color: #8a5a1a;
 }
 
 .stock-badge-ok {
-  background-color: #dcfce7;
-  color: #16a34a;
+  background-color: #e0eed8;
+  color: #3a6428;
 }
 
 .product-rating-stock-row {
@@ -1932,78 +1962,84 @@ a {
 }
 
 .btn-cart-primary:disabled {
-  background-color: #9ca3af;
+  background-color: var(--ink-muted);
   cursor: not-allowed;
-  opacity: 0.6;
+  opacity: 0.55;
 }
 
 .quantity-wrapper.disabled {
   opacity: 0.5;
   pointer-events: none;
-  background: #f3f4f6;
+  background: var(--canvas-deep);
 }
 
-/* Buttons */
+/* Cart & Action Buttons */
 .btn-cart-primary {
-  background-color: #16a34a;
-  color: white;
+  background-color: var(--accent);
+  color: #fff;
   border: none;
-  padding: 0.65rem 1rem;
-  border-radius: 8px;
+  padding: 0.65rem 1.25rem;
+  border-radius: var(--radius-pill);
   cursor: pointer;
   font-weight: 600;
-  transition: all 0.2s;
+  font-family: inherit;
+  transition: background-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
   flex: 1;
+  box-shadow: 0 8px 18px -8px rgba(196, 124, 86, 0.5);
 }
 
 .btn-cart-primary:hover {
-  background-color: #15803d;
-  box-shadow: 0 4px 6px -1px rgba(22, 163, 74, 0.3);
+  background-color: var(--accent-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 12px 24px -8px rgba(196, 124, 86, 0.45);
 }
 
 .btn-inquiry-secondary {
-  background-color: white;
-  color: #374151;
-  border: 1px solid #d1d5db;
-  padding: 0.65rem 1rem;
-  border-radius: 8px;
+  background-color: var(--surface-strong);
+  color: var(--ink);
+  border: 1px solid var(--stroke);
+  padding: 0.65rem 1.25rem;
+  border-radius: var(--radius-pill);
   cursor: pointer;
   font-weight: 600;
-  transition: all 0.2s;
+  font-family: inherit;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
   flex: 1;
 }
 
 .btn-inquiry-secondary:hover {
-  border-color: #9ca3af;
-  background-color: #f9fafb;
+  border-color: var(--accent);
+  background-color: var(--highlight);
+  color: var(--accent-strong);
 }
 
-/* Custom Quantity Input */
+/* Quantity Input */
 .quantity-wrapper {
   display: flex;
   align-items: center;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius-pill);
   overflow: hidden;
-  background: white;
+  background: var(--surface-strong);
 }
 
 .quantity-btn {
-  background: #f9fafb;
+  background: transparent;
   border: none;
-  width: 36px;
+  width: 38px;
   height: 42px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   font-size: 1.25rem;
-  color: #374151;
-  transition: background 0.2s;
+  color: var(--ink-muted);
+  transition: background 0.2s, color 0.2s;
 }
 
 .quantity-btn:hover {
-  background: #f3f4f6;
+  background: var(--canvas-deep);
+  color: var(--accent);
 }
 
 .quantity-input-custom {
@@ -2014,7 +2050,9 @@ a {
   margin: 0 !important;
   height: 42px;
   font-weight: 600;
-  color: #111827;
+  color: var(--ink);
+  background: transparent;
+  appearance: textfield;
   -moz-appearance: textfield;
 }
 
@@ -2026,21 +2064,24 @@ a {
 
 /* Search and Filters */
 .filters-bar {
-  background-color: #f8fafc !important; /* Distinct subtle gray-blue */
-  border: 1px solid #e2e8f0;
+  background-color: var(--canvas-deep) !important;
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius-card);
+  padding: 16px 20px;
 }
 
 .filters-bar input[type="text"],
 .filters-bar input[type="number"],
 .filters-bar select {
   height: 44px;
-  padding: 0 1rem;
-  border-radius: 10px !important;
-  border: 1px solid #d1d5db !important;
-  background-color: white;
+  padding: 0 1.1rem;
+  border-radius: var(--radius-pill) !important;
+  border: 1px solid rgba(51, 43, 37, 0.18) !important;
+  background-color: var(--surface-strong);
+  color: var(--ink);
   font-size: 0.95rem;
-  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  font-family: inherit;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
   display: flex;
   align-items: center;
 }
@@ -2052,11 +2093,11 @@ a {
   line-height: 44px;
 }
 
-.filters-bar input:focus, 
+.filters-bar input:focus,
 .filters-bar select:focus {
   outline: none !important;
-  border-color: #16a34a !important;
-  box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.15) !important;
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px rgba(196, 124, 86, 0.15) !important;
 }
 
 .search-input-wrapper {
@@ -2069,7 +2110,7 @@ a {
   left: 14px;
   top: 50%;
   transform: translateY(-50%);
-  color: #6b7280;
+  color: var(--ink-muted);
   pointer-events: none;
   z-index: 10;
 }
