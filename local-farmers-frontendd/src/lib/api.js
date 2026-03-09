@@ -36,6 +36,10 @@ export const apiFetch = (path, options = {}) => {
     signal: controller.signal,
   };
 
+  if (restOptions.body instanceof FormData) {
+    delete fetchOptions.headers['Content-Type'];
+  }
+
   const method = (fetchOptions.method || 'GET').toUpperCase();
   if (restOptions.body === undefined && method === 'GET') {
     delete fetchOptions.body;

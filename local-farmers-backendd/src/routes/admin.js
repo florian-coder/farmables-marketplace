@@ -29,6 +29,7 @@ const REQUEST_COLUMNS = [
   'delivery_radius_km',
   'bio',
   'farm_images',
+  'documents',
   'status',
   'review_note',
   'reviewed_at',
@@ -116,7 +117,8 @@ const mapRequestMeta = (request, usersById, productsByFarmer = new Map()) => {
           ? null
           : Number(request.delivery_radius_km),
       bio: request.bio || '',
-      farmImages: normalizePublicUrls(request.farm_images),
+      farmImages: Array.isArray(request.farm_images) ? request.farm_images : [],
+      documents: request.documents || {},
     },
   };
 };
@@ -278,6 +280,25 @@ router.post('/farmer-requests/:requestId/approve', requireAdmin, async (req, res
       .upsert(farmerPayload, { onConflict: 'id' });
     if (farmerError) {
       return res.status(500).json({ error: farmerError.message || 'Unable to approve request.' });
+    }
+
+    const docsPayload = {
+      id: request.user_id,
+      atestat_prod: request.documents?.atestat_prod || null,
+      atestat_prod_2: request.documents?.atestat_prod_2 || null,
+      certificat_register: request.documents?.certificat_register || null,
+      cui: request.documents?.cui || null,
+      carnet_commerce: request.documents?.carnet_commerce || null,
+      sanitary_doc_egg: request.documents?.sanitary_doc_egg || null,
+      sanitary_doc_honey: request.documents?.sanitary_doc_honey || null,
+    };
+    
+    const { error: docsError } = await supabase
+      .from('farmer_docs')
+      .upsert(docsPayload, { onConflict: 'id' });
+      
+    if (docsError) {
+      console.error('[admin] Failed to save farmer docs on approval:', docsError);
     }
 
     await syncFarmPhotos(request.user_id, normalizePublicUrls(request.farm_images));

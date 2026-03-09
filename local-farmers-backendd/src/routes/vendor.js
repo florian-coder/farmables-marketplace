@@ -61,6 +61,7 @@ const REQUEST_COLUMNS = [
   'delivery_radius_km',
   'bio',
   'farm_images',
+  'documents',
   'status',
   'review_note',
   'reviewed_at',
@@ -258,6 +259,7 @@ const mapRequestToVendorResponse = (request, userEmail = '') => ({
   deliveryRadiusKm: toNumberOrNull(request?.delivery_radius_km),
   bio: request?.bio || '',
   farmImages: normalizePublicUrls(request?.farm_images),
+  documents: request?.documents || {},
 });
 
 const mapRequestMeta = (request) => {
@@ -392,7 +394,7 @@ router.post('/upload-farm-images', requireVendor, (req, res) => {
   });
 });
 
-router.post('/profile', requireVendor, async (req, res, next) => {
+router.post('/profile', requireVendor, upload.any(), async (req, res, next) => {
   try {
     const {
       farmName,
@@ -406,8 +408,12 @@ router.post('/profile', requireVendor, async (req, res, next) => {
       organicCertificate,
       deliveryRadiusKm,
       bio,
-      farmImages,
     } = req.body || {};
+
+    let farmImages = req.body.farmImages;
+    if (typeof farmImages === 'string') {
+      try { farmImages = JSON.parse(farmImages); } catch (e) { farmImages = []; }
+    }
 
     if (typeof farmName !== 'string' || !farmName.trim()) {
       return res.status(400).json({ error: 'farmName is required.' });
@@ -432,6 +438,33 @@ router.post('/profile', requireVendor, async (req, res, next) => {
         ? normalizePublicUrls(farmImages)
         : normalizePublicUrls(existingRequest?.farm_images);
 
+    let documents = existingRequest?.documents || {};
+    
+    // Process new document files
+    const files = req.files || [];
+    if (files.length > 0) {
+      const folderId = crypto.randomUUID();
+      for (const file of files) {
+        const fieldName = file.fieldname;
+        const ext = getFileExtension(file);
+        const pathStr = `folder_${folderId}/${fieldName}${ext}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('docs')
+          .upload(pathStr, file.buffer, {
+            contentType: file.mimetype,
+            upsert: true,
+          });
+
+        if (uploadError) {
+          return res.status(500).json({ error: 'File upload failed: ' + uploadError.message });
+        }
+
+        const { data: urlData } = supabase.storage.from('docs').getPublicUrl(pathStr);
+        documents[fieldName] = urlData.publicUrl;
+      }
+    }
+
     const requestPayload = {
       user_id: req.user.id,
       farm_name: normalizeText(farmName, 120),
@@ -447,6 +480,7 @@ router.post('/profile', requireVendor, async (req, res, next) => {
       delivery_radius_km: deliveryRadius,
       bio: normalizeText(bio, 1000),
       farm_images: normalizedFarmImages,
+      documents: documents,
       status: 'pending',
       review_note: '',
       reviewed_at: null,

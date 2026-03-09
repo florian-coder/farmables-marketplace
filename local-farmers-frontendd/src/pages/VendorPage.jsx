@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 
 import { apiFetch, getApiBase, resolveImageUrl } from '../lib/api.js';
@@ -21,6 +21,10 @@ const initialProfile = {
   deliveryRadiusKm: '',
   bio: '',
   farmImages: [],
+  documents: {},
+  entityType: 'pf',
+  product_oua: false,
+  product_miere: false,
 };
 
 const initialProduct = {
@@ -74,6 +78,10 @@ const mapVendorToProfile = (vendor) => ({
   deliveryRadiusKm: vendor?.deliveryRadiusKm ?? '',
   bio: vendor?.bio || '',
   farmImages: normalizeFarmImages(vendor?.farmImages),
+  documents: vendor?.documents || {},
+  entityType: vendor?.documents?.cui ? 'juridica' : 'pf',
+  product_oua: !!vendor?.documents?.sanitary_doc_egg,
+  product_miere: !!vendor?.documents?.sanitary_doc_honey,
 });
 
 export default function VendorPage() {
@@ -99,6 +107,15 @@ export default function VendorPage() {
   const [photoPreview, setPhotoPreview] = useState(null);
   const [photoInputKey, setPhotoInputKey] = useState(0);
   const [farmImagesInputKey, setFarmImagesInputKey] = useState(0);
+  const fileInputRefs = useRef({});
+
+  const setFileRef = (name) => (element) => {
+    if (element) {
+      fileInputRefs.current[name] = element;
+    } else {
+      delete fileInputRefs.current[name];
+    }
+  };
 
   useEffect(() => {
     if (authStatus !== 'authenticated' || !user || user.role !== 'vendor') {
@@ -211,8 +228,8 @@ export default function VendorPage() {
   }, [authStatus, user, profile.id, profileApproved]);
 
   const handleProfileChange = (event) => {
-    const { name, value } = event.target;
-    setProfile((prev) => ({ ...prev, [name]: value }));
+    const { name, value, type, checked } = event.target;
+    setProfile((prev) => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
   };
 
   const handleProfileSubmit = async (event) => {
@@ -220,17 +237,44 @@ export default function VendorPage() {
     setProfileStatus({ state: 'loading', message: 'Saving profile...' });
 
     try {
-      const { id: _profileId, ...profilePayload } = profile;
+      const { id: _profileId, documents, ...profilePayload } = profile;
+      const formData = new FormData();
+      
+      const payload = {
+        ...profilePayload,
+        deliveryRadiusKm:
+          profile.deliveryRadiusKm === ''
+            ? null
+            : Number(profile.deliveryRadiusKm),
+        farmImages: JSON.stringify(normalizeFarmImages(profile.farmImages)),
+      };
+      
+      for (const [key, value] of Object.entries(payload)) {
+        formData.append(key, value);
+      }
+
+      const expectedFiles = [];
+      if (profile.entityType === 'pf') {
+        expectedFiles.push('atestat_prod', 'atestat_prod_2', 'carnet_commerce');
+      } else {
+        expectedFiles.push('certificat_register', 'cui');
+      }
+
+      if (profile.product_oua) expectedFiles.push('sanitary_doc_egg');
+      if (profile.product_miere) expectedFiles.push('sanitary_doc_honey');
+
+      for (const name of expectedFiles) {
+        const input = fileInputRefs.current[name];
+        if (input && input.files && input.files[0]) {
+          formData.append(name, input.files[0]);
+        } else if (!documents?.[name]) {
+          throw new Error(`Please upload ${name.replace(/_/g, ' ')}`);
+        }
+      }
+
       const response = await apiFetch('/api/vendor/profile', {
         method: 'POST',
-        body: JSON.stringify({
-          ...profilePayload,
-          deliveryRadiusKm:
-            profile.deliveryRadiusKm === ''
-              ? null
-              : Number(profile.deliveryRadiusKm),
-          farmImages: normalizeFarmImages(profile.farmImages),
-        }),
+        body: formData,
       });
       const data = await response.json();
       if (!response.ok) {
@@ -252,6 +296,10 @@ export default function VendorPage() {
         setProfile(mapVendorToProfile(data.vendor));
         setFarmUploadStatus({ state: 'idle', message: '' });
       }
+      
+      Object.values(fileInputRefs.current).forEach(input => {
+        if (input) input.value = '';
+      });
     } catch (error) {
       setProfileStatus({
         state: 'error',
@@ -628,6 +676,70 @@ export default function VendorPage() {
               onChange={handleProfileChange}
             />
           </label>
+          
+          <fieldset style={{ margin: '1rem 0', padding: '1rem', border: '1px solid #ccc', borderRadius: '4px' }}>
+            <legend style={{ padding: '0 0.5rem', fontWeight: 'bold' }}>Detalii Juridice și Documente</legend>
+            <label className="field">
+              Tip Entitate
+              <select name="entityType" value={profile.entityType} onChange={handleProfileChange}>
+                <option value="pf">Persoană Fizică</option>
+                <option value="juridica">Entitate Juridică (PFA/II/SRL)</option>
+              </select>
+            </label>
+
+            {profile.entityType === 'pf' ? (
+              <>
+                <label className="field">
+                  Atestat Producător - Față {profile.documents?.atestat_prod && <span className="success">(Încărcat deja)</span>}
+                  <input type="file" name="atestat_prod" accept="image/*,.pdf" ref={setFileRef('atestat_prod')} required={!profile.documents?.atestat_prod} />
+                </label>
+                <label className="field">
+                  Atestat Producător - Verso {profile.documents?.atestat_prod_2 && <span className="success">(Încărcat deja)</span>}
+                  <input type="file" name="atestat_prod_2" accept="image/*,.pdf" ref={setFileRef('atestat_prod_2')} required={!profile.documents?.atestat_prod_2} />
+                </label>
+                <label className="field">
+                  Carnet de Comercializare {profile.documents?.carnet_commerce && <span className="success">(Încărcat deja)</span>}
+                  <input type="file" name="carnet_commerce" accept="image/*,.pdf" ref={setFileRef('carnet_commerce')} required={!profile.documents?.carnet_commerce} />
+                </label>
+              </>
+            ) : (
+              <>
+                <label className="field">
+                  Certificat de Înregistrare {profile.documents?.certificat_register && <span className="success">(Încărcat deja)</span>}
+                  <input type="file" name="certificat_register" accept="image/*,.pdf" ref={setFileRef('certificat_register')} required={!profile.documents?.certificat_register} />
+                </label>
+                <label className="field">
+                  CUI {profile.documents?.cui && <span className="success">(Încărcat deja)</span>}
+                  <input type="file" name="cui" accept="image/*,.pdf" ref={setFileRef('cui')} required={!profile.documents?.cui} />
+                </label>
+              </>
+            )}
+
+            <div className="field" style={{ marginTop: '1rem' }}>
+              <strong>Categorii Produse:</strong>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem' }}>
+                <input type="checkbox" name="product_oua" checked={profile.product_oua} onChange={handleProfileChange} /> Ouă
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem' }}>
+                <input type="checkbox" name="product_miere" checked={profile.product_miere} onChange={handleProfileChange} /> Miere
+              </label>
+            </div>
+
+            {profile.product_oua && (
+              <label className="field">
+                Document Înregistrare DSVSA pentru Ouă {profile.documents?.sanitary_doc_egg && <span className="success">(Încărcat deja)</span>}
+                <input type="file" name="sanitary_doc_egg" accept="image/*,.pdf" ref={setFileRef('sanitary_doc_egg')} required={!profile.documents?.sanitary_doc_egg} />
+              </label>
+            )}
+
+            {profile.product_miere && (
+              <label className="field">
+                Document Înregistrare DSVSA pentru Miere {profile.documents?.sanitary_doc_honey && <span className="success">(Încărcat deja)</span>}
+                <input type="file" name="sanitary_doc_honey" accept="image/*,.pdf" ref={setFileRef('sanitary_doc_honey')} required={!profile.documents?.sanitary_doc_honey} />
+              </label>
+            )}
+          </fieldset>
+
           <label className="field">
             Farm gallery (up to 10 images)
             <input
