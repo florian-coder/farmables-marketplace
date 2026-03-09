@@ -16,7 +16,8 @@ create table if not exists public.orders (
         'preparing_order',
         'in_transit',
         'arrived',
-        'received'
+        'received',
+        'cancelled'
       )
     ),
   total_price numeric(12, 2) not null default 0 check (total_price >= 0),

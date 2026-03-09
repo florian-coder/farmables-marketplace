@@ -19,6 +19,7 @@ const STATE_LABELS = {
   in_transit: 'In transit',
   arrived: 'Arrived',
   received: 'Received',
+  cancelled: 'Cancelled',
 };
 
 const initialLoadStatus = {
@@ -244,6 +245,28 @@ export default function OrdersPage() {
     }
   };
 
+  const handleItemQuantityChange = async (orderId, itemId, newQuantity) => {
+    setActionStatusForOrder(orderId, 'loading', 'Updating quantity...');
+    try {
+      const response = await apiFetch(`/api/orders/${orderId}/items/${itemId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ quantity: newQuantity }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Unable to update item quantity.');
+      }
+      setActionStatusForOrder(orderId, 'success', 'Quantity updated.');
+      await loadOrders(activeTab);
+    } catch (error) {
+      setActionStatusForOrder(
+        orderId,
+        'error',
+        error.message || 'Unable to update item quantity.',
+      );
+    }
+  };
+
   const emptyLabel = useMemo(() => {
     if (activeTab === 'history') {
       return 'No received orders yet.';
@@ -340,9 +363,41 @@ export default function OrdersPage() {
               {order.items?.length > 0 ? (
                 <ul>
                   {order.items.map((item) => (
-                    <li key={item.id}>
-                      {item.quantity} x {item.productName || 'Product'} ({item.productUnit || 'unit'}) ·{' '}
-                      {formatMoney(item.unitPrice)} each · {formatMoney(item.lineTotal)}
+                    <li key={`${item.id}-${item.quantity}`}>
+                      {order.orderState === 'placed_order' && user.role === 'customer' ? (
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                          <input
+                            type="number"
+                            min="0"
+                            step="any"
+                            defaultValue={item.quantity}
+                            onBlur={(e) => {
+                              const val = parseFloat(e.target.value);
+                              if (!isNaN(val) && val !== item.quantity) {
+                                handleItemQuantityChange(order.id, item.id, val);
+                              } else {
+                                e.target.value = item.quantity;
+                              }
+                            }}
+                            style={{ width: '80px', padding: '4px' }}
+                            disabled={orderActionStatus[order.id]?.state === 'loading'}
+                          />
+                          x {item.productName || 'Product'} ({item.productUnit || 'unit'}) ·{' '}
+                          {formatMoney(item.unitPrice)} each · {formatMoney(item.lineTotal)}
+                          <button
+                            type="button"
+                            className="button ghost small"
+                            onClick={() => handleItemQuantityChange(order.id, item.id, 0)}
+                            style={{ padding: '2px 8px', marginLeft: '12px' }}
+                            disabled={orderActionStatus[order.id]?.state === 'loading'}
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      ) : (
+                        <>{item.quantity} x {item.productName || 'Product'} ({item.productUnit || 'unit'}) ·{' '}
+                        {formatMoney(item.unitPrice)} each · {formatMoney(item.lineTotal)}</>
+                      )}
                     </li>
                   ))}
                 </ul>

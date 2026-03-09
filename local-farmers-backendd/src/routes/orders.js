@@ -60,11 +60,12 @@ const ORDER_STATES = [
   'in_transit',
   'arrived',
   'received',
+  'cancelled',
 ];
 
 const PENDING_STATES = ['placed_order', 'pending_order'];
 const ACTIVE_STATES = ['received_by_farmer', 'preparing_order', 'in_transit', 'arrived'];
-const HISTORY_STATES = ['received'];
+const HISTORY_STATES = ['received', 'cancelled'];
 
 const ORDER_BUCKETS = {
   pending: PENDING_STATES,
@@ -74,11 +75,17 @@ const ORDER_BUCKETS = {
 
 const ALLOWED_TRANSITIONS = {
   customer: {
-    placed_order: [{ nextState: 'pending_order', label: 'Pay & Place order' }],
+    placed_order: [
+      { nextState: 'pending_order', label: 'Pay & Place order' },
+      { nextState: 'cancelled', label: 'Cancel order' }
+    ],
     arrived: [{ nextState: 'received', label: 'Confirm received' }],
   },
   vendor: {
-    pending_order: [{ nextState: 'received_by_farmer', label: 'Accept order' }],
+    pending_order: [
+      { nextState: 'received_by_farmer', label: 'Accept order' },
+      { nextState: 'cancelled', label: 'Decline order' }
+    ],
     received_by_farmer: [{ nextState: 'preparing_order', label: 'Preparing order' }],
     preparing_order: [{ nextState: 'in_transit', label: 'In transit' }],
     in_transit: [{ nextState: 'arrived', label: 'Arrived' }],
@@ -657,6 +664,21 @@ router.patch('/:orderId/state', requireAuth, async (req, res, next) => {
       });
     }
 
+    if (nextState === 'cancelled') {
+      const { error: deleteError } = await supabase
+        .from(TABLES.orders)
+        .delete()
+        .eq('id', orderId);
+        
+      if (deleteError) {
+        return res.status(500).json({ error: deleteError.message || 'Unable to delete order.' });
+      }
+
+      return res.json({
+        order: { id: orderId, deleted: true }
+      });
+    }
+
     const { error: updateError } = await supabase
       .from(TABLES.orders)
       .update({ order_state: nextState })
@@ -737,6 +759,73 @@ router.post('/:orderId/replies', requireAuth, async (req, res, next) => {
         message: insertedReply.message || '',
         createdAt: insertedReply.created_at || null,
       },
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.patch('/:orderId/items/:itemId', requireAuth, async (req, res, next) => {
+  try {
+    if (!requireCustomer(req, res)) {
+      return null;
+    }
+
+    const orderId = normalizeIdentifier(req.params.orderId);
+    const itemId = normalizeIdentifier(req.params.itemId);
+    const quantityRaw = req.body?.quantity;
+
+    if (!orderId || !itemId) {
+      return res.status(400).json({ error: 'orderId and itemId are required.' });
+    }
+
+    const vendorRecord = null;
+    const order = await fetchOrderById(orderId);
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found.' });
+    }
+    if (!canAccessOrder(req.user, vendorRecord, order)) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    if (order.orderState !== 'placed_order') {
+      return res.status(400).json({ error: 'You can only modify quantities for items in your cart.' });
+    }
+
+    if (quantityRaw === 0 || quantityRaw === '0') {
+      const { error: deleteError } = await supabase
+        .from(TABLES.orderItems)
+        .delete()
+        .eq('id', itemId)
+        .eq('order_id', orderId);
+
+      if (deleteError) {
+        return res.status(500).json({ error: deleteError.message || 'Unable to remove item.' });
+      }
+    } else {
+      const quantity = normalizeQuantity(quantityRaw);
+      if (quantity === null) {
+        return res.status(400).json({ error: 'quantity must be a positive number or zero.' });
+      }
+
+      const { error: updateError } = await supabase
+        .from(TABLES.orderItems)
+        .update({ quantity })
+        .eq('id', itemId)
+        .eq('order_id', orderId);
+
+      if (updateError) {
+        return res.status(500).json({ error: updateError.message || 'Unable to update item quantity.' });
+      }
+    }
+
+    const detailedOrder = await fetchDetailedOrder({
+      orderId,
+      user: req.user,
+      vendorRecord,
+    });
+    return res.json({
+      order: detailedOrder,
     });
   } catch (error) {
     return next(error);
