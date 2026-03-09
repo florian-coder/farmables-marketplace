@@ -18,6 +18,7 @@ import ChatPage from './pages/ChatPage.jsx';
 import ProfilePage from './pages/ProfilePage.jsx';
 import VendorPublicProfilePage from './pages/VendorPublicProfilePage.jsx';
 import VendorProductsPage from './pages/VendorProductsPage.jsx';
+import VendorAddProductPage from './pages/VendorAddProductPage.jsx';
 import NotFoundPage from './pages/NotFoundPage.jsx';
 import AdminPage from './pages/AdminPage.jsx';
 import OrdersPage from './pages/OrdersPage.jsx';
@@ -90,6 +91,8 @@ function Navigation() {
     (user?.role === 'customer' || user?.role === 'vendor');
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
   const [isMarketsMenuOpen, setIsMarketsMenuOpen] = useState(false);
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const isProfileRoute = location.pathname.startsWith('/profile') || location.pathname.startsWith('/vendor');
 
   const handleLogout = async () => {
     await logout();
@@ -182,6 +185,7 @@ function Navigation() {
 
   useEffect(() => {
     setIsMarketsMenuOpen(false);
+    setIsProfileMenuOpen(false);
   }, [location.pathname]);
 
   return (
@@ -221,10 +225,34 @@ function Navigation() {
           </Link>
         )}
         {status === 'authenticated' && <Link to="/orders">Orders</Link>}
-        <Link to="/profile">Profile</Link>
-        {status === 'authenticated' && user?.role === 'vendor' && (
-          <Link to="/vendor/products_uploaded">My Products</Link>
+        
+        {status === 'authenticated' && user?.role === 'vendor' ? (
+          <div className="nav-market-menu">
+            <button
+              className={`nav-market-toggle ${isProfileRoute ? 'active' : ''}`}
+              type="button"
+              onClick={() => setIsProfileMenuOpen((prev) => !prev)}
+            >
+              Profile
+            </button>
+            {isProfileMenuOpen && (
+              <div className="nav-market-dropdown">
+                <Link className="nav-market-pill" to="/profile">
+                  <span className="nav-market-pill-label">Farm Profile</span>
+                </Link>
+                <Link className="nav-market-pill" to="/vendor/products_uploaded">
+                  <span className="nav-market-pill-label">My Products</span>
+                </Link>
+                <Link className="nav-market-pill" to="/vendor/upload_product">
+                  <span className="nav-market-pill-label">Upload Products</span>
+                </Link>
+              </div>
+            )}
+          </div>
+        ) : (
+          <Link to="/profile">Profile</Link>
         )}
+        
         {showLogin && (
           <Link className="button ghost" to="/auth/login">
             Log in
@@ -267,6 +295,7 @@ function AppShell() {
           <Route path="/farms/:vendorId" element={<VendorPublicProfilePage />} />
           <Route path="/vendor" element={<Navigate to="/profile" replace />} />
           <Route path="/vendor/products_uploaded" element={<VendorProductsPage />} />
+          <Route path="/vendor/upload_product" element={<VendorAddProductPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </main>

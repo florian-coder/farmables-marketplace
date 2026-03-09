@@ -27,19 +27,6 @@ const initialProfile = {
   product_miere: false,
 };
 
-const initialProduct = {
-  name: '',
-  category: 'fruits_and_vegetables',
-  type: '',
-  unit: 'kg',
-  quantity: 0,
-  price: 0,
-  available: true,
-  isBio: false,
-  instantBuy: false,
-  photo: null,
-};
-
 const normalizeFarmImages = (images) => {
   if (!Array.isArray(images)) {
     return [];
@@ -98,14 +85,6 @@ export default function VendorPage() {
     state: 'idle',
     message: '',
   });
-  const [products, setProducts] = useState([]);
-  const [productForm, setProductForm] = useState(initialProduct);
-  const [productStatus, setProductStatus] = useState({
-    state: 'idle',
-    message: '',
-  });
-  const [photoPreview, setPhotoPreview] = useState(null);
-  const [photoInputKey, setPhotoInputKey] = useState(0);
   const [farmImagesInputKey, setFarmImagesInputKey] = useState(0);
   const fileInputRefs = useRef({});
 
@@ -152,80 +131,12 @@ export default function VendorPage() {
       }
     };
 
-    const loadProducts = async () => {
-      try {
-        const response = await apiFetch('/api/vendor/products', { method: 'GET' });
-        const data = await response.json();
-        if (!active) {
-          return;
-        }
-        setProducts(data.products || []);
-      } catch (error) {
-        if (!active) {
-          return;
-        }
-        setProductStatus({
-          state: 'error',
-          message: 'Unable to load products.',
-        });
-      }
-    };
-
     loadProfile();
-    loadProducts();
 
     return () => {
       active = false;
     };
   }, [authStatus, user]);
-
-  useEffect(() => {
-    if (!productForm.photo) {
-      setPhotoPreview(null);
-      return;
-    }
-    const previewUrl = URL.createObjectURL(productForm.photo);
-    setPhotoPreview(previewUrl);
-    return () => URL.revokeObjectURL(previewUrl);
-  }, [productForm.photo]);
-
-  useEffect(() => {
-    if (
-      authStatus !== 'authenticated' ||
-      !user ||
-      user.role !== 'vendor' ||
-      !profileApproved ||
-      !profile.id
-    ) {
-      return;
-    }
-
-    const channel = supabase
-      .channel(`vendor-dashboard-products-${profile.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'products',
-          filter: `farmer_id=eq.${profile.id}`,
-        },
-        async () => {
-          try {
-            const response = await apiFetch('/api/vendor/products', { method: 'GET' });
-            const data = await response.json();
-            setProducts(data.products || []);
-          } catch (_error) {
-            // Keep current list if realtime sync fails.
-          }
-        },
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [authStatus, user, profile.id, profileApproved]);
 
   const handleProfileChange = (event) => {
     const { name, value, type, checked } = event.target;
@@ -526,13 +437,18 @@ export default function VendorPage() {
         ? 'approved'
         : requestStatus;
 
+  const statusColor = effectiveProfileStatus === 'approved' ? 'var(--success-color, green)' : effectiveProfileStatus === 'pending' ? 'var(--warning-color, #d4a017)' : 'inherit';
+
   return (
     <div className="page-section">
       <div className="section-header">
         <div>
           <h1>Vendor dashboard</h1>
           <p className="muted">
-            Welcome back, {user.username}. Profile status: {effectiveProfileStatus}.
+            Welcome back, {user.username}. Profile status:{' '}
+            <span style={{ fontWeight: 'bold', color: statusColor, textTransform: 'uppercase' }}>
+              {effectiveProfileStatus}
+            </span>
           </p>
         </div>
         <div className="button-group">
@@ -811,169 +727,6 @@ export default function VendorPage() {
             </p>
           )}
         </form>
-
-        <div className="form-card">
-          <h2>Products</h2>
-          <form className="stack" onSubmit={handleProductSubmit}>
-            <label className="field">
-              Product name
-              <input
-                type="text"
-                name="name"
-                value={productForm.name}
-                onChange={handleProductChange}
-                required
-              />
-            </label>
-            <label className="field">
-              Category
-              <select
-                name="category"
-                value={productForm.category}
-                onChange={handleProductChange}
-              >
-                <option value="fruits_and_vegetables">Fruits and Vegetables</option>
-                <option value="eggs">Eggs</option>
-                <option value="honey">Honey Products</option>
-              </select>
-            </label>
-            <label className="field">
-              Variety / Type
-              <input
-                type="text"
-                name="type"
-                placeholder="e.g. Beef Brisket, Goat Milk, Cherry Tomato"
-                value={productForm.type}
-                onChange={handleProductChange}
-              />
-              <p className="muted" style={{ fontSize: '0.8em', marginTop: '0.2rem' }}>
-                Specify details: e.g., which eggs cut, type of milk, or specific vegetable variety.
-              </p>
-            </label>
-            <label className="field">
-              Unit
-              <input
-                type="text"
-                name="unit"
-                value={productForm.unit}
-                onChange={handleProductChange}
-              />
-            </label>
-            <label className="field">
-              Quantity
-              <input
-                type="number"
-                name="quantity"
-                min="0"
-                step="0.01"
-                value={productForm.quantity}
-                onChange={handleProductChange}
-                required
-              />
-            </label>
-            <label className="field">
-              Price
-              <input
-                type="number"
-                name="price"
-                step="0.01"
-                min="0"
-                value={productForm.price}
-                onChange={handleProductChange}
-                required
-              />
-            </label>
-            <div className="upload-card">
-              <div className="upload-preview">
-                {photoPreview ? (
-                  <img src={photoPreview} alt="Selected product" />
-                ) : (
-                  <div className="upload-placeholder">No photo selected</div>
-                )}
-              </div>
-              <div className="upload-controls">
-                <label className="field">
-                  Product photo
-                  <input
-                    key={photoInputKey}
-                    type="file"
-                    name="photo"
-                    accept="image/*"
-                    onChange={handleProductChange}
-                  />
-                </label>
-                <p className="muted upload-hint">
-                  Optional. Max 5MB · JPG, PNG, or WebP. Defaults to a stock photo if left empty.
-                </p>
-                {productForm.photo && (
-                  <div className="upload-meta">
-                    <span>{productForm.photo.name}</span>
-                    <span>
-                      {(productForm.photo.size / (1024 * 1024)).toFixed(1)} MB
-                    </span>
-                  </div>
-                )}
-                {productForm.photo && (
-                  <button
-                    className="button ghost small"
-                    type="button"
-                    onClick={handleClearPhoto}
-                  >
-                    Remove photo
-                  </button>
-                )}
-              </div>
-            </div>
-            <label className="field checkbox">
-              <input
-                type="checkbox"
-                name="isBio"
-                checked={productForm.isBio}
-                onChange={handleProductChange}
-              />
-              Bio Verified
-            </label>
-            <label className="field checkbox">
-              <input
-                type="checkbox"
-                name="available"
-                checked={productForm.available}
-                onChange={handleProductChange}
-              />
-              Available now
-            </label>
-            <label className="field checkbox">
-              <input
-                type="checkbox"
-                name="instantBuy"
-                checked={productForm.instantBuy}
-                onChange={handleProductChange}
-              />
-              Instant buy enabled (allows Add to cart)
-            </label>
-            <div className="form-actions">
-              <button
-                className="button secondary"
-                type="submit"
-                disabled={productStatus.state === 'loading'}
-              >
-                {productStatus.state === 'loading' ? 'Adding...' : 'Add product'}
-              </button>
-              {productStatus.message && (
-                <p
-                  className={`notice ${
-                    productStatus.state === 'error' ? 'error' : 'success'
-                  }`}
-                >
-                  {productStatus.message}
-                </p>
-              )}
-              <Link className="button ghost" to="/vendor/products_uploaded">
-                View all my products
-              </Link>
-            </div>
-          </form>
-        </div>
       </div>
     </div>
   );
