@@ -278,7 +278,6 @@ export default function VendorPublicProfilePage() {
                       </p>
                       <p className="muted">
                         {`Rating ${Number(product.rating ?? 0)}/5`} ·{' '}
-                        {product.isBio ? 'Bio verified' : 'Conventional'} ·{' '}
                         {product.available ? 'Available' : 'Unavailable'} ·{' '}
                         {product.instantBuy ? 'Instant buy' : 'Inquiry only'}
                       </p>

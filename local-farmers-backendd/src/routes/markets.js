@@ -1,9 +1,6 @@
 const express = require('express');
 
 const { getOrSetCache } = require('../lib/cacheStore');
-const { fetchSoilGrids } = require('../lib/external/soilgrids');
-const { fetchUsdaMarketNews } = require('../lib/external/usdaMyMarketNews');
-const { fetchFaostat } = require('../lib/external/faostat');
 const { getProductImage } = require('../lib/productMedia');
 const { supabase, TABLES } = require('../lib/supabase');
 const { DEFAULT_MARKETS, mapProductToApi } = require('../lib/domain');
@@ -15,8 +12,7 @@ const {
 
 const router = express.Router();
 
-const TOP_COMMODITIES = ['tomatoes', 'potatoes', 'apples'];
-const MARKET_PRODUCTS_LIMIT = 6;
+const MARKET_PRODUCTS_LIMIT = 50; // Increased limit to get more products for stats
 const DAILY_RECOMMENDATION_LIMIT = 4;
 const COMPLETED_ORDER_STATES = [
   'received_by_farmer',
@@ -26,11 +22,6 @@ const COMPLETED_ORDER_STATES = [
   'received',
 ];
 const MONTH_PARAM_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
-const NEWS_IMAGE_QUERY = {
-  tomatoes: 'tomatoes',
-  potatoes: 'potatoes',
-  apples: 'apples',
-};
 
 const PRODUCT_COLUMNS = [
   'id',
@@ -129,48 +120,6 @@ const loadProducts = async (category, options = {}) => {
       return mapped;
     }),
   );
-};
-
-const loadMarketNews = async () => {
-  const marketNews = await Promise.all(
-    TOP_COMMODITIES.map(async (commodity) => {
-      const key = `commodity:${commodity}`;
-      const { value } = await getOrSetCache(
-        'markets-usda-news',
-        key,
-        1000 * 60 * 60 * 6,
-        () => fetchUsdaMarketNews({ commodity }),
-      );
-      return value;
-    }),
-  );
-
-  return Promise.all(
-    marketNews.map(async (newsItem) => {
-      if (!newsItem) {
-        return null;
-      }
-      const commodityName =
-        typeof newsItem.commodity === 'string'
-          ? newsItem.commodity.toLowerCase()
-          : '';
-      const query =
-        NEWS_IMAGE_QUERY[commodityName] || newsItem.commodity || 'fresh vegetables';
-      const image = await getProductImage(query);
-      return { ...newsItem, image };
-    }),
-  );
-};
-
-const loadGlobalStats = async () => {
-  const faostatKey = 'item:Tomatoes|country:Romania';
-  const { value: globalStats } = await getOrSetCache(
-    'markets-faostat',
-    faostatKey,
-    1000 * 60 * 60 * 24 * 30,
-    () => fetchFaostat({ item: 'Tomatoes', country: 'Romania' }),
-  );
-  return globalStats;
 };
 
 const resolveMonthRange = (rawMonth) => {
@@ -429,46 +378,25 @@ const loadFarmerOfMonth = async ({ month, startIso, endIso }) => {
 };
 
 const buildMarketResponse = async (category) => {
-  const [products, marketNewsWithImages, globalStats] = await Promise.all([
-    loadProducts(category),
-    loadMarketNews(),
-    loadGlobalStats(),
-  ]);
-
+  const products = await loadProducts(category);
   const sortedProducts = sortProductsByNewest(products);
-  const markets = await Promise.all(
-    DEFAULT_MARKETS.map(async (market) => {
-      let soil = null;
-      if (isNumber(market.lat) && isNumber(market.lng)) {
-        const soilKey = `soil:${market.lat},${market.lng}`;
-        const soilResult = await getOrSetCache(
-          'markets-soil',
-          soilKey,
-          1000 * 60 * 60 * 24 * 7,
-          () => fetchSoilGrids(market.lat, market.lng),
-        );
-        soil = soilResult.value;
-      }
+  
+  // Calculate dynamic stats
+  const farmerIds = new Set(products.map(p => p.vendorId).filter(Boolean));
+  const activeGrowers = farmerIds.size;
+  const totalProducts = products.length;
+  const biggestRating = products.reduce((max, p) => Math.max(max, p.rating || 0), 0);
 
-      return {
-        id: market.id,
-        name: market.name,
-        openStands: market.openStands,
-        activeGrowers: market.activeGrowers,
-        pickupPoints: market.pickupPoints,
-        soil: soil
-          ? {
-              ph: soil.ph,
-              organicCarbon: soil.organicCarbon,
-              qualityScore: soil.qualityScore,
-            }
-          : null,
-        marketNews: marketNewsWithImages.filter(Boolean).slice(0, 3),
-        globalStats,
-        products: sortedProducts.slice(0, MARKET_PRODUCTS_LIMIT),
-      };
-    }),
-  );
+  const markets = DEFAULT_MARKETS.map((market) => {
+    return {
+      id: market.id,
+      name: market.name,
+      activeGrowers,
+      totalProducts,
+      biggestRating: Number(biggestRating.toFixed(1)),
+      products: sortedProducts.slice(0, MARKET_PRODUCTS_LIMIT),
+    };
+  });
 
   return markets;
 };

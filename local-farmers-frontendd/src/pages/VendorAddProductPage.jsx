@@ -12,8 +12,7 @@ const initialProduct = {
   quantity: 0,
   price: 0,
   available: true,
-  isBio: false,
-  instantBuy: false,
+  instantBuy: true,
   photo: null,
 };
 
@@ -284,15 +283,6 @@ export default function VendorAddProductPage() {
               )}
             </div>
           </div>
-          <label className="field checkbox">
-            <input
-              type="checkbox"
-              name="isBio"
-              checked={productForm.isBio}
-              onChange={handleProductChange}
-            />
-            Bio Verified
-          </label>
           <label className="field checkbox">
             <input
               type="checkbox"

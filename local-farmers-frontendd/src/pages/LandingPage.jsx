@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { apiFetch, resolveImageUrl } from '../lib/api.js';
 
 const HERO_IMAGE_URL =
-  'https://images.pexels.com/photos/841303/pexels-photo-841303.jpeg';
+  'https://images.pexels.com/photos/1656663/pexels-photo-1656663.jpeg';
 
 const CATEGORY_TABS = [
   { key: 'fruits_and_vegetables', label: 'Fruits & Vegetables' },
@@ -22,7 +22,6 @@ const FALLBACK_RECOMMENDATIONS = {
         name: 'Heritage Tomatoes',
         price: 5.4,
         unit: 'kg',
-        isBio: true,
         vendorName: 'Riverside Green Farm',
         image: null,
       },
@@ -31,7 +30,6 @@ const FALLBACK_RECOMMENDATIONS = {
         name: 'Carrots',
         price: 3.2,
         unit: 'kg',
-        isBio: true,
         vendorName: 'Garden Patch Co-op',
         image: null,
       },
@@ -46,7 +44,6 @@ const FALLBACK_RECOMMENDATIONS = {
         name: 'Farmhouse Yogurt',
         price: 4.8,
         unit: 'jar',
-        isBio: true,
         vendorName: 'Morning Meadow Honey',
         image: null,
       },
@@ -55,7 +52,6 @@ const FALLBACK_RECOMMENDATIONS = {
         name: 'Raw Milk Cheese',
         price: 7.9,
         unit: 'piece',
-        isBio: false,
         vendorName: 'Alpine Milk Works',
         image: null,
       },
@@ -70,7 +66,6 @@ const FALLBACK_RECOMMENDATIONS = {
         name: 'Grass-Fed Beef Cuts',
         price: 14.5,
         unit: 'kg',
-        isBio: true,
         vendorName: 'Oakfield Ranch',
         image: null,
       },
@@ -79,7 +74,6 @@ const FALLBACK_RECOMMENDATIONS = {
         name: 'Free-Range Chicken',
         price: 10.2,
         unit: 'kg',
-        isBio: true,
         vendorName: 'Hilltop Poultry',
         image: null,
       },
@@ -336,9 +330,6 @@ export default function LandingPage() {
                   <p className="recommendation-price">
                     {formatPrice(product.price)} / {product.unit || 'unit'}
                   </p>
-                  <span className="badge">
-                    {product.isBio ? 'Bio-conscious' : 'Traditional craft'}
-                  </span>
                 </div>
               </article>
             );

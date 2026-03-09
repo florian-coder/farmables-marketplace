@@ -191,7 +191,6 @@ export default function VendorProductsPage() {
                         · {product.unit} · ${product.price}{' '}
                         ·{' '}
                         {`Rating ${Number(product.rating ?? 0)}/5`}
-                        {product.isBio ? ' · Bio Verified' : ' · Conventional'}
                         {product.instantBuy ? ' · Instant buy' : ' · Inquiry only'}
                       </p>
                       {isUpload ? (

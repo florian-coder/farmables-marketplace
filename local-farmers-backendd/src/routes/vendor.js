@@ -596,7 +596,6 @@ router.post('/products', requireVendor, async (req, res, next) => {
       quantity: Number(quantityValue.toFixed(2)),
       Price: Number(priceValue.toFixed(2)),
       available: toIntFlag(available !== false),
-      'bio check': toIntFlag(Boolean(isBio)),
       instant_buy: Boolean(instantBuy),
       'photo url': typeof imageUrl === 'string' && imageUrl.trim() ? imageUrl.trim() : null,
     };
