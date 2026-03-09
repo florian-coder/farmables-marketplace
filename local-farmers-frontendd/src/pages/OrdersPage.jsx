@@ -12,9 +12,9 @@ const ORDER_TABS = [
 ];
 
 const STATE_LABELS = {
-  placed_order: 'Placed order',
-  pending_order: 'Pending order',
-  received_by_farmer: 'Received by farmer',
+  placed_order: 'In cart',
+  pending_order: 'Awaiting payment',
+  received_by_farmer: 'Accepted by farmer',
   preparing_order: 'Preparing order',
   in_transit: 'In transit',
   arrived: 'Arrived',
@@ -54,8 +54,22 @@ export default function OrdersPage() {
   const [orderActionStatus, setOrderActionStatus] = useState({});
   const [replyDrafts, setReplyDrafts] = useState({});
   const [replyStatus, setReplyStatus] = useState({});
+  const [stripeNotice, setStripeNotice] = useState(null);
 
   const isAllowedRole = user?.role === 'customer' || user?.role === 'vendor';
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('success') === 'true') {
+      setStripeNotice({ state: 'success', message: 'Payment successful! Your order is now active.' });
+      setActiveTab('active');
+      // Clean up URL
+      window.history.replaceState({}, '', window.location.pathname);
+    } else if (params.get('canceled') === 'true') {
+      setStripeNotice({ state: 'error', message: 'Payment was canceled.' });
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
 
   const setActionStatusForOrder = (orderId, state, message) => {
     if (!orderId) {
@@ -216,6 +230,26 @@ export default function OrdersPage() {
     }
   };
 
+  const verifyPaymentStatus = async (orderId) => {
+    setActionStatusForOrder(orderId, 'loading', 'Verifying payment status...');
+    try {
+      const response = await apiFetch(`/api/checkout/verify-status/${orderId}`, { method: 'GET' });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Verification failed.');
+      }
+      if (data.status === 'paid') {
+        setActionStatusForOrder(orderId, 'success', 'Payment verified! Your order is now active.');
+        setActiveTab('active');
+        await loadOrders('active');
+      } else {
+        setActionStatusForOrder(orderId, 'error', 'Payment not found or still processing.');
+      }
+    } catch (error) {
+      setActionStatusForOrder(orderId, 'error', error.message);
+    }
+  };
+
   const handleReplySubmit = async (event, orderId) => {
     event.preventDefault();
     const message = (replyDrafts[orderId] || '').trim();
@@ -328,6 +362,20 @@ export default function OrdersPage() {
         ))}
       </div>
 
+      {stripeNotice && (
+        <p className={`notice ${stripeNotice.state === 'error' ? 'error' : 'success'}`}>
+          {stripeNotice.message}
+          <button 
+            type="button" 
+            className="button ghost small" 
+            style={{ marginLeft: '12px' }}
+            onClick={() => setStripeNotice(null)}
+          >
+            Close
+          </button>
+        </p>
+      )}
+
       {loadStatus.state === 'loading' && <p className="notice">Loading orders...</p>}
       {loadStatus.state === 'error' && <p className="notice error">{loadStatus.message}</p>}
 
@@ -408,6 +456,17 @@ export default function OrdersPage() {
 
             {order.allowedActions?.length > 0 && (
               <div className="order-actions">
+                {order.orderState === 'pending_order' && user.role === 'customer' && (
+                  <button
+                    type="button"
+                    className="button ghost small"
+                    onClick={() => verifyPaymentStatus(order.id)}
+                    disabled={orderActionStatus[order.id]?.state === 'loading'}
+                    style={{ marginRight: '8px' }}
+                  >
+                    Check payment status
+                  </button>
+                )}
                 {order.allowedActions.map((action) => (
                   <button
                     key={`${order.id}-${action.nextState}`}

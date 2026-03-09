@@ -84,4 +84,45 @@ router.post('/create-checkout-session', requireAuth, async (req, res) => {
   }
 });
 
+router.get('/verify-status/:orderId', requireAuth, async (req, res) => {
+  const { orderId } = req.params;
+
+  try {
+    // 1. Fetch recent sessions from Stripe
+    const sessions = await stripe.checkout.sessions.list({
+      limit: 10,
+    });
+
+    // 2. Find if any session matches our orderId and is paid
+    const matchingSession = sessions.data.find(
+      (s) => s.metadata.orderId === orderId && s.payment_status === 'paid'
+    );
+
+    if (matchingSession) {
+      // 3. Update the order state to received_by_farmer if it's still pending
+      const { data: order, error: fetchError } = await supabase
+        .from(TABLES.orders)
+        .select('order_state')
+        .eq('id', orderId)
+        .single();
+
+      if (!fetchError && order.order_state === 'pending_order') {
+        await supabase
+          .from(TABLES.orders)
+          .update({ order_state: 'received_by_farmer' })
+          .eq('id', orderId);
+        
+        return res.json({ status: 'paid', updated: true });
+      }
+
+      return res.json({ status: 'paid', updated: false });
+    }
+
+    return res.json({ status: 'unpaid' });
+  } catch (error) {
+    console.error('Error verifying payment status:', error);
+    res.status(500).json({ error: 'Failed to verify payment status.' });
+  }
+});
+
 module.exports = router;

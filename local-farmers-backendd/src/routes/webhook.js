@@ -17,7 +17,9 @@ router.post(
       if (endpointSecret) {
         event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
       } else {
-        event = JSON.parse(req.body);
+        // Handle case where req.body might be a Buffer from express.raw
+        const bodyStr = Buffer.isBuffer(req.body) ? req.body.toString() : req.body;
+        event = typeof bodyStr === 'string' ? JSON.parse(bodyStr) : bodyStr;
       }
     } catch (err) {
       console.error('Webhook signature verification failed.', err.message);
@@ -32,12 +34,12 @@ router.post(
           const orderId = session.metadata.orderId;
           
           if (orderId) {
-            // Update order status to paid
+            // Update order status to auto-accepted (received_by_farmer)
             await supabase
               .from('orders')
-              .update({ order_state: 'pending_order' }) // or 'paid_order' depending on your states
+              .update({ order_state: 'received_by_farmer' }) 
               .eq('id', orderId);
-            console.log(`Order ${orderId} marked as paid/pending_order`);
+            console.log(`Order ${orderId} marked as paid/received_by_farmer`);
           }
           break;
         }

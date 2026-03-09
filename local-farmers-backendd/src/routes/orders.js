@@ -79,11 +79,14 @@ const ALLOWED_TRANSITIONS = {
       { nextState: 'pending_order', label: 'Pay & Place order' },
       { nextState: 'cancelled', label: 'Cancel order' }
     ],
+    pending_order: [
+      { nextState: 'pending_order', label: 'Pay & Place order' },
+      { nextState: 'cancelled', label: 'Cancel order' }
+    ],
     arrived: [{ nextState: 'received', label: 'Confirm received' }],
   },
   vendor: {
     pending_order: [
-      { nextState: 'received_by_farmer', label: 'Accept order' },
       { nextState: 'cancelled', label: 'Decline order' }
     ],
     received_by_farmer: [{ nextState: 'preparing_order', label: 'Preparing order' }],
@@ -259,6 +262,8 @@ const fetchOrdersByStates = async ({ user, vendorRecord, states }) => {
       return [];
     }
     query = query.eq('farmer_id', vendorRecord.id);
+    // Vendors should see unpaid orders (pending_order) but NOT carts (placed_order).
+    query = query.neq('order_state', 'placed_order');
   } else {
     return [];
   }
