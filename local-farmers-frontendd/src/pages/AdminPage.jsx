@@ -249,6 +249,28 @@ export default function AdminPage() {
     }
   };
 
+  const handleUpdatePermissions = async (requestId, permissions) => {
+    if (!requestId) return;
+    setActionStatus({ state: 'loading', message: 'Updating permissions...' });
+    try {
+      const response = await apiFetch(`/api/admin/farmer-requests/${requestId}/permissions`, {
+        method: 'PATCH',
+        body: JSON.stringify(permissions),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Unable to update permissions.');
+      }
+      setActionStatus({ state: 'success', message: 'Permissions updated.' });
+      await loadRequests();
+    } catch (error) {
+      setActionStatus({
+        state: 'error',
+        message: error.message || 'Unable to update permissions.',
+      });
+    }
+  };
+
   const handleDeleteFarm = async (requestId) => {
     if (!requestId) {
       return;
@@ -446,6 +468,41 @@ export default function AdminPage() {
                 <p className="admin-request-value">N/A</p>
               )}
             </div>
+
+            {(request.status === 'approved' || request.status === 'pending') && request.permissions && (
+              <div className="admin-request-field" style={{ background: 'var(--surface-color)', padding: '1rem', borderRadius: '4px', border: '1px solid var(--border-color)' }}>
+                <p className="admin-request-label" style={{ marginBottom: '0.5rem' }}>Selling Permissions</p>
+                <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <input 
+                      type="checkbox" 
+                      checked={request.permissions.fruits_and_veggies} 
+                      onChange={(e) => handleUpdatePermissions(request.id, { fruits_and_veggies: e.target.checked })}
+                      disabled={actionStatus.state === 'loading'}
+                    /> 
+                    Fruits & Vegetables
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <input 
+                      type="checkbox" 
+                      checked={request.permissions.eggs} 
+                      onChange={(e) => handleUpdatePermissions(request.id, { eggs: e.target.checked })}
+                      disabled={actionStatus.state === 'loading'}
+                    /> 
+                    Eggs
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <input 
+                      type="checkbox" 
+                      checked={request.permissions.honey} 
+                      onChange={(e) => handleUpdatePermissions(request.id, { honey: e.target.checked })}
+                      disabled={actionStatus.state === 'loading'}
+                    /> 
+                    Honey
+                  </label>
+                </div>
+              </div>
+            )}
 
             {showProductsBlock && (
               <div className="admin-request-field">

@@ -566,6 +566,27 @@ router.post('/products', requireVendor, async (req, res, next) => {
       return res.status(400).json({ error: 'Vendor profile is required.' });
     }
 
+    // Check permissions before allowing product creation
+    const { data: permissions, error: permError } = await supabase
+      .from('permission')
+      .select('fruits_and_veggies, eggs, honey')
+      .eq('id', farmer.id)
+      .single();
+
+    if (permError) {
+      return res.status(500).json({ error: 'Unable to verify seller permissions.' });
+    }
+
+    if (category === 'fruits_and_vegetables' && !permissions?.fruits_and_veggies) {
+      return res.status(403).json({ error: 'You do not have permission to sell Fruits and Vegetables.' });
+    }
+    if (category === 'eggs' && !permissions?.eggs) {
+      return res.status(403).json({ error: 'You do not have permission to sell Eggs.' });
+    }
+    if (category === 'honey' && !permissions?.honey) {
+      return res.status(403).json({ error: 'You do not have permission to sell Honey.' });
+    }
+
     const payload = {
       farmer_id: farmer.id,
       'product name': normalizeText(name, 180),

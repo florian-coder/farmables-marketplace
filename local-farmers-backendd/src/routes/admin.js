@@ -89,8 +89,9 @@ const normalizePublicUrls = (images) => {
   return normalized;
 };
 
-const mapRequestMeta = (request, usersById, productsByFarmer = new Map()) => {
+const mapRequestMeta = (request, usersById, productsByFarmer = new Map(), permissionsByFarmer = new Map()) => {
   const user = usersById.get(String(request.user_id)) || null;
+  const permissions = permissionsByFarmer.get(String(request.user_id)) || null;
   return {
     id: String(request.id || ''),
     userId: String(request.user_id || ''),
@@ -102,6 +103,7 @@ const mapRequestMeta = (request, usersById, productsByFarmer = new Map()) => {
     createdAt: request.created_at || null,
     updatedAt: request.updated_at || null,
     products: productsByFarmer.get(String(request.user_id)) || [],
+    permissions: permissions || { fruits_and_veggies: false, eggs: false, honey: false },
     payload: {
       farmName: request.farm_name || '',
       displayName: request.display_name || request.farm_name || '',
@@ -213,11 +215,13 @@ router.get('/farmer-requests', requireAdmin, async (_req, res, next) => {
     );
     const usersById = new Map();
     const productsByFarmer = new Map();
+    const permissionsByFarmer = new Map();
     if (userIds.length > 0) {
-      const [{ data: users, error: usersError }, { data: products, error: productsError }] =
+      const [{ data: users, error: usersError }, { data: products, error: productsError }, { data: permissions, error: permissionsError }] =
         await Promise.all([
           supabase.from(TABLES.users).select('id, username, email').in('id', userIds),
           supabase.from(TABLES.products).select(PRODUCT_COLUMNS).in('farmer_id', userIds),
+          supabase.from(TABLES.permissions).select('id, fruits_and_veggies, honey, eggs').in('id', userIds),
         ]);
 
       if (usersError) {
@@ -238,10 +242,13 @@ router.get('/farmer-requests', requireAdmin, async (_req, res, next) => {
         list.push(mapProductToApi(product));
         productsByFarmer.set(farmerId, list);
       }
+      for (const perm of permissions || []) {
+        permissionsByFarmer.set(String(perm.id), perm);
+      }
     }
 
     return res.json({
-      requests: (requests || []).map((entry) => mapRequestMeta(entry, usersById, productsByFarmer)),
+      requests: (requests || []).map((entry) => mapRequestMeta(entry, usersById, productsByFarmer, permissionsByFarmer)),
     });
   } catch (error) {
     return next(error);
@@ -280,6 +287,31 @@ router.post('/farmer-requests/:requestId/approve', requireAdmin, async (req, res
       .upsert(farmerPayload, { onConflict: 'id' });
     if (farmerError) {
       return res.status(500).json({ error: farmerError.message || 'Unable to approve request.' });
+    }
+    
+    const { data: existingPerms } = await supabase
+      .from(TABLES.permissions)
+      .select('fruits_and_veggies, eggs, honey')
+      .eq('id', request.user_id)
+      .single();
+
+    // Set initial permissions during approval based on uploaded documents.
+    // If they have eggs doc, allow eggs. If they have honey doc, allow honey.
+    // Fruits and veggies are generally open to any registered individual.
+    // Merge with any permissions the admin might have already granted during the pending phase.
+    const permissionPayload = {
+      id: request.user_id,
+      fruits_and_veggies: existingPerms?.fruits_and_veggies || true, 
+      eggs: existingPerms?.eggs || !!request.documents?.sanitary_doc_egg,
+      honey: existingPerms?.honey || !!request.documents?.sanitary_doc_honey,
+    };
+    
+    const { error: permissionError } = await supabase
+      .from(TABLES.permissions)
+      .upsert(permissionPayload, { onConflict: 'id' });
+      
+    if (permissionError) {
+      console.error('[admin] Failed to set initial permissions:', permissionError);
     }
 
     const docsPayload = {
@@ -415,6 +447,49 @@ router.delete('/farmer-requests/:requestId/farm', requireAdmin, async (req, res,
         products: Array.isArray(deletedProducts) ? deletedProducts.length : 0,
       },
     });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.patch('/farmer-requests/:requestId/permissions', requireAdmin, async (req, res, next) => {
+  try {
+    const requestId = typeof req.params?.requestId === 'string' ? req.params.requestId.trim() : '';
+    if (!requestId) {
+      return res.status(400).json({ error: 'requestId is required.' });
+    }
+
+    const request = await fetchRequestById(requestId);
+    if (!request) {
+      return res.status(404).json({ error: 'Request not found.' });
+    }
+    if (request.status !== 'approved' && request.status !== 'pending') {
+      return res.status(400).json({ error: 'Permissions can only be changed for approved or pending farms.' });
+    }
+
+    const { fruits_and_veggies, eggs, honey } = req.body;
+
+    const payload = {};
+    if (typeof fruits_and_veggies === 'boolean') payload.fruits_and_veggies = fruits_and_veggies;
+    if (typeof eggs === 'boolean') payload.eggs = eggs;
+    if (typeof honey === 'boolean') payload.honey = honey;
+
+    if (Object.keys(payload).length === 0) {
+      return res.status(400).json({ error: 'No valid permissions provided to update.' });
+    }
+
+    const { data: updatedPermissions, error: updateError } = await supabase
+      .from(TABLES.permissions)
+      .update(payload)
+      .eq('id', request.user_id)
+      .select()
+      .single();
+
+    if (updateError) {
+      return res.status(500).json({ error: updateError.message || 'Unable to update permissions.' });
+    }
+
+    return res.json({ permissions: updatedPermissions });
   } catch (error) {
     return next(error);
   }

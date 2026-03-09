@@ -32,6 +32,7 @@ const TABLES = {
   orders: 'orders',
   orderItems: 'order_items',
   orderReplies: 'order_replies',
+  permissions: 'permission',
 };
 
 const dedupe = (values) => {
