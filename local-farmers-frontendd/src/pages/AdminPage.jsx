@@ -408,13 +408,13 @@ export default function AdminPage() {
             
             {request.payload?.documents && Object.keys(request.payload.documents).length > 0 && (
               <div className="admin-request-field">
-                <p className="admin-request-label">Detalii Juridice și Documente</p>
+                <p className="admin-request-label">Legal Details & Documents</p>
                 <div style={{ display: 'grid', gap: '0.5rem', marginTop: '0.5rem' }}>
                   {Object.entries(request.payload.documents).map(([docKey, docUrl]) => (
                     <div key={docKey} style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.5rem', background: 'var(--surface-color)', border: '1px solid var(--border-color)', borderRadius: '4px' }}>
                       <strong style={{ minWidth: '200px' }}>{docKey}:</strong>
                       <a href={docUrl} target="_blank" rel="noreferrer" className="button ghost small">
-                        Vezi Document
+                        View Document
                       </a>
                     </div>
                   ))}

@@ -20,11 +20,11 @@ const toLabel = (category) => {
   if (category === 'fruits_and_vegetables') {
     return 'Fruits and Vegetables';
   }
-  if (category === 'meat') {
-    return 'Meat';
+  if (category === 'eggs') {
+    return 'Eggs';
   }
-  if (category === 'dairy_products') {
-    return 'Dairy Products';
+  if (category === 'honey') {
+    return 'Honey Products';
   }
   return category || 'Other';
 };

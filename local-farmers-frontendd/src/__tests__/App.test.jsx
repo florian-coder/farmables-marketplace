@@ -40,9 +40,9 @@ describe('App', () => {
                       },
                     ],
                   },
-                  dairy_products: {
-                    category: 'dairy_products',
-                    label: 'Dairy',
+                  honey: {
+                    category: 'honey',
+                    label: 'Honey',
                     products: [
                       {
                         id: 'd-1',
@@ -55,9 +55,9 @@ describe('App', () => {
                       },
                     ],
                   },
-                  meat: {
-                    category: 'meat',
-                    label: 'Meat',
+                  eggs: {
+                    category: 'eggs',
+                    label: 'Eggs',
                     products: [
                       {
                         id: 'm-1',
@@ -76,8 +76,8 @@ describe('App', () => {
                   weights: { revenue: 0.5, orders: 0.3, quantity: 0.2 },
                   categories: [
                     {
-                      category: 'meat',
-                      categoryLabel: 'Meat',
+                      category: 'eggs',
+                      categoryLabel: 'Eggs',
                       winner: {
                         farmerId: 'f1',
                         farmerName: 'Alex Pop',
@@ -92,8 +92,8 @@ describe('App', () => {
                       winner: null,
                     },
                     {
-                      category: 'dairy_products',
-                      categoryLabel: 'Dairy',
+                      category: 'honey',
+                      categoryLabel: 'Honey',
                       winner: null,
                     },
                   ],
@@ -129,7 +129,7 @@ describe('App', () => {
 
     expect(await screen.findByText(/sunny tomatoes/i)).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('tab', { name: /meat/i }));
+    fireEvent.click(screen.getByRole('tab', { name: /eggs/i }));
 
     expect(await screen.findByText(/pasture beef/i)).toBeInTheDocument();
   });

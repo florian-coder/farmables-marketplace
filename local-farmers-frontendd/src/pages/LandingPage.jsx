@@ -8,8 +8,8 @@ const HERO_IMAGE_URL =
 
 const CATEGORY_TABS = [
   { key: 'fruits_and_vegetables', label: 'Fruits & Vegetables' },
-  { key: 'meat', label: 'Meat' },
-  { key: 'dairy_products', label: 'Dairy' },
+  { key: 'eggs', label: 'Eggs' },
+  { key: 'honey', label: 'Honey' },
 ];
 
 const FALLBACK_RECOMMENDATIONS = {
@@ -37,9 +37,9 @@ const FALLBACK_RECOMMENDATIONS = {
       },
     ],
   },
-  dairy_products: {
-    category: 'dairy_products',
-    label: 'Dairy',
+  honey: {
+    category: 'honey',
+    label: 'Honey',
     products: [
       {
         id: 'fallback-dairy-1',
@@ -47,7 +47,7 @@ const FALLBACK_RECOMMENDATIONS = {
         price: 4.8,
         unit: 'jar',
         isBio: true,
-        vendorName: 'Morning Meadow Dairy',
+        vendorName: 'Morning Meadow Honey',
         image: null,
       },
       {
@@ -61,12 +61,12 @@ const FALLBACK_RECOMMENDATIONS = {
       },
     ],
   },
-  meat: {
-    category: 'meat',
-    label: 'Meat',
+  eggs: {
+    category: 'eggs',
+    label: 'Eggs',
     products: [
       {
-        id: 'fallback-meat-1',
+        id: 'fallback-eggs-1',
         name: 'Grass-Fed Beef Cuts',
         price: 14.5,
         unit: 'kg',
@@ -75,7 +75,7 @@ const FALLBACK_RECOMMENDATIONS = {
         image: null,
       },
       {
-        id: 'fallback-meat-2',
+        id: 'fallback-eggs-2',
         name: 'Free-Range Chicken',
         price: 10.2,
         unit: 'kg',
@@ -115,7 +115,7 @@ const FAQ_ITEMS = [
   {
     question: 'Why buy here instead of a store?',
     answer:
-      'Store products are often old and treated with chemicals to stay on shelves. Here, you get fresh meat, vegetables, and fruit directly from the farm.',
+      'Store products are often old and treated with chemicals to stay on shelves. Here, you get fresh eggs, vegetables, and fruit directly from the farm.',
   },
   {
     question: 'How do I know the food is clean?',

@@ -678,63 +678,63 @@ export default function VendorPage() {
           </label>
           
           <fieldset style={{ margin: '1rem 0', padding: '1rem', border: '1px solid #ccc', borderRadius: '4px' }}>
-            <legend style={{ padding: '0 0.5rem', fontWeight: 'bold' }}>Detalii Juridice și Documente</legend>
+            <legend style={{ padding: '0 0.5rem', fontWeight: 'bold' }}>Legal Details & Documents</legend>
             <label className="field">
-              Tip Entitate
+              Entity Type
               <select name="entityType" value={profile.entityType} onChange={handleProfileChange}>
-                <option value="pf">Persoană Fizică</option>
-                <option value="juridica">Entitate Juridică (PFA/II/SRL)</option>
+                <option value="pf">Individual (Persoană Fizică)</option>
+                <option value="juridica">Legal Entity (PFA/II/SRL)</option>
               </select>
             </label>
 
             {profile.entityType === 'pf' ? (
               <>
                 <label className="field">
-                  Atestat Producător - Față {profile.documents?.atestat_prod && <span className="success">(Încărcat deja)</span>}
+                  Producer Certificate - Front {profile.documents?.atestat_prod && <span className="success">(Uploaded)</span>}
                   <input type="file" name="atestat_prod" accept="image/*,.pdf" ref={setFileRef('atestat_prod')} required={!profile.documents?.atestat_prod} />
                 </label>
                 <label className="field">
-                  Atestat Producător - Verso {profile.documents?.atestat_prod_2 && <span className="success">(Încărcat deja)</span>}
+                  Producer Certificate - Back {profile.documents?.atestat_prod_2 && <span className="success">(Uploaded)</span>}
                   <input type="file" name="atestat_prod_2" accept="image/*,.pdf" ref={setFileRef('atestat_prod_2')} required={!profile.documents?.atestat_prod_2} />
                 </label>
                 <label className="field">
-                  Carnet de Comercializare {profile.documents?.carnet_commerce && <span className="success">(Încărcat deja)</span>}
+                  Commercialization Booklet {profile.documents?.carnet_commerce && <span className="success">(Uploaded)</span>}
                   <input type="file" name="carnet_commerce" accept="image/*,.pdf" ref={setFileRef('carnet_commerce')} required={!profile.documents?.carnet_commerce} />
                 </label>
               </>
             ) : (
               <>
                 <label className="field">
-                  Certificat de Înregistrare {profile.documents?.certificat_register && <span className="success">(Încărcat deja)</span>}
+                  Registration Certificate {profile.documents?.certificat_register && <span className="success">(Uploaded)</span>}
                   <input type="file" name="certificat_register" accept="image/*,.pdf" ref={setFileRef('certificat_register')} required={!profile.documents?.certificat_register} />
                 </label>
                 <label className="field">
-                  CUI {profile.documents?.cui && <span className="success">(Încărcat deja)</span>}
+                  Company ID (CUI) {profile.documents?.cui && <span className="success">(Uploaded)</span>}
                   <input type="file" name="cui" accept="image/*,.pdf" ref={setFileRef('cui')} required={!profile.documents?.cui} />
                 </label>
               </>
             )}
 
             <div className="field" style={{ marginTop: '1rem' }}>
-              <strong>Categorii Produse:</strong>
+              <strong>Product Categories:</strong>
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem' }}>
-                <input type="checkbox" name="product_oua" checked={profile.product_oua} onChange={handleProfileChange} /> Ouă
+                <input type="checkbox" name="product_oua" checked={profile.product_oua} onChange={handleProfileChange} /> Eggs
               </label>
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem' }}>
-                <input type="checkbox" name="product_miere" checked={profile.product_miere} onChange={handleProfileChange} /> Miere
+                <input type="checkbox" name="product_miere" checked={profile.product_miere} onChange={handleProfileChange} /> Honey
               </label>
             </div>
 
             {profile.product_oua && (
               <label className="field">
-                Document Înregistrare DSVSA pentru Ouă {profile.documents?.sanitary_doc_egg && <span className="success">(Încărcat deja)</span>}
+                Sanitary Registration Document (DSVSA) for Eggs {profile.documents?.sanitary_doc_egg && <span className="success">(Uploaded)</span>}
                 <input type="file" name="sanitary_doc_egg" accept="image/*,.pdf" ref={setFileRef('sanitary_doc_egg')} required={!profile.documents?.sanitary_doc_egg} />
               </label>
             )}
 
             {profile.product_miere && (
               <label className="field">
-                Document Înregistrare DSVSA pentru Miere {profile.documents?.sanitary_doc_honey && <span className="success">(Încărcat deja)</span>}
+                Sanitary Registration Document (DSVSA) for Honey {profile.documents?.sanitary_doc_honey && <span className="success">(Uploaded)</span>}
                 <input type="file" name="sanitary_doc_honey" accept="image/*,.pdf" ref={setFileRef('sanitary_doc_honey')} required={!profile.documents?.sanitary_doc_honey} />
               </label>
             )}
@@ -833,8 +833,8 @@ export default function VendorPage() {
                 onChange={handleProductChange}
               >
                 <option value="fruits_and_vegetables">Fruits and Vegetables</option>
-                <option value="meat">Meat</option>
-                <option value="dairy_products">Dairy Products</option>
+                <option value="eggs">Eggs</option>
+                <option value="honey">Honey Products</option>
               </select>
             </label>
             <label className="field">
@@ -847,7 +847,7 @@ export default function VendorPage() {
                 onChange={handleProductChange}
               />
               <p className="muted" style={{ fontSize: '0.8em', marginTop: '0.2rem' }}>
-                Specify details: e.g., which meat cut, type of milk, or specific vegetable variety.
+                Specify details: e.g., which eggs cut, type of milk, or specific vegetable variety.
               </p>
             </label>
             <label className="field">

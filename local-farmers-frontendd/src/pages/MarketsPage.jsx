@@ -157,15 +157,15 @@ export default function MarketsPage() {
           description: 'Aggregated market signals, soil health estimates, and live pricing snapshots for fresh produce.',
           showSoil: true,
         };
-      case 'meat':
+      case 'eggs':
         return {
-          title: 'Meat Market',
-          description: 'Direct access to local ranchers and butchers, with live pricing on sustainable meat products.',
+          title: 'Eggs',
+          description: 'Direct access to local ranchers and butchers, with live pricing on sustainable eggs products.',
           showSoil: false,
         };
-      case 'dairy_products':
+      case 'honey':
         return {
-          title: 'Dairy Products Market',
+          title: 'Honey Products Market',
           description: 'Fresh milk, cheese, and butter from local dairies with quality ratings and bio verification.',
           showSoil: false,
         };
@@ -388,15 +388,15 @@ export default function MarketsPage() {
               <p className="label">Products from vendors</p>
               {market.products && market.products.length > 0 ? (
                 <div className="categories-list">
-                  {['fruits_and_vegetables', 'meat', 'dairy_products', 'other'].map((catKey) => {
+                  {['fruits_and_vegetables', 'eggs', 'honey', 'other'].map((catKey) => {
                     if (catKey !== 'other' && catKey !== category) return null;
                     const catProducts = filterProducts(market.products).filter(p =>
                       catKey === 'other'
-                        ? !['fruits_and_vegetables', 'meat', 'dairy_products'].includes(p.category)
+                        ? !['fruits_and_vegetables', 'eggs', 'honey'].includes(p.category)
                         : p.category === catKey
                     );
                     if (catProducts.length === 0) return null;
-                    const catName = catKey === 'fruits_and_vegetables' ? 'Fruits and Vegetables' : catKey === 'meat' ? 'Meat' : catKey === 'dairy_products' ? 'Dairy Products' : 'Other';
+                    const catName = catKey === 'fruits_and_vegetables' ? 'Fruits and Vegetables' : catKey === 'eggs' ? 'Eggs' : catKey === 'honey' ? 'Honey Products' : 'Other';
                     return (
                       <div key={catKey} className="market-category" style={{ marginBottom: '1rem' }}>
                         <h4 style={{ margin: '0.5rem 0', fontSize: '1.1em' }}>{catName}</h4>

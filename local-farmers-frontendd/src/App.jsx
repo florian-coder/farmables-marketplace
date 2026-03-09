@@ -40,23 +40,21 @@ function FruitsVegIcon() {
   );
 }
 
-function MeatIcon() {
+function EggsIcon() {
   return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path d="M7 8.8c2.2-1.8 5.8-2.6 8.7-1.1 2 1 3.3 2.9 3.3 5 0 2.9-2.3 5.3-5.2 5.3-1.4 0-2.7-.5-3.8-1.4-.9-.7-1.7-1-2.8-1-1.7 0-3.2-1.4-3.2-3.2 0-1.4.6-2.5 1.6-3.6Z" />
-      <circle cx="11.7" cy="12.2" r="1.5" />
-      <path d="M4.4 15.2 3 16.6m2.9-2.9-1.4 1.4" />
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinelinejoin="round">
+      <path d="M12 22c4.418 0 8-4.477 8-10 0-5.523-3.582-10-8-10S4 6.477 4 12c0 5.523 3.582 10 8 10z" />
     </svg>
   );
 }
 
-function DairyIcon() {
+function HoneyIcon() {
   return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path d="M6.5 5h4v2l-.8 1.4v8.8c0 .9-.7 1.6-1.6 1.6H6.9c-.9 0-1.6-.7-1.6-1.6V8.4L6.5 7V5Z" />
-      <path d="M13.2 13.8h7.2l-2.2 4.1h-7.1Z" />
-      <circle cx="16.1" cy="15.4" r="0.6" fill="currentColor" stroke="none" />
-      <circle cx="18" cy="16.7" r="0.5" fill="currentColor" stroke="none" />
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinelinejoin="round">
+      <path d="M4 8h16l-1 14H5L4 8z" />
+      <path d="M8 8V6a4 4 0 018 0v2" />
+      <path d="M8 14h8" />
+      <path d="M9 18h6" />
     </svg>
   );
 }
@@ -68,14 +66,14 @@ const MARKET_MENU_ITEMS = [
     Icon: FruitsVegIcon,
   },
   {
-    to: '/markets/meat',
-    label: 'Meat',
-    Icon: MeatIcon,
+    to: '/markets/eggs',
+    label: 'Eggs',
+    Icon: EggsIcon,
   },
   {
-    to: '/markets/dairy_products',
-    label: 'Dairy',
-    Icon: DairyIcon,
+    to: '/markets/honey',
+    label: 'Honey',
+    Icon: HoneyIcon,
   },
 ];
 

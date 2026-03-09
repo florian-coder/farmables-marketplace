@@ -183,10 +183,10 @@ export default function VendorProductsPage() {
                       <p className="muted product-meta">
                         {product.category === 'fruits_and_vegetables'
                           ? 'Fruits and Vegetables'
-                          : product.category === 'meat'
-                            ? 'Meat'
-                            : product.category === 'dairy_products'
-                              ? 'Dairy Products'
+                          : product.category === 'eggs'
+                            ? 'Eggs'
+                            : product.category === 'honey'
+                              ? 'Honey Products'
                               : product.category}{' '}
                         · {product.unit} · ${product.price}{' '}
                         ·{' '}
