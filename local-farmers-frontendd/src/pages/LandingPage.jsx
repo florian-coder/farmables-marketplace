@@ -12,6 +12,39 @@ const CATEGORY_TABS = [
   { key: 'honey', label: 'Honey' },
 ];
 
+const CATEGORY_IMAGE_FALLBACKS = {
+  fruits_and_vegetables: [
+    {
+      url: 'https://images.pexels.com/photos/533280/pexels-photo-533280.jpeg',
+      alt: 'Fresh tomatoes',
+    },
+    {
+      url: 'https://images.pexels.com/photos/143133/pexels-photo-143133.jpeg',
+      alt: 'Fresh carrots',
+    },
+  ],
+  eggs: [
+    {
+      url: 'https://images.pexels.com/photos/162712/egg-white-food-protein-162712.jpeg',
+      alt: 'Farm eggs in basket',
+    },
+    {
+      url: 'https://images.pexels.com/photos/4110251/pexels-photo-4110251.jpeg',
+      alt: 'Fresh eggs on table',
+    },
+  ],
+  honey: [
+    {
+      url: 'https://images.pexels.com/photos/1638280/pexels-photo-1638280.jpeg',
+      alt: 'Honey jar',
+    },
+    {
+      url: 'https://images.pexels.com/photos/1028599/pexels-photo-1028599.jpeg',
+      alt: 'Honeycomb and honey dipper',
+    },
+  ],
+};
+
 const FALLBACK_RECOMMENDATIONS = {
   fruits_and_vegetables: {
     category: 'fruits_and_vegetables',
@@ -40,20 +73,26 @@ const FALLBACK_RECOMMENDATIONS = {
     label: 'Honey',
     products: [
       {
-        id: 'fallback-dairy-1',
-        name: 'Farmhouse Yogurt',
-        price: 4.8,
+        id: 'fallback-honey-1',
+        name: 'Raw Acacia Honey',
+        price: 8.5,
         unit: 'jar',
-        vendorName: 'Morning Meadow Honey',
-        image: null,
+        vendorName: 'Morning Meadow Apiary',
+        image: {
+          url: 'https://images.pexels.com/photos/1638280/pexels-photo-1638280.jpeg',
+          alt: 'Raw honey jar',
+        },
       },
       {
-        id: 'fallback-dairy-2',
-        name: 'Raw Milk Cheese',
-        price: 7.9,
-        unit: 'piece',
-        vendorName: 'Alpine Milk Works',
-        image: null,
+        id: 'fallback-honey-2',
+        name: 'Wildflower Honeycomb',
+        price: 9.8,
+        unit: 'box',
+        vendorName: 'Forest Edge Honey',
+        image: {
+          url: 'https://images.pexels.com/photos/1028599/pexels-photo-1028599.jpeg',
+          alt: 'Honeycomb and honey dipper',
+        },
       },
     ],
   },
@@ -63,19 +102,25 @@ const FALLBACK_RECOMMENDATIONS = {
     products: [
       {
         id: 'fallback-eggs-1',
-        name: 'Grass-Fed Beef Cuts',
-        price: 14.5,
-        unit: 'kg',
-        vendorName: 'Oakfield Ranch',
-        image: null,
+        name: 'Free-Range Brown Eggs',
+        price: 6.1,
+        unit: 'dozen',
+        vendorName: 'Oakfield Poultry',
+        image: {
+          url: 'https://images.pexels.com/photos/162712/egg-white-food-protein-162712.jpeg',
+          alt: 'Free-range eggs',
+        },
       },
       {
         id: 'fallback-eggs-2',
-        name: 'Free-Range Chicken',
-        price: 10.2,
-        unit: 'kg',
+        name: 'Pasture-Raised Quail Eggs',
+        price: 4.9,
+        unit: 'pack',
         vendorName: 'Hilltop Poultry',
-        image: null,
+        image: {
+          url: 'https://images.pexels.com/photos/4110251/pexels-photo-4110251.jpeg',
+          alt: 'Pasture-raised eggs',
+        },
       },
     ],
   },
@@ -162,6 +207,30 @@ const formatPrice = (value) => {
   return `$${parsed.toFixed(2)}`;
 };
 
+const withRecommendationImageFallback = (categoryKey, product, index) => {
+  if (!product || product.image?.url) {
+    return product;
+  }
+
+  const fallbacks = CATEGORY_IMAGE_FALLBACKS[categoryKey];
+  if (!Array.isArray(fallbacks) || fallbacks.length === 0) {
+    return product;
+  }
+
+  const fallbackImage = fallbacks[index % fallbacks.length];
+  if (!fallbackImage?.url) {
+    return product;
+  }
+
+  return {
+    ...product,
+    image: {
+      url: fallbackImage.url,
+      alt: product.name ? `${product.name} photo` : fallbackImage.alt,
+    },
+  };
+};
+
 export default function LandingPage() {
   const [homeState, setHomeState] = useState({ status: 'loading', data: null });
   const [activeTab, setActiveTab] = useState(CATEGORY_TABS[0].key);
@@ -206,13 +275,16 @@ export default function LandingPage() {
         const safeProducts = Array.isArray(apiEntry?.products)
           ? apiEntry.products
           : FALLBACK_RECOMMENDATIONS[entry.key].products;
+        const productsWithFallbackImages = safeProducts.map((product, index) =>
+          withRecommendationImageFallback(entry.key, product, index),
+        );
 
         return [
           entry.key,
           {
             category: entry.key,
             label: apiEntry?.label || entry.label,
-            products: safeProducts,
+            products: productsWithFallbackImages,
           },
         ];
       }),
@@ -350,11 +422,10 @@ export default function LandingPage() {
         <div className="landing-section-head">
           <h2>Farmer of the Month</h2>
           <p className="muted">
-            Each category winner is selected automatically from this month&apos;s
-            numbers.
+            Three farmers are randomly featured every month.
           </p>
           {farmerOfMonthMeta?.month && (
-            <p className="muted">Scoring month: {farmerOfMonthMeta.month}</p>
+            <p className="muted">Selection month: {farmerOfMonthMeta.month}</p>
           )}
         </div>
         <div className="certificate-grid">
@@ -383,7 +454,7 @@ export default function LandingPage() {
                   {winner?.farmerName || 'No winner registered yet'}
                 </p>
                 <p className="certificate-farm">
-                  {winner?.farmName || 'Awaiting completed monthly sales data'}
+                  {winner?.farmName || 'Waiting for available farmer profiles'}
                 </p>
                 {winner && (
                   <div className="certificate-metrics">

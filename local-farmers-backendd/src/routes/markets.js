@@ -4,24 +4,18 @@ const { getOrSetCache } = require('../lib/cacheStore');
 const { getProductImage } = require('../lib/productMedia');
 const { supabase, TABLES } = require('../lib/supabase');
 const { DEFAULT_MARKETS, mapProductToApi } = require('../lib/domain');
-const {
-  CATEGORY_CONFIG,
-  normalizeCategory,
-  buildMonthlyWinners,
-} = require('../lib/farmerRanking');
 
 const router = express.Router();
 
 const MARKET_PRODUCTS_LIMIT = 50; // Increased limit to get more products for stats
 const DAILY_RECOMMENDATION_LIMIT = 4;
-const COMPLETED_ORDER_STATES = [
-  'received_by_farmer',
-  'preparing_order',
-  'in_transit',
-  'arrived',
-  'received',
-];
+const FARMER_OF_MONTH_LIMIT = 3;
 const MONTH_PARAM_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
+const HOME_CATEGORY_CONFIG = Object.freeze([
+  { key: 'fruits_and_vegetables', label: 'Fruits & Vegetables' },
+  { key: 'eggs', label: 'Eggs' },
+  { key: 'honey', label: 'Honey' },
+]);
 
 const PRODUCT_COLUMNS = [
   'id',
@@ -161,8 +155,8 @@ const toRecommendationEntry = (product) => ({
 
 const loadDailyRecommendations = async () => {
   const rows = await Promise.all(
-    CATEGORY_CONFIG.map(async ({ key, label }) => {
-      const products = await loadProducts(key, { withImageFallback: false });
+    HOME_CATEGORY_CONFIG.map(async ({ key, label }) => {
+      const products = await loadProducts(key);
       const recommendedProducts = sortProductsByNewest(products)
         .filter((product) => Boolean(product.available))
         .slice(0, DAILY_RECOMMENDATION_LIMIT)
@@ -241,139 +235,78 @@ const loadFarmerMetadataById = async (farmerIds) => {
   return metadataById;
 };
 
-const loadFarmerOfMonth = async ({ month, startIso, endIso }) => {
-  const { data: orders, error: ordersError } = await supabase
-    .from(TABLES.orders)
-    .select('id, farmer_id, order_state, created_at')
-    .gte('created_at', startIso)
-    .lt('created_at', endIso)
-    .in('order_state', COMPLETED_ORDER_STATES);
+const shuffleInPlace = (items) => {
+  for (let index = items.length - 1; index > 0; index -= 1) {
+    const randomIndex = Math.floor(Math.random() * (index + 1));
+    const temp = items[index];
+    items[index] = items[randomIndex];
+    items[randomIndex] = temp;
+  }
+  return items;
+};
 
-  if (ordersError) {
-    throw new Error(ordersError.message || 'Unable to load monthly orders.');
+const toRandomFarmerWinner = (farmer) => ({
+  farmerId: farmer.farmerId,
+  farmerName: farmer.farmerName,
+  farmName: farmer.farmName,
+  photoUrl: farmer.photoUrl,
+  metrics: {
+    revenue: 0,
+    orders: 0,
+    quantity: 0,
+  },
+  coefficient: 0,
+});
+
+const loadFarmerOfMonth = async ({ month }) => {
+  const { data: farmers, error: farmersError } = await supabase
+    .from(TABLES.farmers)
+    .select('id, "display name", "farm name"');
+
+  if (farmersError) {
+    throw new Error(farmersError.message || 'Unable to load farmers for homepage.');
   }
 
-  const safeOrders = resolveArray(orders);
-  const orderIds = [...new Set(safeOrders.map((entry) => normalizeId(entry.id)).filter(Boolean))];
-  const farmerIds = [
-    ...new Set(safeOrders.map((entry) => normalizeId(entry.farmer_id)).filter(Boolean)),
-  ];
+  const safeFarmers = resolveArray(farmers);
+  const farmerIds = safeFarmers.map((entry) => normalizeId(entry.id)).filter(Boolean);
+  const farmerMetadataById = await loadFarmerMetadataById(farmerIds);
 
-  if (orderIds.length === 0) {
-    return {
-      month,
-      ...buildMonthlyWinners([]),
-    };
-  }
+  const candidates = safeFarmers
+    .map((farmer) => {
+      const farmerId = normalizeId(farmer.id);
+      if (!farmerId) {
+        return null;
+      }
+      const metadata = farmerMetadataById.get(farmerId) || {
+        farmerName: '',
+        farmName: '',
+        photoUrl: null,
+      };
 
-  const [{ data: orderItems, error: orderItemsError }, farmerMetadataById] =
-    await Promise.all([
-      supabase
-        .from(TABLES.orderItems)
-        .select('order_id, product_id, quantity, line_total')
-        .in('order_id', orderIds),
-      loadFarmerMetadataById(farmerIds),
-    ]);
+      const farmerName = metadata.farmerName || farmer['display name'] || 'Local Farmer';
+      const farmName = metadata.farmName || farmer['farm name'] || farmerName || 'Local Farm';
 
-  if (orderItemsError) {
-    throw new Error(orderItemsError.message || 'Unable to load monthly order items.');
-  }
+      return {
+        farmerId,
+        farmerName,
+        farmName,
+        photoUrl: metadata.photoUrl || null,
+      };
+    })
+    .filter(Boolean);
 
-  const safeOrderItems = resolveArray(orderItems);
-  if (safeOrderItems.length === 0) {
-    return {
-      month,
-      ...buildMonthlyWinners([]),
-    };
-  }
-
-  const productIds = [
-    ...new Set(safeOrderItems.map((entry) => normalizeId(entry.product_id)).filter(Boolean)),
-  ];
-
-  let productCategories = [];
-  if (productIds.length > 0) {
-    const { data: products, error: productsError } = await supabase
-      .from(TABLES.products)
-      .select('id, category')
-      .in('id', productIds);
-
-    if (productsError) {
-      throw new Error(productsError.message || 'Unable to load product categories.');
-    }
-    productCategories = resolveArray(products);
-  }
-
-  const categoryByProductId = new Map(
-    productCategories.map((entry) => [
-      normalizeId(entry.id),
-      normalizeCategory(entry.category),
-    ]),
-  );
-
-  const ordersById = new Map(
-    safeOrders.map((entry) => [normalizeId(entry.id), { ...entry, farmerId: normalizeId(entry.farmer_id) }]),
-  );
-
-  const groupedPerformance = new Map();
-
-  for (const item of safeOrderItems) {
-    const orderId = normalizeId(item.order_id);
-    const order = ordersById.get(orderId);
-    if (!order) {
-      continue;
-    }
-
-    const category = categoryByProductId.get(normalizeId(item.product_id));
-    if (!category) {
-      continue;
-    }
-
-    const farmerId = normalizeId(order.farmerId);
-    if (!farmerId) {
-      continue;
-    }
-
-    const key = `${category}:${farmerId}`;
-    const farmerMetadata = farmerMetadataById.get(farmerId) || {
-      farmerName: '',
-      farmName: '',
-      photoUrl: null,
-    };
-    const existing = groupedPerformance.get(key) || {
-      category,
-      farmerId,
-      farmerName: farmerMetadata.farmerName,
-      farmName: farmerMetadata.farmName,
-      photoUrl: farmerMetadata.photoUrl,
-      revenue: 0,
-      quantity: 0,
-      orderIds: new Set(),
-    };
-
-    existing.revenue += Math.max(0, toNumber(item.line_total, 0));
-    existing.quantity += Math.max(0, toNumber(item.quantity, 0));
-    existing.orderIds.add(orderId);
-    if (!existing.photoUrl && farmerMetadata.photoUrl) {
-      existing.photoUrl = farmerMetadata.photoUrl;
-    }
-    groupedPerformance.set(key, existing);
-  }
-
-  const performanceRows = Array.from(groupedPerformance.values()).map((entry) => ({
-    category: entry.category,
-    farmerId: entry.farmerId,
-    farmerName: entry.farmerName,
-    farmName: entry.farmName,
-    photoUrl: entry.photoUrl,
-    revenue: entry.revenue,
-    quantity: entry.quantity,
-    orderCount: entry.orderIds.size,
-  }));
+  shuffleInPlace(candidates);
+  const selectedFarmers = candidates
+    .slice(0, FARMER_OF_MONTH_LIMIT)
+    .map(toRandomFarmerWinner);
 
   return {
     month,
-    ...buildMonthlyWinners(performanceRows),
+    categories: HOME_CATEGORY_CONFIG.map((entry, index) => ({
+      category: entry.key,
+      categoryLabel: entry.label,
+      winner: selectedFarmers[index] || null,
+    })),
   };
 };
 

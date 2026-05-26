@@ -45,12 +45,12 @@ describe('App', () => {
                     label: 'Honey',
                     products: [
                       {
-                        id: 'd-1',
-                        name: 'Village Cheese',
-                        price: 7.1,
-                        unit: 'piece',
-                        isBio: false,
-                        vendorName: 'Milk Works',
+                        id: 'h-1',
+                        name: 'Raw Acacia Honey',
+                        price: 8.4,
+                        unit: 'jar',
+                        isBio: true,
+                        vendorName: 'Apiary Vale',
                         image: null,
                       },
                     ],
@@ -60,12 +60,12 @@ describe('App', () => {
                     label: 'Eggs',
                     products: [
                       {
-                        id: 'm-1',
-                        name: 'Pasture Beef',
-                        price: 14.3,
-                        unit: 'kg',
+                        id: 'e-1',
+                        name: 'Free-Range Eggs',
+                        price: 5.7,
+                        unit: 'dozen',
                         isBio: true,
-                        vendorName: 'Oak Ranch',
+                        vendorName: 'Oak Poultry',
                         image: null,
                       },
                     ],
@@ -131,7 +131,7 @@ describe('App', () => {
 
     fireEvent.click(screen.getByRole('tab', { name: /eggs/i }));
 
-    expect(await screen.findByText(/pasture beef/i)).toBeInTheDocument();
+    expect(await screen.findByText(/free-range eggs/i)).toBeInTheDocument();
   });
 
   it('expands FAQ answers in accordion mode', async () => {
