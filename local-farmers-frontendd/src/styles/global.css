@@ -449,6 +449,7 @@ a {
   display: grid;
   gap: var(--s-5);
   grid-template-columns: repeat(auto-fill, minmax(232px, 1fr));
+  align-items: stretch;
 }
 
 .recommendation-card {
@@ -464,32 +465,57 @@ a {
   animation-delay: var(--delay, 0ms);
 }
 
+/* Aceeași casetă fixă ca în piață: orice fișier sursă, aceleași
+   dimensiuni pe ecran. Grila iese perfect aliniată. */
 .recommendation-media {
-  min-height: 126px;
-  border-radius: var(--r-md);
-  background: var(--paper-2);
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  flex: 0 0 auto;
+  border-radius: var(--r-sm);
+  background: linear-gradient(135deg, var(--leaf-lo), var(--paper-2));
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--ink-3);
-  font-weight: 700;
+  color: var(--leaf-dk);
+  font-family: var(--f-display);
+  font-size: var(--t-7);
+  font-weight: 600;
   overflow: hidden;
 }
 
 .recommendation-media img {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: center;
   display: block;
 }
 
 .recommendation-body {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 4px;
+  flex: 1;
 }
 
 .recommendation-body h3 {
   margin: 0;
+  font-size: var(--t-5);
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: calc(2 * 1.3em);
+}
+
+.recommendation-price {
+  margin-top: auto;
+  padding-top: var(--s-2);
 }
 
 .recommendation-price {
@@ -557,23 +583,33 @@ a {
   text-transform: uppercase;
 }
 
+/* Portretele fermierilor: pătrat fix — funcționează pentru orice
+   fotografie de persoană și ține rândul perfect aliniat. */
 .certificate-photo {
+  position: relative;
   width: 100%;
-  aspect-ratio: 5 / 3.8;
-  border-radius: var(--r-md);
+  aspect-ratio: 1 / 1;
+  flex: 0 0 auto;
+  border-radius: var(--r-sm);
   overflow: hidden;
-  background: var(--paper-2);
+  background: linear-gradient(135deg, var(--sprout), var(--leaf));
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 700;
-  color: var(--ink-3);
+  font-family: var(--f-display);
+  font-size: var(--t-7);
+  font-weight: 600;
+  color: #fff;
 }
 
 .certificate-photo img {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: center;
+  display: block;
 }
 
 .certificate-name {
@@ -589,6 +625,7 @@ a {
 }
 
 .certificate-metrics {
+  margin-top: auto;
   display: grid;
   gap: 4px;
   font-size: var(--t-4);
@@ -820,13 +857,6 @@ a {
 
 
 
-.label {
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  font-size: var(--t-1);
-  color: var(--ink-muted);
-  margin-bottom: 4px;
-}
 
 .badge {
   font-variant-numeric: tabular-nums;
@@ -1520,99 +1550,21 @@ a {
 }
 
 
-.orders-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-bottom: 16px;
-}
 
-.orders-list {
-  display: grid;
-  gap: 12px;
-}
 
-.order-card {
-  display: grid;
-  gap: 10px;
-}
 
-.order-card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 12px;
-}
 
-.order-card-header h2 {
-  margin: 0;
-}
 
-.order-card-header p {
-  margin: 4px 0 0;
-}
 
-.order-badge-group {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  justify-content: flex-end;
-}
 
-.order-items ul {
-  margin: 8px 0 0;
-  padding-left: 18px;
-  display: grid;
-  gap: 4px;
-}
 
-.order-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
 
-.order-replies {
-  display: grid;
-  gap: 8px;
-}
 
-.order-replies-list {
-  display: grid;
-  gap: 8px;
-  max-height: 240px;
-  overflow-y: auto;
-  padding-right: 4px;
-}
 
-.order-reply-item {
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
-  padding: var(--s-2) var(--s-3);
-  background: var(--paper-0);
-}
 
-.order-reply-item.own {
-  background: var(--leaf-lo);
-  border-color: var(--leaf);
-}
 
-.order-reply-item p {
-  margin: 0;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
 
-.order-reply-meta {
-  font-size: var(--t-2);
-  color: var(--ink-muted);
-  margin-bottom: 4px;
-}
 
-.order-reply-form {
-  display: grid;
-  gap: 8px;
-}
 
 @media (min-width: 900px) {
   .landing-hero {
@@ -2483,4 +2435,474 @@ a {
 
 .recommendation-price {
   color: var(--honey);
+}
+
+/* ============================================================
+   Orders — coș, plată și traseu, într-un singur limbaj vizual
+   ============================================================ */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.orders-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  padding: var(--s-1);
+  background: var(--paper-2);
+  border-radius: var(--r-md);
+  width: fit-content;
+  max-width: 100%;
+}
+
+.orders-tab {
+  border: none;
+  background: transparent;
+  color: var(--ink-3);
+  font-family: inherit;
+  font-size: var(--t-2);
+  font-weight: 600;
+  padding: 0 var(--s-4);
+  min-height: 38px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition: background 0.16s ease, color 0.16s ease;
+}
+
+.orders-tab:hover {
+  color: var(--leaf-dk);
+}
+
+.orders-tab.active {
+  background: var(--paper-0);
+  color: var(--field);
+  box-shadow: var(--sh-1);
+}
+
+.orders-hint {
+  margin: 0;
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-sm);
+  background: var(--sky-lo);
+  border-left: 3px solid var(--sky);
+  color: var(--ink-1);
+  font-size: var(--t-2);
+}
+
+.orders-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-4);
+  padding: var(--s-7) var(--s-5);
+  border: 1px dashed var(--line-2);
+  border-radius: var(--r-md);
+  background: var(--paper-0);
+}
+
+.orders-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.order-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--paper-0);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+
+/* Coșul se distinge printr-o dungă verde, nu printr-o altă culoare de card. */
+.order-card.is-cart {
+  border-left: 4px solid var(--leaf);
+}
+
+.order-card-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding: var(--s-4);
+  border-bottom: 1px solid var(--line);
+  background: var(--paper-1);
+}
+
+.order-card-partner {
+  margin: 0;
+  font-family: var(--f-display);
+  font-size: var(--t-5);
+  font-weight: 600;
+  color: var(--field);
+}
+
+.order-card-ref {
+  margin: 2px 0 0;
+  font-size: var(--t-1);
+  color: var(--ink-3);
+}
+
+.order-card-headline {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.order-card-total {
+  font-size: var(--t-6);
+  font-weight: 700;
+  color: var(--honey);
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.order-state {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--s-1) var(--s-3);
+  border-radius: var(--r-xs);
+  font-size: var(--t-1);
+  font-weight: 700;
+  background: var(--paper-2);
+  color: var(--ink-1);
+  white-space: nowrap;
+}
+
+.order-state-placed_order {
+  background: var(--leaf-lo);
+  color: var(--leaf-dk);
+}
+.order-state-pending_order {
+  background: var(--warn-lo);
+  color: var(--warn);
+}
+.order-state-in_transit,
+.order-state-preparing_order,
+.order-state-received_by_farmer {
+  background: var(--sky-lo);
+  color: var(--sky);
+}
+.order-state-arrived,
+.order-state-received {
+  background: var(--ok-lo);
+  color: var(--ok);
+}
+.order-state-cancelled {
+  background: var(--bad-lo);
+  color: var(--bad);
+}
+
+/* --- traseul comenzii: șase pași, nu un singur badge --- */
+.order-timeline {
+  display: flex;
+  list-style: none;
+  margin: 0;
+  padding: var(--s-4) var(--s-4) 0;
+  gap: var(--s-1);
+  overflow-x: auto;
+}
+
+.order-timeline-step {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 74px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-2);
+  text-align: center;
+}
+
+.order-timeline-step::before {
+  content: '';
+  position: absolute;
+  top: 5px;
+  left: -50%;
+  width: 100%;
+  height: 2px;
+  background: var(--line);
+}
+
+.order-timeline-step:first-child::before {
+  display: none;
+}
+
+.order-timeline-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: var(--r-pill);
+  background: var(--line-2);
+  position: relative;
+  z-index: 1;
+}
+
+.order-timeline-label {
+  font-size: var(--t-1);
+  color: var(--ink-3);
+  line-height: 1.25;
+}
+
+.order-timeline-step.is-done::before,
+.order-timeline-step.is-current::before {
+  background: var(--leaf);
+}
+
+.order-timeline-step.is-done .order-timeline-dot {
+  background: var(--leaf);
+}
+
+.order-timeline-step.is-current .order-timeline-dot {
+  background: var(--leaf);
+  box-shadow: 0 0 0 4px var(--leaf-lo);
+}
+
+.order-timeline-step.is-current .order-timeline-label {
+  color: var(--field);
+  font-weight: 700;
+}
+
+/* --- produsele din comandă --- */
+.order-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.order-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+}
+
+.order-item + .order-item {
+  border-top: 1px solid var(--line);
+}
+
+.order-item-main {
+  min-width: 0;
+  flex: 1 1 190px;
+}
+
+.order-item-name {
+  margin: 0;
+  font-weight: 600;
+  color: var(--ink-1);
+}
+
+.order-item-unit {
+  margin: 0;
+  font-size: var(--t-1);
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.order-item-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+}
+
+.order-item-qty {
+  font-size: var(--t-2);
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.order-item-total {
+  min-width: 84px;
+  text-align: right;
+  font-weight: 700;
+  color: var(--ink-1);
+  font-variant-numeric: tabular-nums;
+}
+
+.quantity-value {
+  min-width: 34px;
+  text-align: center;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-1);
+}
+
+.order-card-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border-top: 1px solid var(--line);
+  background: var(--paper-1);
+}
+
+.order-card-meta {
+  font-size: var(--t-1);
+  color: var(--ink-3);
+}
+
+.order-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
+.notice-dismiss {
+  margin-left: var(--s-3);
+}
+
+/* --- conversația: pliată implicit, ca să nu îngroape comanda --- */
+.order-thread {
+  border-top: 1px solid var(--line);
+}
+
+.order-thread-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: var(--t-2);
+  font-weight: 600;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+
+.order-thread-toggle:hover {
+  color: var(--leaf-dk);
+}
+
+.order-thread-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  margin-left: var(--s-2);
+  padding: 0 6px;
+  border-radius: var(--r-pill);
+  background: var(--leaf);
+  color: #fff;
+  font-size: var(--t-1);
+}
+
+.order-thread-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: 0 var(--s-4) var(--s-4);
+}
+
+.order-replies-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.order-reply-item {
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: var(--s-2) var(--s-3);
+  background: var(--paper-1);
+}
+
+.order-reply-item.own {
+  background: var(--leaf-lo);
+  border-color: var(--leaf-line);
+}
+
+.order-reply-item p {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.order-reply-meta {
+  font-size: var(--t-1);
+  color: var(--ink-3);
+  margin-bottom: 2px;
+}
+
+.order-reply-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  align-items: flex-start;
+}
+
+.order-reply-form .field {
+  width: 100%;
+}
+
+/* --- totalul coșului, lipit jos --- */
+.cart-summary {
+  position: sticky;
+  bottom: var(--s-4);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding: var(--s-4) var(--s-5);
+  border-radius: var(--r-md);
+  border: 1px solid var(--leaf-line);
+  background: var(--leaf-lo);
+  box-shadow: var(--sh-2);
+}
+
+.cart-summary-label {
+  margin: 0;
+  font-weight: 700;
+  color: var(--field);
+}
+
+.cart-summary-note {
+  margin: 0;
+  font-size: var(--t-1);
+  color: var(--ink-3);
+}
+
+.cart-summary-total {
+  margin: 0;
+  font-size: var(--t-7);
+  font-weight: 700;
+  color: var(--field);
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 640px) {
+  .order-item {
+    align-items: flex-start;
+  }
+
+  .order-item-controls {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .order-card-foot {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }

@@ -114,12 +114,12 @@ describe('App', () => {
     vi.unstubAllGlobals();
   });
 
-  it('renders the redesigned hero headline', () => {
+  it('renders the hero headline', () => {
     render(<App />);
 
     expect(
       screen.getByRole('heading', {
-        name: /healthy people need appreciated farmers, we're here to look out for both/i,
+        name: /food that still remembers the field/i,
       }),
     ).toBeInTheDocument();
   });

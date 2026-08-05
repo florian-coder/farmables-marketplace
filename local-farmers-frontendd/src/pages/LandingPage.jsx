@@ -318,12 +318,11 @@ export default function LandingPage() {
       <header className="landing-hero">
         <div className="landing-hero-content">
           <p className="eyebrow">Farmables</p>
-          <h1>
-            healthy people need appreciated farmers, we&apos;re here to look out
-            for both
-          </h1>
+          <h1>Food that still remembers the field</h1>
           <p className="lead">
-            Our people deserve the best, and so do our farmers!
+            Every crate on Farmables comes from a farm we know by name —
+            harvested days ago, not stored for months, and priced fairly for
+            the people who grew it.
           </p>
           <div className="cta-row">
             <Link className="button primary" to="/markets">
