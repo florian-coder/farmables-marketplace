@@ -1,13 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 
-import {
-  apiFetch,
-  isUploadImage,
-  resolveImageUrl,
-  resolveUploadUrl,
-} from '../lib/api.js';
+import { apiFetch, resolveImageUrl } from '../lib/api.js';
 import { useAuth } from '../lib/auth.jsx';
+import ProductCard from '../components/ProductCard.jsx';
 
 const initialState = {
   status: 'loading',
@@ -16,18 +12,6 @@ const initialState = {
   error: '',
 };
 
-const toLabel = (category) => {
-  if (category === 'fruits_and_vegetables') {
-    return 'Fruits and Vegetables';
-  }
-  if (category === 'eggs') {
-    return 'Eggs';
-  }
-  if (category === 'honey') {
-    return 'Honey Products';
-  }
-  return category || 'Other';
-};
 
 const formatValue = (value) => {
   if (value === null || value === undefined || value === '') {
@@ -36,16 +20,6 @@ const formatValue = (value) => {
   return String(value);
 };
 
-const formatQuantity = (value) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) {
-    return 'N/A';
-  }
-  if (Number.isInteger(parsed)) {
-    return String(parsed);
-  }
-  return parsed.toFixed(2).replace(/\.?0+$/, '');
-};
 
 export default function VendorPublicProfilePage() {
   const { vendorId } = useParams();
@@ -241,104 +215,29 @@ export default function VendorPublicProfilePage() {
         </section>
 
         <section className="farm-block">
-          <h2>Products listed</h2>
+          <h2>Produse din fermă</h2>
           {state.products.length > 0 ? (
-            <div className="farm-products-list">
-              {state.products.map((product) => {
-                const hasUploadImage = isUploadImage(product.image);
-                const imageUrl = product.image?.url
-                  ? hasUploadImage
-                    ? resolveUploadUrl(product.image.url)
-                    : resolveImageUrl(product.image.url)
-                  : null;
-
-                return (
-                  <div className="farm-product-row" key={product.id}>
-                    <div className="farm-product-image">
-                      {imageUrl ? (
-                        <img
-                          src={imageUrl}
-                          alt={product.image?.alt || product.name}
-                        />
-                      ) : (
-                        <span>{product.name?.charAt(0)?.toUpperCase() || '?'}</span>
-                      )}
-                    </div>
-                    <div className="farm-product-content">
-                      <p className="farm-product-title">
-                        {product.name}
-                        {product.type ? ` (${product.type})` : ''}
-                      </p>
-                      <p className="muted">
-                        {toLabel(product.category)} · Qty: {formatQuantity(product.quantity)}{' '}
-                        {product.unit || 'unit'} ·{' '}
-                        {product.price !== null && product.price !== undefined
-                          ? `$${product.price}`
-                          : 'Price N/A'}
-                      </p>
-                      <p className="muted">
-                        {`Rating ${Number(product.rating ?? 0)}/5`} ·{' '}
-                        {product.available ? 'Available' : 'Unavailable'} ·{' '}
-                        {product.instantBuy ? 'Instant buy' : 'Inquiry only'}
-                      </p>
-                      {vendor?.id && (
-                        <div className="button-group" style={{ alignItems: 'center', flexWrap: 'wrap' }}>
-                          <Link className="button ghost small" to={`/chat?vendorId=${vendor.id}`}>
-                            Send inquiry
-                          </Link>
-                          {product.instantBuy && (
-                            <input
-                              type="number"
-                              min="1"
-                              max={product.quantity || 1}
-                              step="any"
-                              value={cartQuantities[product.id] ?? 1}
-                              onChange={(e) => {
-                                const val = e.target.value === '' ? '' : parseFloat(e.target.value);
-                                setCartQuantities((prev) => ({
-                                  ...prev,
-                                  [product.id]: val,
-                                }));
-                              }}
-                              style={{
-                                width: '80px',
-                                padding: '0.4rem',
-                                border: '1px solid var(--line-2)',
-                                borderRadius: 'var(--r-xs)',
-                              }}
-                              title="Quantity"
-                            />
-                          )}
-                          <button
-                            className="button secondary small"
-                            type="button"
-                            disabled={!product.instantBuy}
-                            onClick={() => handleAddToCart(product)}
-                          >
-                            {product.instantBuy ? 'Add to cart' : 'Inquiry only'}
-                          </button>
-                        </div>
-                      )}
-                      {cartFeedback[product.id]?.message && (
-                        <p
-                          className={`notice ${
-                            cartFeedback[product.id]?.status === 'error'
-                              ? 'error'
-                              : cartFeedback[product.id]?.status === 'success'
-                                ? 'success'
-                                : ''
-                          }`} role="status"
-                        >
-                          {cartFeedback[product.id].message}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+            <ul className="product-grid">
+              {state.products.map((product) => (
+                <ProductCard
+                  key={product.id}
+                  product={product}
+                  vendor={{
+                    id: vendor?.id,
+                    farmName: vendor?.farmName,
+                    city: vendor?.city,
+                  }}
+                  quantity={cartQuantities[product.id] ?? 1}
+                  onQuantityChange={(productId, next) =>
+                    setCartQuantities((prev) => ({ ...prev, [productId]: next }))
+                  }
+                  onAddToCart={handleAddToCart}
+                  feedback={cartFeedback[product.id]}
+                />
+              ))}
+            </ul>
           ) : (
-            <p className="muted">No products listed yet.</p>
+            <p className="muted">Încă nu sunt produse listate.</p>
           )}
         </section>
       </article>
