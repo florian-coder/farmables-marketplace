@@ -101,6 +101,62 @@
   --shadow-float: var(--sh-1);
 }
 
+/* ============================================================
+   Tema întunecată. Se redefinesc doar tokenii — nicio componentă
+   nu are nevoie de modificări, cu o singură excepție notată mai jos.
+   ============================================================ */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+
+    --paper-0: #191d18;
+    --paper-1: #111411;
+    --paper-2: #0b0d0a;
+    --line: #2a2f27;
+    --line-2: #3b4238;
+    --ink-3: #98a093; /* 6,33:1 pe paper-0 */
+    --ink-1: #e6e9e3; /* 13,92:1 pe paper-0 */
+
+    --field: #6fa687; /* 6,08:1 */
+    --field-hi: #86bb9d;
+    --field-lo: #1b2a21;
+
+    --harvest: #d9a245; /* 7,48:1 */
+    --harvest-dk: #e8b863; /* 9,32:1 — rolul se inversează la lumină redusă */
+    --harvest-lo: #2a2113;
+
+    --ok: #7db86a;
+    --ok-lo: #172214;
+    --warn: #d0a048;
+    --warn-lo: #261e10;
+    --bad: #e08872;
+    --bad-lo: #2a1a16;
+
+    --sh-1: 0 1px 2px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.3);
+    --sh-2: 0 8px 24px rgba(0, 0, 0, 0.5);
+
+    --surface-shadow: rgba(0, 0, 0, 0.4);
+  }
+
+  /* Singura excepție: pe fundal întunecat, verdele deschis cu text
+     închis citește mai bine decât verdele închis cu text alb. */
+  .button.primary {
+    color: #10130f;
+  }
+
+  .avatar {
+    color: #10130f;
+  }
+
+  /* Fotografiile de produs pe fundal întunecat câștigă dintr-un
+     contrast ușor redus; altfel „sar" din pagină. */
+  .product-card-media img,
+  .farm-hero-media img,
+  .landing-hero-visual img {
+    filter: brightness(0.92);
+  }
+}
+
 * {
   box-sizing: border-box;
 }
