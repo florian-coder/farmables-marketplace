@@ -245,7 +245,7 @@ export default function CustomerProfilePage() {
           <p
             className={`notice ${
               profileStatus.state === 'error' ? 'error' : 'success'
-            }`}
+            }`} role="status"
           >
             {profileStatus.message}
           </p>

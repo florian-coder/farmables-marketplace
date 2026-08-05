@@ -163,7 +163,7 @@ export default function VendorPublicProfilePage() {
   if (state.status === 'error') {
     return (
       <div className="page-section">
-        <div className="notice error">{state.error}</div>
+        <div className="notice error" role="alert">{state.error}</div>
         <Link className="button ghost" to="/markets/fruits_and_vegetables">
           Back to markets
         </Link>
@@ -327,7 +327,7 @@ export default function VendorPublicProfilePage() {
                               : cartFeedback[product.id]?.status === 'success'
                                 ? 'success'
                                 : ''
-                          }`}
+                          }`} role="status"
                         >
                           {cartFeedback[product.id].message}
                         </p>

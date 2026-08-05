@@ -96,7 +96,7 @@ export default function FarmersPage() {
       </div>
 
       {state.status === 'loading' && <div className="notice">Loading farmers...</div>}
-      {state.status === 'error' && <div className="notice error">{state.error}</div>}
+      {state.status === 'error' && <div className="notice error" role="alert">{state.error}</div>}
 
       {state.status === 'success' && (
         <div className="farmers-grid">

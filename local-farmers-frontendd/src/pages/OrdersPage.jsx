@@ -363,7 +363,7 @@ export default function OrdersPage() {
       </div>
 
       {stripeNotice && (
-        <p className={`notice ${stripeNotice.state === 'error' ? 'error' : 'success'}`}>
+        <p className={`notice ${stripeNotice.state === 'error' ? 'error' : 'success'}`} role="status">
           {stripeNotice.message}
           <button 
             type="button" 
@@ -377,7 +377,7 @@ export default function OrdersPage() {
       )}
 
       {loadStatus.state === 'loading' && <p className="notice">Loading orders...</p>}
-      {loadStatus.state === 'error' && <p className="notice error">{loadStatus.message}</p>}
+      {loadStatus.state === 'error' && <p className="notice error" role="alert">{loadStatus.message}</p>}
 
       {loadStatus.state === 'success' && orders.length === 0 && (
         <p className="muted">{emptyLabel}</p>
@@ -489,7 +489,7 @@ export default function OrdersPage() {
                     : orderActionStatus[order.id]?.state === 'success'
                       ? 'success'
                       : ''
-                }`}
+                }`} role="status"
               >
                 {orderActionStatus[order.id].message}
               </p>
@@ -550,7 +550,7 @@ export default function OrdersPage() {
                       : replyStatus[order.id]?.state === 'success'
                         ? 'success'
                         : ''
-                  }`}
+                  }`} role="status"
                 >
                   {replyStatus[order.id].message}
                 </p>

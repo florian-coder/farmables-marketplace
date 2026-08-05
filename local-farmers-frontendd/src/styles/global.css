@@ -593,54 +593,95 @@ a {
   font-size: var(--t-4);
 }
 
+/* ============================================================
+   Butoane — 4 niveluri.
+   Raza 6px, nu pastilă: pastila pe fiecare buton face platforma
+   să pară jucărie. Pastila rămâne pentru avatare și filtre.
+   ============================================================ */
 .button {
-  border: none;
-  padding: var(--s-3) var(--s-5);
-  border-radius: var(--r-pill);
+  border: 1px solid transparent;
+  padding: 0 var(--s-5);
+  border-radius: var(--r-sm);
+  font-family: inherit;
   font-weight: 600;
-  font-size: var(--t-4);
+  font-size: var(--t-3);
+  line-height: 1.2;
   cursor: pointer;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    background-color 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: var(--s-2);
   min-height: 44px;
+  text-align: center;
+}
+
+.button:focus-visible {
+  outline: 2px solid var(--field);
+  outline-offset: 2px;
 }
 
 .button.small {
-  padding: var(--s-2) var(--s-3);
+  padding: 0 var(--s-3);
   font-size: var(--t-2);
-  min-height: 32px;
+  min-height: 34px;
 }
 
 .button:disabled {
-  opacity: 0.7;
+  opacity: 0.55;
   cursor: not-allowed;
 }
 
+/* 1 — acțiunea principală a ecranului. Una singură pe vizualizare. */
 .button.primary {
-  background: var(--accent);
+  background: var(--field);
+  border-color: var(--field);
   color: #fff;
 }
 
-.button.primary:hover {
-  transform: translateY(-2px);
+.button.primary:hover:not(:disabled) {
+  background: var(--field-hi);
+  border-color: var(--field-hi);
 }
 
-.button.ghost {
-  background: transparent;
-  border: 1px solid var(--line-2);
-  color: var(--ink);
-}
-
-.button.ghost:hover {
-  border-color: var(--line-2);
-}
-
+/* 2 — acțiune secundară, echivalentă vizual cu un chenar. */
+.button.ghost,
 .button.secondary {
-  background: var(--highlight);
-  color: var(--ink);
-  border: 1px solid var(--line);
+  background: var(--paper-0);
+  border-color: var(--line-2);
+  color: var(--ink-1);
+}
+
+.button.ghost:hover:not(:disabled),
+.button.secondary:hover:not(:disabled) {
+  border-color: var(--field);
+  color: var(--field);
+}
+
+/* 3 — acțiune discretă: anulează, închide, înapoi. */
+.button.quiet {
+  background: transparent;
+  border-color: transparent;
+  color: var(--field);
+}
+
+.button.quiet:hover:not(:disabled) {
+  background: var(--field-lo);
+}
+
+/* 4 — distructiv. Lipsea: „șterge ferma" arăta ca „vezi piețele". */
+.button.danger {
+  background: var(--paper-0);
+  border-color: var(--line-2);
+  color: var(--bad);
+}
+
+.button.danger:hover:not(:disabled) {
+  background: var(--bad-lo);
+  border-color: var(--bad);
 }
 
 .stack {
@@ -727,12 +768,13 @@ a {
   font-variant-numeric: tabular-nums;
   display: inline-flex;
   align-items: center;
-  padding: var(--s-2) var(--s-3);
-  border-radius: var(--r-pill);
+  padding: var(--s-1) var(--s-3);
+  border-radius: var(--r-xs);
+  border: 1px solid var(--line);
   background: var(--paper-2);
   color: var(--ink-1);
   font-weight: 600;
-  font-size: var(--t-2);
+  font-size: var(--t-1);
 }
 
 .badge.ghost {
@@ -1753,29 +1795,66 @@ a {
 }
 
 /* Stock Badges */
+/* ============================================================
+   Stare: text cu bulină. O pastilă plină e la fel de proeminentă
+   ca prețul, dar starea stocului nu e la fel de importantă.
+   ============================================================ */
 .stock-badge {
-  padding: 0.2rem 0.75rem;
-  border-radius: var(--r-pill);
-  font-size: var(--t-1);
-  font-weight: 700;
   display: inline-flex;
   align-items: center;
+  gap: var(--s-2);
+  font-size: var(--t-1);
+  font-weight: 600;
+  color: var(--ink-3);
   white-space: nowrap;
 }
 
+.stock-badge::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: var(--r-pill);
+  background: currentcolor;
+  flex: 0 0 auto;
+}
+
 .stock-badge-out {
-  background-color: var(--bad-lo);
   color: var(--bad);
 }
 
 .stock-badge-low {
-  background-color: var(--warn-lo);
   color: var(--warn);
 }
 
-.stock-badge-ok {
-  background-color: var(--ok-lo);
-  color: var(--ok);
+.stock-badge-ok::before {
+  background: var(--ok);
+}
+
+/* Tag — pentru etichete adevărate: certificare, categorie, distincție. */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-1) var(--s-3);
+  border-radius: var(--r-xs);
+  border: 1px solid var(--line);
+  background: var(--paper-2);
+  color: var(--ink-1);
+  font-size: var(--t-1);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.tag.bio {
+  background: var(--field-lo);
+  border-color: #c9dbd0;
+  color: var(--field);
+}
+
+.tag svg {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 auto;
 }
 
 .product-rating-stock-row {
@@ -1803,30 +1882,33 @@ a {
   background-color: var(--accent);
   color: #fff;
   border: none;
-  padding: 0.65rem 1.25rem;
-  border-radius: var(--r-pill);
+  min-height: 44px;
+  padding: 0 var(--s-4);
+  border-radius: var(--r-sm);
   cursor: pointer;
   font-weight: 600;
+  font-size: var(--t-3);
   font-family: inherit;
-  transition: background-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+  transition: background-color 0.16s ease;
   flex: 1;
 }
 
 .btn-cart-primary:hover {
-  background-color: var(--accent-hover);
-  transform: translateY(-1px);
+  background-color: var(--field-hi);
 }
 
 .btn-inquiry-secondary {
   background-color: var(--surface-strong);
   color: var(--ink);
   border: 1px solid var(--stroke);
-  padding: 0.65rem 1.25rem;
-  border-radius: var(--r-pill);
+  min-height: 40px;
+  padding: 0 var(--s-4);
+  border-radius: var(--r-sm);
   cursor: pointer;
   font-weight: 600;
+  font-size: var(--t-2);
   font-family: inherit;
-  transition: border-color 0.2s ease, background-color 0.2s ease;
+  transition: border-color 0.16s ease, color 0.16s ease;
   flex: 1;
 }
 
@@ -1948,5 +2030,59 @@ a {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+/* ============================================================
+   Dialog de confirmare — înlocuiește window.confirm()
+   ============================================================ */
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--s-5);
+  background: rgba(26, 33, 31, 0.42);
+}
+
+.dialog {
+  width: min(440px, 100%);
+  background: var(--paper-0);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-md);
+  box-shadow: var(--sh-2);
+  padding: var(--s-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.dialog-title {
+  margin: 0;
+  font-size: var(--t-5);
+}
+
+.dialog-body {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: var(--t-3);
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--s-2);
+  margin-top: var(--s-2);
+}
+
+@media (max-width: 480px) {
+  .dialog-actions {
+    flex-direction: column-reverse;
+  }
+
+  .dialog-actions .button {
+    width: 100%;
   }
 }

@@ -338,7 +338,7 @@ export default function ChatPage() {
             <p className="muted">Loading conversations...</p>
           )}
           {listStatus.state === 'error' && (
-            <p className="notice error">{listStatus.message}</p>
+            <p className="notice error" role="alert">{listStatus.message}</p>
           )}
           {conversations.length > 0 ? (
             <div className="chat-conversation-list">
@@ -413,7 +413,7 @@ export default function ChatPage() {
               </div>
 
               {detailStatus.state === 'error' && (
-                <p className="notice error">{detailStatus.message}</p>
+                <p className="notice error" role="alert">{detailStatus.message}</p>
               )}
 
               <div className="chat-messages">
@@ -461,7 +461,7 @@ export default function ChatPage() {
                     {sendStatus.state === 'loading' ? 'Sending...' : 'Send'}
                   </button>
                   {sendStatus.state === 'error' && (
-                    <p className="notice error">{sendStatus.message}</p>
+                    <p className="notice error" role="alert">{sendStatus.message}</p>
                   )}
                 </div>
               </form>

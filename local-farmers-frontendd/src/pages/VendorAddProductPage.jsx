@@ -167,7 +167,7 @@ export default function VendorAddProductPage() {
       </div>
 
       {!profileApproved && (
-        <p className="notice error">
+        <p className="notice error" role="alert">
           Your farm profile is not approved yet. Products can only be added once your profile is approved.
         </p>
       )}
@@ -313,7 +313,7 @@ export default function VendorAddProductPage() {
               <p
                 className={`notice ${
                   productStatus.state === 'error' ? 'error' : 'success'
-                }`}
+                }`} role="status"
               >
                 {productStatus.message}
               </p>

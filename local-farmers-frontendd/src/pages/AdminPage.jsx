@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 
 import { apiFetch, resolveImageUrl } from '../lib/api.js';
+import ConfirmDialog from '../components/ConfirmDialog.jsx';
 
 const formatDateTime = (value) => {
   if (!value) {
@@ -74,6 +75,7 @@ export default function AdminPage() {
     message: '',
   });
   const [rejectionNotes, setRejectionNotes] = useState({});
+  const [pendingAction, setPendingAction] = useState(null);
   const [expandedRequests, setExpandedRequests] = useState({});
   const adminPath = location.pathname.startsWith('/manage-portal')
     ? location.pathname.slice('/manage-portal'.length).replace(/^\/+/, '')
@@ -275,10 +277,8 @@ export default function AdminPage() {
     if (!requestId) {
       return;
     }
-    if (!window.confirm('Delete this approved farm and all of its products? This action cannot be undone.')) {
-      return;
-    }
 
+    setPendingAction(null);
     setActionStatus({ state: 'loading', message: 'Deleting farm and products...' });
     try {
       const response = await apiFetch(`/api/admin/farmer-requests/${requestId}/farm`, {
@@ -306,10 +306,8 @@ export default function AdminPage() {
     if (!productId) {
       return;
     }
-    if (!window.confirm('Delete this product? This action cannot be undone.')) {
-      return;
-    }
 
+    setPendingAction(null);
     setActionStatus({ state: 'loading', message: 'Deleting product...' });
     try {
       const response = await apiFetch(`/api/admin/products/${productId}`, {
@@ -530,9 +528,15 @@ export default function AdminPage() {
                         {options.withProductActions && (
                           <div className="product-actions">
                             <button
-                              className="button ghost"
+                              className="button danger small"
                               type="button"
-                              onClick={() => handleDeleteProduct(product.id)}
+                              onClick={() =>
+                                setPendingAction({
+                                  kind: 'product',
+                                  id: product.id,
+                                  name: formatText(product.name),
+                                })
+                              }
                               disabled={actionStatus.state === 'loading'}
                             >
                               Delete product
@@ -548,7 +552,7 @@ export default function AdminPage() {
               </div>
             )}
 
-            {request.reviewNote && <p className="notice error">Review note: {request.reviewNote}</p>}
+            {request.reviewNote && <p className="notice error" role="alert">Review note: {request.reviewNote}</p>}
 
             {options.withActions && (
               <>
@@ -571,7 +575,7 @@ export default function AdminPage() {
                     Approve
                   </button>
                   <button
-                    className="button ghost"
+                    className="button danger"
                     type="button"
                     onClick={() => handleReject(request.id)}
                     disabled={actionStatus.state === 'loading'}
@@ -585,9 +589,15 @@ export default function AdminPage() {
             {options.withFarmDeleteAction && (
               <div className="admin-request-actions">
                 <button
-                  className="button ghost"
+                  className="button danger"
                   type="button"
-                  onClick={() => handleDeleteFarm(request.id)}
+                  onClick={() =>
+                    setPendingAction({
+                      kind: 'farm',
+                      id: request.id,
+                      name: formatText(request.payload?.farmName),
+                    })
+                  }
                   disabled={actionStatus.state === 'loading'}
                 >
                   Delete farm and all products
@@ -638,7 +648,7 @@ export default function AdminPage() {
             <button className="button primary" type="submit" disabled={loginStatus.state === 'loading'}>
               {loginStatus.state === 'loading' ? 'Signing in...' : 'Login'}
             </button>
-            {loginStatus.state === 'error' && <p className="notice error">{loginStatus.message}</p>}
+            {loginStatus.state === 'error' && <p className="notice error" role="alert">{loginStatus.message}</p>}
           </form>
         </div>
       </div>
@@ -663,7 +673,7 @@ export default function AdminPage() {
       </div>
 
       {actionStatus.message && (
-        <p className={`notice ${actionStatus.state === 'error' ? 'error' : 'success'}`}>
+        <p className={`notice ${actionStatus.state === 'error' ? 'error' : 'success'}`} role="status">
           {actionStatus.message}
         </p>
       )}
@@ -686,7 +696,7 @@ export default function AdminPage() {
       <div className="form-card">
         <h2>{activeTab === 'pending' ? 'Pending requests' : 'Approved requests'}</h2>
         {requestsStatus.state === 'loading' && <p className="muted">Loading requests...</p>}
-        {requestsStatus.state === 'error' && <p className="notice error">{requestsStatus.message}</p>}
+        {requestsStatus.state === 'error' && <p className="notice error" role="alert">{requestsStatus.message}</p>}
 
         {activeTab === 'pending' &&
           (pendingRequests.length === 0 && requestsStatus.state === 'success' ? (
@@ -711,6 +721,28 @@ export default function AdminPage() {
             </div>
           ))}
       </div>
+
+      <ConfirmDialog
+        open={Boolean(pendingAction)}
+        title={
+          pendingAction?.kind === 'farm' ? 'Șterge ferma?' : 'Șterge produsul?'
+        }
+        body={
+          pendingAction?.kind === 'farm'
+            ? `Ferma „${pendingAction?.name}" și toate produsele ei vor fi eliminate definitiv. Acțiunea nu poate fi anulată.`
+            : `„${pendingAction?.name}" va fi eliminat din catalog. Acțiunea nu poate fi anulată.`
+        }
+        confirmLabel={
+          pendingAction?.kind === 'farm' ? 'Șterge ferma' : 'Șterge produsul'
+        }
+        busy={actionStatus.state === 'loading'}
+        onConfirm={() =>
+          pendingAction?.kind === 'farm'
+            ? handleDeleteFarm(pendingAction.id)
+            : handleDeleteProduct(pendingAction?.id)
+        }
+        onCancel={() => setPendingAction(null)}
+      />
     </div>
   );
 }

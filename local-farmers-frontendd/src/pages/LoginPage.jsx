@@ -85,7 +85,7 @@ export default function LoginPage() {
           <p
             className={`notice ${
               status.state === 'error' ? 'error' : 'success'
-            }`}
+            }`} role="status"
           >
             {status.message}
           </p>

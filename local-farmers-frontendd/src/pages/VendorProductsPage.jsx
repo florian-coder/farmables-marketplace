@@ -9,6 +9,7 @@ import {
 } from '../lib/api.js';
 import { supabase } from '../lib/supabase.js';
 import { useAuth } from '../lib/auth.jsx';
+import ConfirmDialog from '../components/ConfirmDialog.jsx';
 
 export default function VendorProductsPage() {
   const { status: authStatus, user } = useAuth();
@@ -17,17 +18,22 @@ export default function VendorProductsPage() {
     state: 'loading',
     message: '',
   });
+  const [pendingDelete, setPendingDelete] = useState(null);
+  const [deleteStatus, setDeleteStatus] = useState({ state: 'idle', message: '' });
 
   const loadProducts = useCallback(async () => {
     try {
       const response = await apiFetch('/api/vendor/products', { method: 'GET' });
       const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Unable to load products.');
+      }
       setProducts(data.products || []);
       setStatus({ state: 'success', message: '' });
-    } catch {
+    } catch (error) {
       setStatus({
         state: 'error',
-        message: 'Unable to load products.',
+        message: error.message || 'Unable to load products.',
       });
     }
   }, []);
@@ -87,15 +93,13 @@ export default function VendorProductsPage() {
     };
   }, [authStatus, user, loadProducts]);
 
-  const handleDeleteProduct = async (productId) => {
+  const handleDeleteProduct = async () => {
+    const productId = pendingDelete?.id;
     if (!productId) {
       return;
     }
-    const confirmed = window.confirm('Delete this product?');
-    if (!confirmed) {
-      return;
-    }
 
+    setDeleteStatus({ state: 'loading', message: '' });
     try {
       const response = await apiFetch(`/api/vendor/products/${productId}`, {
         method: 'DELETE',
@@ -105,8 +109,14 @@ export default function VendorProductsPage() {
         throw new Error(data.error || 'Unable to delete product.');
       }
       setProducts((prev) => prev.filter((product) => product.id !== productId));
+      setPendingDelete(null);
+      setDeleteStatus({ state: 'idle', message: '' });
     } catch (error) {
-      alert(error.message || 'Unable to delete product.');
+      setPendingDelete(null);
+      setDeleteStatus({
+        state: 'error',
+        message: error.message || 'Unable to delete product.',
+      });
     }
   };
 
@@ -147,7 +157,16 @@ export default function VendorProductsPage() {
 
       <div className="form-card">
         {status.state === 'loading' && <div className="notice">Loading...</div>}
-        {status.state === 'error' && <div className="notice error">{status.message}</div>}
+        {status.state === 'error' && (
+          <div className="notice error" role="alert">
+            {status.message}
+          </div>
+        )}
+        {deleteStatus.state === 'error' && (
+          <div className="notice error" role="alert">
+            {deleteStatus.message}
+          </div>
+        )}
 
         <div className="products-list">
           {products.length === 0 && status.state === 'success' ? (
@@ -230,9 +249,9 @@ export default function VendorProductsPage() {
                       {product.instantBuy ? 'Instant buy' : 'Inquiry only'}
                     </span>
                     <button
-                      className="button ghost small"
+                      className="button danger small"
                       type="button"
-                      onClick={() => handleDeleteProduct(product.id)}
+                      onClick={() => setPendingDelete(product)}
                     >
                       Delete
                     </button>
@@ -248,6 +267,16 @@ export default function VendorProductsPage() {
           </a>
         </p>
       </div>
+
+      <ConfirmDialog
+        open={Boolean(pendingDelete)}
+        title="Șterge produsul?"
+        body={`„${pendingDelete?.name || 'Acest produs'}" va fi eliminat din catalog. Acțiunea nu poate fi anulată.`}
+        confirmLabel="Șterge produsul"
+        busy={deleteStatus.state === 'loading'}
+        onConfirm={handleDeleteProduct}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   );
 }

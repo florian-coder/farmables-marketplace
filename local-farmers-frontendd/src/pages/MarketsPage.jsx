@@ -321,7 +321,7 @@ export default function MarketsPage() {
         <div className="notice">Loading markets...</div>
       )}
       {state.status === 'error' && (
-        <div className="notice error">{state.error}</div>
+        <div className="notice error" role="alert">{state.error}</div>
       )}
 
       <div className="cards-grid" style={{ gridTemplateColumns: '1fr' }}>
@@ -477,7 +477,7 @@ export default function MarketsPage() {
                                 </div>
 
                                 {cartFeedback[product.id]?.message && (
-                                  <p className={`notice ${cartFeedback[product.id]?.status === 'error' ? 'error' : 'success'}`} style={{ fontSize: '0.8rem', padding: '8px', marginTop: '8px' }}>
+                                  <p className={`notice ${cartFeedback[product.id]?.status === 'error' ? 'error' : 'success'}`} role="status" style={{ fontSize: '0.8rem', padding: '8px', marginTop: '8px' }}>
                                     {cartFeedback[product.id].message}
                                   </p>
                                 )}

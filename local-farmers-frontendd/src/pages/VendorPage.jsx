@@ -361,7 +361,7 @@ export default function VendorPage() {
         </p>
       )}
       {requestStatus === 'rejected' && (
-        <p className="notice error">
+        <p className="notice error" role="alert">
           Your latest profile request was rejected.
           {requestReviewNote ? ` Reason: ${requestReviewNote}` : ''}
           {' '}Update details and save again to resubmit.
@@ -591,7 +591,7 @@ export default function VendorPage() {
                   : farmUploadStatus.state === 'success'
                     ? 'success'
                     : ''
-              }`}
+              }`} role="status"
             >
               {farmUploadStatus.message}
             </p>
@@ -607,7 +607,7 @@ export default function VendorPage() {
             <p
               className={`notice ${
                 profileStatus.state === 'error' ? 'error' : 'success'
-              }`}
+              }`} role="status"
             >
               {profileStatus.message}
             </p>
