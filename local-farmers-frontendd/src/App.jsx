@@ -191,7 +191,7 @@ function Navigation() {
   return (
     <nav className="nav">
       <Link className="brand" to="/">
-        Local Farmers Collective
+        Farmables
       </Link>
       <div className="nav-links">
         <div className="nav-market-menu">
@@ -300,7 +300,7 @@ function AppShell() {
         </Routes>
       </main>
       <footer className="footer">
-        <p>Local Farmers Collective - Built for community-powered food systems.</p>
+        <p>Farmables — built for community-powered food systems.</p>
       </footer>
     </div>
   );

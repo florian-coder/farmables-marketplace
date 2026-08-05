@@ -146,15 +146,15 @@ export default function VendorPublicProfilePage() {
   const galleryImages = vendor?.farmImages?.slice(1) || [];
 
   const contactRows = [
-    { label: 'Telefon', value: vendor?.phoneNumber, href: vendor?.phoneNumber ? `tel:${vendor.phoneNumber}` : null },
+    { label: 'Phone', value: vendor?.phoneNumber, href: vendor?.phoneNumber ? `tel:${vendor.phoneNumber}` : null },
     { label: 'Email', value: vendor?.email, href: vendor?.email ? `mailto:${vendor.email}` : null },
-    { label: 'Adresă', value: [street, location].filter(Boolean).join(', ') },
+    { label: 'Address', value: [street, location].filter(Boolean).join(', ') },
     {
-      label: 'Livrare',
+      label: 'Delivery',
       value:
         vendor?.deliveryRadiusKm === null || vendor?.deliveryRadiusKm === undefined
           ? null
-          : `în raza de ${vendor.deliveryRadiusKm} km`,
+          : `within ${vendor.deliveryRadiusKm} km`,
     },
   ].filter((row) => row.value);
 
@@ -165,7 +165,7 @@ export default function VendorPublicProfilePage() {
           {coverImage ? (
             <img
               src={resolveImageUrl(coverImage)}
-              alt={`${vendor?.farmName || 'Fermă'} — fotografie`}
+              alt={`${vendor?.farmName || 'Farm'} cover photo`}
             />
           ) : (
             <span aria-hidden="true">
@@ -175,8 +175,8 @@ export default function VendorPublicProfilePage() {
         </div>
 
         <div className="farm-hero-content">
-          <p className="eyebrow">{location || 'Fermă locală'}</p>
-          <h1>{vendor?.farmName || 'Profil de fermă'}</h1>
+          <p className="eyebrow">{location || 'Local farm'}</p>
+          <h1>{vendor?.farmName || 'Farm profile'}</h1>
           {vendor?.displayName && vendor.displayName !== vendor.farmName && (
             <p className="muted">{vendor.displayName}</p>
           )}
@@ -196,9 +196,9 @@ export default function VendorPublicProfilePage() {
                   <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z" />
                   <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12" />
                 </svg>
-                Certificat bio
+                Certified organic
               </span>
-              <span className="tag">{state.products.length} produse</span>
+              <span className="tag">{state.products.length} products</span>
             </p>
           )}
 
@@ -207,11 +207,11 @@ export default function VendorPublicProfilePage() {
           <div className="button-group">
             {vendor?.id && (
               <Link className="button primary" to={`/chat?vendorId=${vendor.id}`}>
-                Întreabă fermierul
+                Ask the farmer
               </Link>
             )}
             <Link className="button ghost" to="/markets/fruits_and_vegetables">
-              Vezi piețele
+              Browse markets
             </Link>
           </div>
         </div>
@@ -220,7 +220,7 @@ export default function VendorPublicProfilePage() {
       <article className="farm-public-card">
         {contactRows.length > 0 && (
           <section className="farm-block">
-            <h2>Contact și livrare</h2>
+            <h2>Contact & delivery</h2>
             <dl className="farm-contact-list">
               {contactRows.map((row) => (
                 <div className="farm-contact-row" key={row.label}>
@@ -236,13 +236,13 @@ export default function VendorPublicProfilePage() {
 
         {galleryImages.length > 0 && (
           <section className="farm-block">
-            <h2>Din fermă</h2>
+            <h2>From the farm</h2>
             <div className="farm-public-gallery">
               {galleryImages.map((imageUrl, index) => (
                 <img
                   key={`${imageUrl}-${index}`}
                   src={resolveImageUrl(imageUrl)}
-                  alt={`${vendor?.farmName || 'Fermă'} — fotografia ${index + 2}`}
+                  alt={`${vendor?.farmName || 'Farm'} photo ${index + 2}`}
                   loading="lazy"
                 />
               ))}
@@ -251,7 +251,7 @@ export default function VendorPublicProfilePage() {
         )}
 
         <section className="farm-block">
-          <h2>Produse din fermă</h2>
+          <h2>Products from this farm</h2>
           {state.products.length > 0 ? (
             <ul className="product-grid">
               {state.products.map((product) => (
@@ -273,7 +273,7 @@ export default function VendorPublicProfilePage() {
               ))}
             </ul>
           ) : (
-            <p className="muted">Încă nu sunt produse listate.</p>
+            <p className="muted">No products listed yet.</p>
           )}
         </section>
       </article>

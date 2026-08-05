@@ -1,16 +1,16 @@
 import { useEffect, useRef } from 'react';
 
 /**
- * Dialog de confirmare pentru acțiuni ireversibile.
- * Înlocuiește window.confirm(), care rupe complet identitatea vizuală
- * și nu poate comunica severitatea acțiunii.
+ * Confirmation dialog for irreversible actions.
+ * Replaces window.confirm(), which breaks the visual identity entirely
+ * and cannot convey how severe the action is.
  */
 export default function ConfirmDialog({
   open,
   title,
   body,
-  confirmLabel = 'Confirmă',
-  cancelLabel = 'Anulează',
+  confirmLabel = 'Confirm',
+  cancelLabel = 'Cancel',
   tone = 'danger',
   busy = false,
   onConfirm,
@@ -82,7 +82,7 @@ export default function ConfirmDialog({
             onClick={onConfirm}
             disabled={busy}
           >
-            {busy ? 'Se procesează...' : confirmLabel}
+            {busy ? 'Working...' : confirmLabel}
           </button>
         </div>
       </div>

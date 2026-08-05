@@ -726,15 +726,15 @@ export default function AdminPage() {
       <ConfirmDialog
         open={Boolean(pendingAction)}
         title={
-          pendingAction?.kind === 'farm' ? 'Șterge ferma?' : 'Șterge produsul?'
+          pendingAction?.kind === 'farm' ? 'Delete this farm?' : 'Delete this product?'
         }
         body={
           pendingAction?.kind === 'farm'
-            ? `Ferma „${pendingAction?.name}" și toate produsele ei vor fi eliminate definitiv. Acțiunea nu poate fi anulată.`
-            : `„${pendingAction?.name}" va fi eliminat din catalog. Acțiunea nu poate fi anulată.`
+            ? `The farm "${pendingAction?.name}" and all of its products will be permanently removed. This cannot be undone.`
+            : `"${pendingAction?.name}" will be removed from the catalogue. This cannot be undone.`
         }
         confirmLabel={
-          pendingAction?.kind === 'farm' ? 'Șterge ferma' : 'Șterge produsul'
+          pendingAction?.kind === 'farm' ? 'Delete farm' : 'Delete product'
         }
         busy={actionStatus.state === 'loading'}
         onConfirm={() =>

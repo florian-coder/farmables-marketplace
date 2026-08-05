@@ -270,9 +270,9 @@ export default function VendorProductsPage() {
 
       <ConfirmDialog
         open={Boolean(pendingDelete)}
-        title="Șterge produsul?"
-        body={`„${pendingDelete?.name || 'Acest produs'}" va fi eliminat din catalog. Acțiunea nu poate fi anulată.`}
-        confirmLabel="Șterge produsul"
+        title="Delete this product?"
+        body={`"${pendingDelete?.name || 'This product'}" will be removed from the catalogue. This cannot be undone.`}
+        confirmLabel="Delete product"
         busy={deleteStatus.state === 'loading'}
         onConfirm={handleDeleteProduct}
         onCancel={() => setPendingDelete(null)}

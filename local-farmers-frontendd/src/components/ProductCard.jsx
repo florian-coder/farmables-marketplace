@@ -35,12 +35,12 @@ export const resolveProductImage = (image) => {
 };
 
 /**
- * Cardul de produs, singurul din aplicație.
- * Înainte exista în trei locuri cu trei markup-uri diferite; cel din
- * MarketsPage avea 24 de blocuri de stil inline.
+ * The one product card in the app.
+ * It used to exist in three places with three different markups; the one
+ * in MarketsPage carried 24 inline style blocks.
  *
- * Fotografia atinge marginile cardului la raport 4:3 — înainte stătea
- * într-o ramă de 24px, care o micșora fără motiv.
+ * The photo runs edge to edge at a fixed ratio, so every card in a grid
+ * is exactly the same size no matter what the source image measures.
  */
 export default function ProductCard({
   product,
@@ -65,10 +65,10 @@ export default function ProductCard({
       ? 'stock-badge-low'
       : 'stock-badge-ok';
   const stockLabel = isOutOfStock
-    ? 'Epuizat'
+    ? 'Out of stock'
     : isLowStock
-      ? `Ultimele ${formatQuantity(stock)} ${product.unit || ''}`.trim()
-      : `În stoc · ${formatQuantity(stock)} ${product.unit || ''}`.trim();
+      ? `Only ${formatQuantity(stock)} ${product.unit || ''}`.trim()
+      : `In stock · ${formatQuantity(stock)} ${product.unit || ''}`.trim();
 
   const clamp = (next) => Math.max(1, Math.min(stock || 1, next));
 
@@ -91,10 +91,10 @@ export default function ProductCard({
         <p className="product-card-farm">
           {vendor?.id ? (
             <Link className="market-vendor-link" to={`/farms/${vendor.id}`}>
-              {vendor.farmName || 'Fermă locală'}
+              {vendor.farmName || 'Local farm'}
             </Link>
           ) : (
-            vendor?.farmName || 'Fermă locală'
+            vendor?.farmName || 'Local farm'
           )}
           {vendor?.city ? <span className="product-card-place"> · {vendor.city}</span> : null}
         </p>
@@ -120,7 +120,7 @@ export default function ProductCard({
                   <button
                     className="quantity-btn"
                     type="button"
-                    aria-label="Scade cantitatea"
+                    aria-label="Decrease quantity"
                     disabled={isOutOfStock}
                     onClick={() => onQuantityChange?.(product.id, clamp(quantity - 1))}
                   >
@@ -132,7 +132,7 @@ export default function ProductCard({
                     min="1"
                     max={stock || 1}
                     step="1"
-                    aria-label={`Cantitate pentru ${product.name}`}
+                    aria-label={`Quantity for ${product.name}`}
                     value={quantity}
                     disabled={isOutOfStock}
                     onChange={(event) => {
@@ -146,7 +146,7 @@ export default function ProductCard({
                   <button
                     className="quantity-btn"
                     type="button"
-                    aria-label="Crește cantitatea"
+                    aria-label="Increase quantity"
                     disabled={isOutOfStock}
                     onClick={() => onQuantityChange?.(product.id, clamp(quantity + 1))}
                   >
@@ -161,15 +161,15 @@ export default function ProductCard({
                 onClick={() => onAddToCart?.(product)}
               >
                 {isOutOfStock
-                  ? 'Indisponibil'
+                  ? 'Unavailable'
                   : product.instantBuy
-                    ? 'Adaugă în coș'
-                    : 'Doar la cerere'}
+                    ? 'Add to cart'
+                    : 'On request'}
               </button>
             </div>
 
             <Link className="product-card-inquiry" to={`/chat?vendorId=${vendor.id}`}>
-              Întreabă fermierul
+              Ask the farmer
             </Link>
           </>
         )}

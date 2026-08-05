@@ -1,6 +1,6 @@
-# Local Farmers Frontend
+# Farmables Frontend
 
-React + Vite frontend for the Local Farmers experience.
+React + Vite frontend for the Farmables marketplace.
 
 ## Requirements
 - Node.js 18+

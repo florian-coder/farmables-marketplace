@@ -143,26 +143,26 @@ export default function MarketsPage() {
     switch (category) {
       case 'fruits_and_vegetables':
         return {
-          title: 'Fructe și legume',
+          title: 'Fruits & Vegetables',
           description:
-            'Recoltate săptămâna aceasta de fermieri din zona ta, fără tratamente post-recoltă.',
+            'Harvested this week by farmers near you, with no post-harvest treatments.',
         };
       case 'eggs':
         return {
-          title: 'Ouă',
+          title: 'Eggs',
           description:
-            'Ouă de la găini crescute liber, direct de la crescătorii locali.',
+            'Eggs from free-roaming hens, straight from local keepers.',
         };
       case 'honey':
         return {
-          title: 'Miere',
+          title: 'Honey',
           description:
-            'Miere brută și faguri de la apicultori locali, cu proveniență verificată.',
+            'Raw honey and comb from local beekeepers, with verified provenance.',
         };
       default:
         return {
-          title: 'Piețe',
-          description: 'Explorează piețele locale de alimente.',
+          title: 'Markets',
+          description: 'Explore the local food markets.',
         };
     }
   };
@@ -246,19 +246,19 @@ export default function MarketsPage() {
           <p className="muted">{description}</p>
         </div>
         <Link className="button ghost" to="/auth/signup?role=vendor">
-          Devino fermier partener
+          Become a seller
         </Link>
       </div>
 
       <div className="filters-bar">
         <div className="search-input-wrapper">
           <label className="field">
-            Caută produse
+            Search products
             <span className="search-field">
               <SearchIcon />
               <input
                 type="text"
-                placeholder="Caută după nume..."
+                placeholder="Search by name..."
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
               />
@@ -266,23 +266,23 @@ export default function MarketsPage() {
           </label>
         </div>
         <label className="field filters-field-narrow">
-          Preț maxim
+          Max price
           <input
             type="number"
             min="0"
             step="0.5"
-            placeholder="Oricare"
+            placeholder="Any"
             value={maxPrice}
             onChange={(event) => setMaxPrice(event.target.value)}
           />
         </label>
         <label className="field filters-field-narrow">
-          Rating minim
+          Min rating
           <select value={minRating} onChange={(event) => setMinRating(event.target.value)}>
-            <option value="0">Oricare</option>
-            <option value="3">3+ stele</option>
-            <option value="4">4+ stele</option>
-            <option value="4.5">4,5+ stele</option>
+            <option value="0">Any</option>
+            <option value="3">3+ stars</option>
+            <option value="4">4+ stars</option>
+            <option value="4.5">4.5+ stars</option>
           </select>
         </label>
       </div>
@@ -299,7 +299,7 @@ export default function MarketsPage() {
           const visibleProducts = filterProducts(market.products);
 
           return (
-            <section className="market-block" key={market.id}>
+            <section className="market-block" data-category={category} key={market.id}>
               <header className="market-header">
                 <div>
                   <h2>{market.name}</h2>
@@ -307,15 +307,15 @@ export default function MarketsPage() {
                 </div>
                 <dl className="market-header-stats">
                   <div className="market-stat-item">
-                    <dt className="market-stat-label">Fermieri</dt>
+                    <dt className="market-stat-label">Farmers</dt>
                     <dd className="market-stat-value">{market.activeGrowers}</dd>
                   </div>
                   <div className="market-stat-item">
-                    <dt className="market-stat-label">Produse</dt>
+                    <dt className="market-stat-label">Products</dt>
                     <dd className="market-stat-value">{market.totalProducts}</dd>
                   </div>
                   <div className="market-stat-item">
-                    <dt className="market-stat-label">Rating maxim</dt>
+                    <dt className="market-stat-label">Top rating</dt>
                     <dd className="market-stat-value">{market.biggestRating || '0.0'}</dd>
                   </div>
                 </dl>
@@ -339,8 +339,8 @@ export default function MarketsPage() {
               ) : (
                 <p className="muted">
                   {market.products?.length > 0
-                    ? 'Niciun produs nu se potrivește filtrelor tale.'
-                    : 'Încă nu sunt produse în această piață.'}
+                    ? 'No products match your filters.'
+                    : 'No products in this market yet.'}
                 </p>
               )}
             </section>

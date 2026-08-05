@@ -1,4 +1,4 @@
-# Local Farmers
+# Farmables
 
 Monorepo with a Node/Express backend and a React/Vite frontend.
 

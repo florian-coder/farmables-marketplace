@@ -317,7 +317,7 @@ export default function LandingPage() {
     <>
       <header className="landing-hero">
         <div className="landing-hero-content">
-          <p className="eyebrow">Local Farmers Collective</p>
+          <p className="eyebrow">Farmables</p>
           <h1>
             healthy people need appreciated farmers, we&apos;re here to look out
             for both

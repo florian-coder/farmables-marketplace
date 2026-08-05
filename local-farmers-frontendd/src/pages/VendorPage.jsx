@@ -488,8 +488,8 @@ export default function VendorPage() {
             <label className="field">
               Entity Type
               <select name="entityType" value={profile.entityType} onChange={handleProfileChange}>
-                <option value="pf">Individual (Persoană Fizică)</option>
-                <option value="juridica">Legal Entity (PFA/II/SRL)</option>
+                <option value="pf">Individual producer</option>
+                <option value="juridica">Registered business (PFA / II / SRL)</option>
               </select>
             </label>
 
