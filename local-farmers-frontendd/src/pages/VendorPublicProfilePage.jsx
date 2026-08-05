@@ -13,12 +13,6 @@ const initialState = {
 };
 
 
-const formatValue = (value) => {
-  if (value === null || value === undefined || value === '') {
-    return 'Not provided';
-  }
-  return String(value);
-};
 
 
 export default function VendorPublicProfilePage() {
@@ -146,73 +140,115 @@ export default function VendorPublicProfilePage() {
   }
 
   const vendor = state.vendor;
-  const profileRows = [
-    { label: 'Farm name', value: vendor?.farmName },
-    { label: 'Display name', value: vendor?.displayName },
-    { label: 'Street address', value: vendor?.streetAddress },
-    { label: 'Street number', value: vendor?.streetNumber },
-    { label: 'County', value: vendor?.county },
-    { label: 'City', value: vendor?.city },
-    { label: 'Phone number', value: vendor?.phoneNumber },
-    { label: 'Email', value: vendor?.email },
+  const location = [vendor?.city, vendor?.county].filter(Boolean).join(', ');
+  const street = [vendor?.streetAddress, vendor?.streetNumber].filter(Boolean).join(' ');
+  const coverImage = vendor?.farmImages?.[0] || null;
+  const galleryImages = vendor?.farmImages?.slice(1) || [];
+
+  const contactRows = [
+    { label: 'Telefon', value: vendor?.phoneNumber, href: vendor?.phoneNumber ? `tel:${vendor.phoneNumber}` : null },
+    { label: 'Email', value: vendor?.email, href: vendor?.email ? `mailto:${vendor.email}` : null },
+    { label: 'Adresă', value: [street, location].filter(Boolean).join(', ') },
     {
-      label: 'Delivery radius (km)',
+      label: 'Livrare',
       value:
         vendor?.deliveryRadiusKm === null || vendor?.deliveryRadiusKm === undefined
-          ? ''
-          : vendor.deliveryRadiusKm,
+          ? null
+          : `în raza de ${vendor.deliveryRadiusKm} km`,
     },
-    { label: 'Bio', value: vendor?.bio },
-  ];
+  ].filter((row) => row.value);
 
   return (
     <div className="page-section">
-      <div className="section-header">
-        <div>
-          <h1>{vendor?.farmName || 'Farm profile'}</h1>
-          <p className="muted">Public farm page</p>
-        </div>
-        <div className="button-group">
-          {vendor?.id && (
-            <Link className="button primary" to={`/chat?vendorId=${vendor.id}`}>
-              Send inquiry
-            </Link>
+      <header className="farm-hero">
+        <div className="farm-hero-media">
+          {coverImage ? (
+            <img
+              src={resolveImageUrl(coverImage)}
+              alt={`${vendor?.farmName || 'Fermă'} — fotografie`}
+            />
+          ) : (
+            <span aria-hidden="true">
+              {(vendor?.farmName || '?').charAt(0).toUpperCase()}
+            </span>
           )}
-          <Link className="button ghost" to="/markets/fruits_and_vegetables">
-            View markets
-          </Link>
-          <Link className="button ghost" to="/profile">
-            My profile
-          </Link>
-        </div>
-      </div>
-
-      <article className="form-card farm-public-card">
-        <div className="farm-linear-list">
-          {profileRows.map((row) => (
-            <div className="farm-linear-row" key={row.label}>
-              <p className="farm-linear-label">{row.label}</p>
-              <p className="farm-linear-value">{formatValue(row.value)}</p>
-            </div>
-          ))}
         </div>
 
-        <section className="farm-block">
-          <h2>Farm gallery (up to 10 images)</h2>
-          {vendor?.farmImages?.length > 0 ? (
+        <div className="farm-hero-content">
+          <p className="eyebrow">{location || 'Fermă locală'}</p>
+          <h1>{vendor?.farmName || 'Profil de fermă'}</h1>
+          {vendor?.displayName && vendor.displayName !== vendor.farmName && (
+            <p className="muted">{vendor.displayName}</p>
+          )}
+
+          {vendor?.organicCertificate && (
+            <p className="farm-hero-tags">
+              <span className="tag bio">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z" />
+                  <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12" />
+                </svg>
+                Certificat bio
+              </span>
+              <span className="tag">{state.products.length} produse</span>
+            </p>
+          )}
+
+          {vendor?.bio && <p className="farm-hero-bio prose">{vendor.bio}</p>}
+
+          <div className="button-group">
+            {vendor?.id && (
+              <Link className="button primary" to={`/chat?vendorId=${vendor.id}`}>
+                Întreabă fermierul
+              </Link>
+            )}
+            <Link className="button ghost" to="/markets/fruits_and_vegetables">
+              Vezi piețele
+            </Link>
+          </div>
+        </div>
+      </header>
+
+      <article className="farm-public-card">
+        {contactRows.length > 0 && (
+          <section className="farm-block">
+            <h2>Contact și livrare</h2>
+            <dl className="farm-contact-list">
+              {contactRows.map((row) => (
+                <div className="farm-contact-row" key={row.label}>
+                  <dt>{row.label}</dt>
+                  <dd>
+                    {row.href ? <a href={row.href}>{row.value}</a> : row.value}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </section>
+        )}
+
+        {galleryImages.length > 0 && (
+          <section className="farm-block">
+            <h2>Din fermă</h2>
             <div className="farm-public-gallery">
-              {vendor.farmImages.map((imageUrl, index) => (
+              {galleryImages.map((imageUrl, index) => (
                 <img
                   key={`${imageUrl}-${index}`}
                   src={resolveImageUrl(imageUrl)}
-                  alt={`${vendor.farmName || 'Farm'} image ${index + 1}`}
+                  alt={`${vendor?.farmName || 'Fermă'} — fotografia ${index + 2}`}
+                  loading="lazy"
                 />
               ))}
             </div>
-          ) : (
-            <p className="muted">No farm images uploaded.</p>
-          )}
-        </section>
+          </section>
+        )}
 
         <section className="farm-block">
           <h2>Produse din fermă</h2>

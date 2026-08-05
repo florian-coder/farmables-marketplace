@@ -39,11 +39,8 @@ const formatDateTime = (value) => {
 };
 
 const formatMoney = (value) => {
-  const amount = Number(value);
-  if (!Number.isFinite(amount)) {
-    return '$0.00';
-  }
-  return `$${amount.toFixed(2)}`;
+  const amount = Number.isFinite(Number(value)) ? Number(value) : 0;
+  return `${amount.toFixed(2).replace('.', ',')} lei`;
 };
 
 export default function OrdersPage() {

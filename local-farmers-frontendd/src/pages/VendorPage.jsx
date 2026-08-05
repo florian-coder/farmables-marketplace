@@ -416,6 +416,7 @@ export default function VendorPage() {
               <input
                 type="text"
                 name="county"
+                autoComplete="address-level1"
                 value={profile.county}
                 onChange={handleProfileChange}
               />
@@ -425,6 +426,7 @@ export default function VendorPage() {
               <input
                 type="text"
                 name="city"
+                autoComplete="address-level2"
                 value={profile.city}
                 onChange={handleProfileChange}
               />
@@ -435,6 +437,7 @@ export default function VendorPage() {
             <input
               type="tel"
               name="phoneNumber"
+              autoComplete="tel"
               value={profile.phoneNumber}
               onChange={handleProfileChange}
             />
@@ -444,6 +447,7 @@ export default function VendorPage() {
             <input
               type="email"
               name="email"
+              autoComplete="email"
               value={profile.email}
               onChange={handleProfileChange}
             />

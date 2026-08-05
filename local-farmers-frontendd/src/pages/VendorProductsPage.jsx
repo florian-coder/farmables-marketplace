@@ -207,7 +207,7 @@ export default function VendorProductsPage() {
                             : product.category === 'honey'
                               ? 'Honey Products'
                               : product.category}{' '}
-                        · {product.unit} · ${product.price}{' '}
+                        · {product.unit} · {product.price} lei{' '}
                         ·{' '}
                         {`Rating ${Number(product.rating ?? 0)}/5`}
                         {product.instantBuy ? ' · Instant buy' : ' · Inquiry only'}

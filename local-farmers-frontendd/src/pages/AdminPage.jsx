@@ -30,7 +30,7 @@ const formatNumber = (value) => {
 
 const formatPrice = (value) => {
   const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed.toFixed(2) : '0.00';
+  return (Number.isFinite(parsed) ? parsed : 0).toFixed(2).replace('.', ',');
 };
 
 const normalizeInlineText = (value) => {
@@ -521,7 +521,7 @@ export default function AdminPage() {
                             <p className="admin-request-value">{formatText(product.name)}</p>
                             <p className="muted">
                               {formatText(product.category)} · {formatText(product.unit)} ·{' '}
-                              {formatPrice(product.price)} RON
+                              {formatPrice(product.price)} lei
                             </p>
                           </div>
                         </div>
@@ -638,6 +638,7 @@ export default function AdminPage() {
               Password
               <input
                 type="password"
+                autoComplete="current-password"
                 value={credentials.password}
                 onChange={(event) =>
                   setCredentials((prev) => ({ ...prev, password: event.target.value }))

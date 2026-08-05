@@ -72,6 +72,7 @@ export default function SignupPage() {
           <input
             type="text"
             name="username"
+            autoComplete="username"
             value={form.username}
             onChange={handleChange}
             required
@@ -83,6 +84,7 @@ export default function SignupPage() {
           <input
             type="password"
             name="password"
+            autoComplete="new-password"
             value={form.password}
             onChange={handleChange}
             required

@@ -63,6 +63,7 @@ export default function LoginPage() {
           <input
             type="text"
             name="username"
+            autoComplete="username"
             value={form.username}
             onChange={handleChange}
             required
@@ -73,6 +74,7 @@ export default function LoginPage() {
           <input
             type="password"
             name="password"
+            autoComplete="current-password"
             value={form.password}
             onChange={handleChange}
             required

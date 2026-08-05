@@ -143,23 +143,26 @@ export default function MarketsPage() {
     switch (category) {
       case 'fruits_and_vegetables':
         return {
-          title: 'Fruits and Vegetables Market',
-          description: 'Aggregated market signals and live pricing snapshots for fresh produce.',
+          title: 'Fructe și legume',
+          description:
+            'Recoltate săptămâna aceasta de fermieri din zona ta, fără tratamente post-recoltă.',
         };
       case 'eggs':
         return {
-          title: 'Eggs',
-          description: 'Direct access to local ranchers and butchers, with live pricing on sustainable eggs products.',
+          title: 'Ouă',
+          description:
+            'Ouă de la găini crescute liber, direct de la crescătorii locali.',
         };
       case 'honey':
         return {
-          title: 'Honey Products Market',
-          description: 'Fresh milk, cheese, and butter from local dairies with quality ratings and bio verification.',
+          title: 'Miere',
+          description:
+            'Miere brută și faguri de la apicultori locali, cu proveniență verificată.',
         };
       default:
         return {
-          title: 'Markets',
-          description: 'Explore our specialized local food markets.',
+          title: 'Piețe',
+          description: 'Explorează piețele locale de alimente.',
         };
     }
   };

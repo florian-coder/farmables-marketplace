@@ -144,6 +144,7 @@ export default function CustomerProfilePage() {
             <input
               type="text"
               name="firstName"
+              autoComplete="given-name"
               value={profile.firstName}
               onChange={handleChange}
               required
@@ -154,6 +155,7 @@ export default function CustomerProfilePage() {
             <input
               type="text"
               name="lastName"
+              autoComplete="family-name"
               value={profile.lastName}
               onChange={handleChange}
               required
@@ -166,6 +168,7 @@ export default function CustomerProfilePage() {
             <input
               type="text"
               name="streetAddress"
+              autoComplete="address-line1"
               value={profile.streetAddress}
               onChange={handleChange}
               required
@@ -176,6 +179,7 @@ export default function CustomerProfilePage() {
             <input
               type="text"
               name="streetNumber"
+              autoComplete="address-line2"
               value={profile.streetNumber}
               onChange={handleChange}
               required
@@ -187,6 +191,7 @@ export default function CustomerProfilePage() {
           <input
             type="tel"
             name="phoneNumber"
+            autoComplete="tel"
             value={profile.phoneNumber}
             onChange={handleChange}
             required
@@ -197,6 +202,7 @@ export default function CustomerProfilePage() {
           <input
             type="email"
             name="email"
+            autoComplete="email"
             value={profile.email}
             onChange={handleChange}
             required
@@ -208,6 +214,7 @@ export default function CustomerProfilePage() {
             <input
               type="text"
               name="city"
+              autoComplete="address-level2"
               value={profile.city}
               onChange={handleChange}
               required
@@ -218,6 +225,7 @@ export default function CustomerProfilePage() {
             <input
               type="text"
               name="county"
+              autoComplete="address-level1"
               value={profile.county}
               onChange={handleChange}
               required
@@ -229,6 +237,7 @@ export default function CustomerProfilePage() {
           <input
             type="text"
             name="country"
+            autoComplete="country-name"
             value={profile.country}
             onChange={handleChange}
             required
