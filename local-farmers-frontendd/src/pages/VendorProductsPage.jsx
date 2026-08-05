@@ -24,7 +24,7 @@ export default function VendorProductsPage() {
       const data = await response.json();
       setProducts(data.products || []);
       setStatus({ state: 'success', message: '' });
-    } catch (_error) {
+    } catch {
       setStatus({
         state: 'error',
         message: 'Unable to load products.',
@@ -72,7 +72,7 @@ export default function VendorProductsPage() {
             },
           )
           .subscribe();
-      } catch (_error) {
+      } catch {
         // Ignore realtime setup failures and keep manual refresh behavior.
       }
     };

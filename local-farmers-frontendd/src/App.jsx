@@ -43,7 +43,7 @@ function FruitsVegIcon() {
 
 function EggsIcon() {
   return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinelinejoin="round">
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M12 22c4.418 0 8-4.477 8-10 0-5.523-3.582-10-8-10S4 6.477 4 12c0 5.523 3.582 10 8 10z" />
     </svg>
   );
@@ -51,7 +51,7 @@ function EggsIcon() {
 
 function HoneyIcon() {
   return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinelinejoin="round">
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M4 8h16l-1 14H5L4 8z" />
       <path d="M8 8V6a4 4 0 018 0v2" />
       <path d="M8 14h8" />

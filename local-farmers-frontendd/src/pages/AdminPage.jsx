@@ -115,7 +115,7 @@ export default function AdminPage() {
         const data = await response.json();
         setAdminUsername(data.username || 'admin');
         setSessionStatus('authenticated');
-      } catch (_error) {
+      } catch {
         if (active) {
           setSessionStatus('guest');
         }
@@ -174,7 +174,7 @@ export default function AdminPage() {
   const handleLogout = async () => {
     try {
       await apiFetch('/api/admin/logout', { method: 'POST' });
-    } catch (_error) {
+    } catch {
       // Ignore logout API errors and clear local UI anyway.
     }
     setRequests([]);

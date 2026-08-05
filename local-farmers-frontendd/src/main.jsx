@@ -19,7 +19,7 @@ const purgeLegacyLocalState = () => {
     window.localStorage.clear();
     window.sessionStorage.clear();
     window.localStorage.setItem(LEGACY_CLEANUP_MARKER, 'done');
-  } catch (_error) {
+  } catch {
     // Ignore browser storage failures and continue boot.
   }
 };

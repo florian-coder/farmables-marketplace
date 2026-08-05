@@ -2,7 +2,6 @@ import { useEffect, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 
 import { apiFetch, getApiBase, resolveImageUrl } from '../lib/api.js';
-import { supabase } from '../lib/supabase.js';
 import { useAuth } from '../lib/auth.jsx';
 
 const MAX_FARM_IMAGES = 10;
@@ -148,7 +147,7 @@ export default function VendorPage() {
     setProfileStatus({ state: 'loading', message: 'Saving profile...' });
 
     try {
-      const { id: _profileId, documents, ...profilePayload } = profile;
+      const { id: _id, documents, ...profilePayload } = profile;
       const formData = new FormData();
       
       const payload = {
@@ -297,119 +296,6 @@ export default function VendorPage() {
       ...prev,
       farmImages: prev.farmImages.filter((_, index) => index !== imageIndex),
     }));
-  };
-
-  const handleProductChange = (event) => {
-    const { name, value, type, checked, files } = event.target;
-    setProductForm((prev) => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : type === 'file' ? files[0] : value,
-    }));
-  };
-
-  const handleClearPhoto = () => {
-    setProductForm((prev) => ({ ...prev, photo: null }));
-    setPhotoInputKey((prev) => prev + 1);
-  };
-
-  const handleProductSubmit = async (event) => {
-    event.preventDefault();
-    if (!profileApproved) {
-      setProductStatus({
-        state: 'error',
-        message: 'Your farm profile must be approved before adding products.',
-      });
-      return;
-    }
-    setProductStatus({ state: 'loading', message: 'Adding product...' });
-
-    try {
-      let imageUrl = null;
-      if (productForm.photo) {
-        const formData = new FormData();
-        formData.append('photo', productForm.photo);
-        const baseUrl = getApiBase();
-        const uploadUrl = `${baseUrl}/api/vendor/upload-image`;
-        console.log('Uploading to:', uploadUrl);
-        const uploadResponse = await fetch(uploadUrl, {
-          method: 'POST',
-          body: formData,
-          credentials: 'include',
-        });
-
-        const contentType = uploadResponse.headers.get('content-type');
-        if (contentType && contentType.includes('application/json')) {
-          const uploadData = await uploadResponse.json();
-          if (!uploadResponse.ok) {
-            throw new Error(uploadData.error || 'Failed to upload image.');
-          }
-          imageUrl = uploadData.imageUrl;
-        } else {
-          const errorText = await uploadResponse.text();
-          console.error('Non-JSON response from server:', errorText);
-          throw new Error(`Server returned non-JSON response (${uploadResponse.status}). Check console for details.`);
-        }
-      }
-
-      const payload = {
-        ...productForm,
-        quantity: Number(productForm.quantity),
-        imageUrl,
-      };
-      delete payload.photo;
-      const response = await apiFetch('/api/vendor/products', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || 'Unable to add product.');
-      }
-      setProducts((prev) => [...prev, data.product]);
-      setProductForm(initialProduct);
-      setPhotoInputKey((prev) => prev + 1);
-      setProductStatus({ state: 'success', message: 'Product added.' });
-    } catch (error) {
-      setProductStatus({
-        state: 'error',
-        message: error.message || 'Unable to add product.',
-      });
-    }
-  };
-
-  const handleDeleteProduct = async (productId) => {
-    if (!productId) {
-      return;
-    }
-    if (!profileApproved) {
-      setProductStatus({
-        state: 'error',
-        message: 'Your farm profile must be approved before managing products.',
-      });
-      return;
-    }
-    const confirmed = window.confirm('Delete this product?');
-    if (!confirmed) {
-      return;
-    }
-    setProductStatus({ state: 'loading', message: 'Deleting product...' });
-
-    try {
-      const response = await apiFetch(`/api/vendor/products/${productId}`, {
-        method: 'DELETE',
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || 'Unable to delete product.');
-      }
-      setProducts((prev) => prev.filter((product) => product.id !== productId));
-      setProductStatus({ state: 'success', message: 'Product deleted.' });
-    } catch (error) {
-      setProductStatus({
-        state: 'error',
-        message: error.message || 'Unable to delete product.',
-      });
-    }
   };
 
   if (authStatus === 'loading') {

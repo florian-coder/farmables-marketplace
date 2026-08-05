@@ -41,7 +41,7 @@ export default function VendorAddProductPage() {
         const data = await response.json();
         if (!active) return;
         setProfileApproved(Boolean(data.profileApproved));
-      } catch (error) {
+      } catch {
         if (!active) return;
       }
     };
@@ -159,7 +159,7 @@ export default function VendorAddProductPage() {
       <div className="section-header">
         <div>
           <h1>Upload Product</h1>
-          <p className="muted">Add a new product to your farm's offering.</p>
+          <p className="muted">Add a new product to your farm&apos;s offering.</p>
         </div>
         <Link className="button ghost" to="/vendor/products_uploaded">
           View all my products
