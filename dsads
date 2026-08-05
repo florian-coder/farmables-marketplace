@@ -1,0 +1,215 @@
+[33mcommit ad2b1d62c4185b9a047bcb70c2120a7972b066f7[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m
+Author: Florian Susai <floriansusai08@gmail.com>
+Date:   Wed May 27 01:21:07 2026 +0300
+
+    intro page images added + check honey
+
+[33mcommit fcd55b990b606d50e277f03238dcabd7439ac654[m
+Author: Florian Susai <floriansusai08@gmail.com>
+Date:   Mon Mar 9 22:59:10 2026 +0200
+
+    frontend gata
+
+[33mcommit 27347982c11a8435c9bb0f36163101873fd2a384[m
+Author: Florian Susai <floriansusai08@gmail.com>
+Date:   Mon Mar 9 22:35:15 2026 +0200
+
+    all good - bad market
+
+[33mcommit 38ecc600893710e2c6d1c8abe212aec849a6864f[m
+Author: Florian Susai <floriansusai08@gmail.com>
+Date:   Mon Mar 9 21:42:45 2026 +0200
+
+    fixed payment
+
+[33mcommit cc0713303630c7776c2a125e82860ba753db02b8[m
+Author: Florian Susai <floriansusai08@gmail.com>
+Date:   Mon Mar 9 21:21:19 2026 +0200
+
+    cancel order + add from cart + remove
+
+[33mcommit 7e2eefe20358295e86c299bce823b207d2e8368f[m
+Author: Florian <floriansusai08@gmail.com>
+Date:   Mon Mar 9 19:34:21 2026 +0200
+
+    permissions to publish product
+
+[33mcommit b367acea4d31770c17b99472f8d05de4d5a22e4e[m
+Author: Florian <floriansusai08@gmail.com>
+Date:   Mon Mar 9 18:50:55 2026 +0200
+
+    ui change
+
+[33mcommit 3cf4fd0334e94e182d9b72c1c6a896ce1c19381e[m
+Author: Florian <floriansusai08@gmail.com>
+Date:   Mon Mar 9 18:34:03 2026 +0200
+
+    changed prods names frontend
+
+[33mcommit 8ac2bff04506e460235c9b575f77ea88841e15f1[m
+Author: Florian <floriansusai08@gmail.com>
+Date:   Mon Mar 9 16:39:25 2026 +0200
+
+    added docs check + admin check full
+
+[33mcommit 7c29ad27080ff533907be16171dd0c29f45b7902[m
+Author: Florian Susai <floriansusai08@gmail.com>
+Date:   Sun Mar 8 18:55:50 2026 +0200
+
+    bug 2 fixed
+
+[33mcommit 439b81a2a3421fb2d49dd22d397345a337769510[m
+Author: Florian Susai <floriansusai08@gmail.com>
+Date:   Sun Mar 8 18:42:03 2026 +0200
+
+    pay bug fixed 1
+
+[33mcommit c46d0a11c27b70beb713e32b8f0f203b9694911f[m
+Author: Florian Susai <floriansusai08@gmail.com>
+Date:   Sun Mar 8 18:19:26 2026 +0200
+
+    payment stripe created
+
+[33mcommit d305d62b84eb0ec99d24ed8f66a5fdf5adee8e54[m
+Author: Florian Susai <floriansusai08@gmail.com>
+Date:   Sun Mar 8 15:54:06 2026 +0200
+
+    added cart + quantity
+
+[33mcommit a9ff5a6a7477445fdf824dce7fcd827a61b952bd[m
+Author: Florian <floriansusai08@gmail.com>
+Date:   Fri Mar 6 22:49:52 2026 +0200
+
+    quantity add + removeself rate + add rating formula
+
+[33mcommit 1aeebcad90d364763d776766415b9c764a8c9549[m
+Author: Florian <floriansusai08@gmail.com>
+Date:   Thu Mar 5 20:44:40 2026 +0200
+
+    front page updated
+
+[33mcommit 7a0dd732902d2fbda25691377f8e3ec0ec3f3e7c[m
+Author: Florian <floriansusai08@gmail.com>
+Date:   Thu Mar 5 17:45:56 2026 +0200
+
+    shopping added
+
+[33mcommit 81f478cc3802aab3102e86fce33b90a13f684602[m
+Author: Florian <floriansusai08@gmail.com>
+Date:   Wed Mar 4 21:50:30 2026 +0200
+
+    admin better + ui + delet on admin
+
+[33mcommit 3b5e55572699b9e0851c9e11bfb2b9feddd2fb3f[m
+Author: Florian <floriansusai08@gmail.com>
+Date:   Wed Mar 4 15:49:09 2026 +0200
+
+     admin panel with db
+
+[33mcommit 3a06670c36784d8c4690824276529fe10b352471[m
+Author: Florian <floriansusai08@gmail.com>
+Date:   Wed Mar 4 14:31:16 2026 +0200
+
+    feat: supabase realtime chat + stop tracking node_modules
+
+[33mcommit 052e191799eeeaf82a00c94e2e784333ee0066d2[m
+Author: Florian <floriansusai08@gmail.com>
+Date:   Wed Mar 4 01:08:19 2026 +0200
+
+    repair data base for farmer, customer, farm and marketplace
+
+[33mcommit 57e268dcca3198bba676f59e060f0edb4e197307[m
+Author: Florian Susai <floriansusai08@gmail.com>
+Date:   Wed Feb 25 19:05:06 2026 +0200
+
+    chat + notif
+
+[33mcommit 94afd256c9788e8ecb307931c73a6a79effaccda[m
+Author: Florian Susai <floriansusai08@gmail.com>
+Date:   Wed Feb 25 18:34:36 2026 +0200
+
+    interface + profiles + farmer search
+
+[33mcommit 1790690e5de17d3b06353620a8fff1daf14dc189[m
+Author: Florian Susai <floriansusai08@gmail.com>
+Date:   Tue Feb 24 20:08:30 2026 +0200
+
+    works img2
+
+[33mcommit b68b418d94177dbebc52371eb7fd15020988bfbc[m
+Author: Florian Susai <floriansusai08@gmail.com>
+Date:   Tue Feb 24 20:01:07 2026 +0200
+
+    works img
+
+[33mcommit cf13b305668bb21dfe997594e132ab756ca0803d[m
+Author: Florian Susai <floriansusai08@gmail.com>
+Date:   Tue Feb 24 19:52:25 2026 +0200
+
+    vite com
+
+[33mcommit 7e839192f1993c9f5f5dfd31b29ebd9d17bc3bd7[m
+Author: Florian Susai <floriansusai08@gmail.com>
+Date:   Tue Feb 24 19:43:13 2026 +0200
+
+    categorii
+
+[33mcommit 2031b1e9045feaebe6cd402284d634404dc9981c[m
+Author: Florian Susai <floriansusai08@gmail.com>
+Date:   Tue Feb 24 17:05:19 2026 +0200
+
+    sterg
+
+[33mcommit 681e35f330e7560c809abb7baf20fc67069351f8[m
+Author: Florian Susai <floriansusai08@gmail.com>
+Date:   Tue Feb 24 17:02:52 2026 +0200
+
+    test
+
+[33mcommit 3e5e55e42d3dfe52b435f0c1f96f83621e8294a5[m
+Author: noemi <noemicoder67@gmail.com>
+Date:   Tue Feb 17 00:25:14 2026 +0200
+
+    prima stergere
+
+[33mcommit 8bec3407349155ccc353f36bebe0b61357f8212d[m
+Author: noemi <noemicoder67@gmail.com>
+Date:   Tue Feb 17 00:11:40 2026 +0200
+
+    test noemi
+
+[33mcommit 24218c40ac4f402f4a7690c7c3ed5724a08f67ac[m
+Author: Florian <floriansusai08@gmail.com>
+Date:   Tue Feb 17 00:01:48 2026 +0200
+
+    lets go
+
+[33mcommit 059eaabdcb78fd040e7abb149ec17da2fa83623b[m
+Author: Florian <floriansusai08@gmail.com>
+Date:   Mon Feb 16 23:45:23 2026 +0200
+
+    test
+
+[33mcommit 77349ad71f61c6e0be956620a84ada54da36bf34[m
+Author: Florian Susai <70090676+florian-coder@users.noreply.github.com>
+Date:   Wed Jan 21 13:21:33 2026 +0200
+
+    Add files via upload
+
+[33mcommit 6c2f0fbd26e1e9999a3326c3486e47aba970e774[m
+Author: Florian Susai <70090676+florian-coder@users.noreply.github.com>
+Date:   Wed Jan 21 13:03:21 2026 +0200
+
+    Add files via upload
+
+[33mcommit 38596af2731f31d7fb009e96b5601907c3fc3899[m
+Author: Florian Susai <70090676+florian-coder@users.noreply.github.com>
+Date:   Wed Jan 21 12:17:41 2026 +0200
+
+    Add files via upload
+
+[33mcommit 6e457bf12b2fb8cdc9a5cf93319d0bef01f3d875[m
+Author: Florian Susai <70090676+florian-coder@users.noreply.github.com>
+Date:   Wed Jan 21 11:58:17 2026 +0200
+
+    Add files via upload
