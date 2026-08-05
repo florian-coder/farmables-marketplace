@@ -323,7 +323,7 @@ export default function VendorPage() {
         ? 'approved'
         : requestStatus;
 
-  const statusColor = effectiveProfileStatus === 'approved' ? 'var(--success-color, green)' : effectiveProfileStatus === 'pending' ? 'var(--warning-color, #d4a017)' : 'inherit';
+  const statusColor = effectiveProfileStatus === 'approved' ? 'var(--ok)' : effectiveProfileStatus === 'pending' ? 'var(--warn)' : 'inherit';
 
   return (
     <div className="page-section">
@@ -479,7 +479,7 @@ export default function VendorPage() {
             />
           </label>
           
-          <fieldset style={{ margin: '1rem 0', padding: '1rem', border: '1px solid #ccc', borderRadius: '4px' }}>
+          <fieldset style={{ margin: '1rem 0', padding: '1rem', border: '1px solid var(--line)', borderRadius: '4px' }}>
             <legend style={{ padding: '0 0.5rem', fontWeight: 'bold' }}>Legal Details & Documents</legend>
             <label className="field">
               Entity Type

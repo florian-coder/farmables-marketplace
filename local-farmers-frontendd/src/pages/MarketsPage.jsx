@@ -280,7 +280,7 @@ export default function MarketsPage() {
       <div className="section-header" style={{ marginBottom: '1rem' }}>
         <div>
           <h1>{title}</h1>
-          <p className="muted" style={{ fontWeight: 500, color: '#4b5563' }}>{description}</p>
+          <p className="muted" style={{ fontWeight: 500, color: 'var(--ink-3)' }}>{description}</p>
         </div>
         <Link className="button ghost" to="/auth/signup?role=vendor">
           Become a vendor
@@ -350,7 +350,7 @@ export default function MarketsPage() {
             </div>
             
             <div className="market-products">
-              <p className="label" style={{ marginBottom: '1.5rem', fontSize: '0.85rem', color: '#374151' }}>Available products in this category</p>
+              <p className="label" style={{ marginBottom: '1.5rem', fontSize: '0.85rem', color: 'var(--ink-3)' }}>Available products in this category</p>
               {market.products && market.products.length > 0 ? (
                 <div className="categories-list">
                   {['fruits_and_vegetables', 'eggs', 'honey', 'other'].map((catKey) => {
@@ -383,7 +383,7 @@ export default function MarketsPage() {
 
                             return (
                               <li key={product.id} className="product-card" style={{ opacity: isOutOfStock ? 0.8 : 1 }}>
-                                <div className="product-thumb" style={{ width: '100%', height: '180px', borderRadius: '10px', marginBottom: '0.25rem', overflow: 'hidden', background: '#f3f4f6', filter: isOutOfStock ? 'grayscale(0.5)' : 'none' }}>
+                                <div className="product-thumb" style={{ width: '100%', height: '180px', borderRadius: '10px', marginBottom: '0.25rem', overflow: 'hidden', background: 'var(--paper-2)', filter: isOutOfStock ? 'grayscale(0.5)' : 'none' }}>
                                   {resolvedImageUrl ? (
                                     <img
                                       src={resolvedImageUrl}
@@ -391,7 +391,7 @@ export default function MarketsPage() {
                                       style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                                     />
                                   ) : (
-                                    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#e5e7eb', color: '#9ca3af', fontSize: '2.5rem', fontWeight: 700 }}>
+                                    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--paper-2)', color: 'var(--ink-3)', fontSize: '2.5rem', fontWeight: 700 }}>
                                       {product.name?.charAt(0)?.toUpperCase() || '?'}
                                     </div>
                                   )}
@@ -416,8 +416,8 @@ export default function MarketsPage() {
                                 </div>
 
                                 <div className="product-rating-stock-row">
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600, color: '#4b5563', fontSize: '0.85rem' }}>
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="#fbbf24" stroke="#fbbf24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600, color: 'var(--ink-3)', fontSize: '0.85rem' }}>
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="var(--harvest)" stroke="var(--harvest)"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
                                     {Number(product.rating ?? 0).toFixed(1)}
                                   </div>
                                   <span className={`stock-badge ${isOutOfStock ? 'stock-badge-out' : stock < 5 ? 'stock-badge-low' : 'stock-badge-ok'}`}>

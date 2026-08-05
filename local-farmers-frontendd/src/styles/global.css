@@ -5,23 +5,98 @@
   font-family: 'Inter', 'Helvetica Neue', system-ui, sans-serif;
   line-height: 1.6;
   font-weight: 400;
-  /* --- Cottagecore Design Tokens --- */
-  --canvas: #F6F1EB;
-  --canvas-deep: #EFE7DE;
-  --ink: #332B25;
-  --ink-muted: #8A7D70;
-  --accent: #C47C56;
-  --accent-strong: #a85b2f;
-  --accent-hover: #b36d47;
-  --surface: #FDFAF6;
-  --surface-strong: #FFFDF9;
-  --surface-shadow: rgba(139, 115, 85, 0.08);
-  --highlight: #f0e4d5;
-  --stroke: rgba(51, 43, 37, 0.12);
-  --radius-card: 24px;
-  --radius-pill: 9999px;
-  --shadow-card: 0 12px 30px rgba(139, 115, 85, 0.08);
-  --shadow-float: 0 20px 40px rgba(139, 115, 85, 0.12);
+
+  /* ============================================================
+     Câmp & Piață — design tokens
+     Principiu: produsele au culoarea, interfața nu.
+     ============================================================ */
+
+  /* --- neutre (in / hârtie), ~90% din suprafață --- */
+  --paper-0: #fcfcfa; /* carduri, suprafețe ridicate */
+  --paper-1: #f5f5f0; /* fundalul paginii */
+  --paper-2: #eaeae2; /* zone înfundate, placeholder */
+  --line: #dcdcd2; /* chenare implicite */
+  --line-2: #c4c5b8; /* chenare accentuate, hover */
+  --ink-3: #6b7069; /* text secundar — 4,93:1 pe paper-0 */
+  --ink-1: #2a2e29; /* text principal — 13,44:1 pe paper-0 */
+
+  /* --- verde de câmp: structura --- */
+  --field: #274d3c; /* buton principal, activ — alb pe el 9,49:1 */
+  --field-hi: #487a60; /* hover, verde pentru dark mode */
+  --field-lo: #e6ede8; /* fundal de badge */
+
+  /* --- chihlimbar de recoltă: valoarea --- */
+  --harvest: #b87514; /* accente, iconuri — doar text mare */
+  --harvest-dk: #8a5610; /* preț, text mic — 5,98:1 */
+  --harvest-lo: #f7ecd8; /* fundal de evidențiere */
+
+  /* --- semantice, separate de brand --- */
+  --ok: #2f6b3a;
+  --warn: #96650f;
+  --bad: #a33328;
+
+  /* --- formă --- */
+  --r-xs: 4px;
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-pill: 999px;
+
+  /* --- elevație: implicit chenar, umbră doar pentru ce plutește --- */
+  --sh-1: 0 1px 2px rgba(39, 45, 38, 0.06), 0 2px 8px rgba(39, 45, 38, 0.05);
+  --sh-2: 0 8px 24px rgba(39, 45, 38, 0.12);
+
+  /* --- spațiu, pas de 4px --- */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 20px;
+  --s-6: 32px;
+  --s-7: 48px;
+  --s-8: 72px;
+
+  /* --- tip: 9 trepte, raport 1,200 --- */
+  --f-display: 'Playfair Display', 'Georgia', serif;
+  --f-text: 'Inter', system-ui, sans-serif;
+  --t-1: 0.75rem;
+  --t-2: 0.8125rem;
+  --t-3: 0.875rem;
+  --t-4: 1rem;
+  --t-5: 1.125rem;
+  --t-6: 1.3125rem;
+  --t-7: 1.625rem;
+  --t-8: 2rem;
+  --t-9: 2.625rem;
+
+  /* --- containere --- */
+  --w-wide: 1200px;
+  --w-text: 68ch;
+  --w-form: 480px;
+
+  /* ============================================================
+     Alias temporar spre numele vechi de tokeni.
+     Se șterg pe măsură ce componentele sunt migrate.
+     ============================================================ */
+  --canvas: var(--paper-1);
+  --canvas-deep: var(--paper-2);
+  --surface: var(--paper-0);
+  --surface-strong: var(--paper-0);
+  --surface-color: var(--paper-0);
+  --ink: var(--ink-1);
+  --ink-muted: var(--ink-3);
+  --accent: var(--field);
+  --accent-strong: var(--field);
+  --accent-hover: var(--field-hi);
+  --highlight: var(--field-lo);
+  --stroke: var(--line);
+  --border-color: var(--line);
+  --success-color: var(--ok);
+  --warning-color: var(--warn);
+  --surface-shadow: rgba(39, 45, 38, 0.1);
+  --radius-card: var(--r-md);
+  --radius-pill: var(--r-pill);
+  --shadow-card: none;
+  --shadow-float: var(--sh-1);
 }
 
 * {
@@ -30,11 +105,8 @@
 
 body {
   margin: 0;
-  background-color: var(--canvas);
-  background-image:
-    radial-gradient(ellipse at top left, rgba(255,255,255,0.55) 0%, transparent 50%),
-    radial-gradient(ellipse at bottom right, rgba(196, 124, 86, 0.06) 0%, transparent 50%);
-  color: var(--ink);
+  background-color: var(--paper-1);
+  color: var(--ink-1);
   min-height: 100vh;
 }
 
@@ -1850,8 +1922,9 @@ a {
 .product-card-price {
   font-weight: 700;
   font-size: 1.35rem;
-  color: var(--accent-strong);
+  color: var(--harvest-dk);
   margin: 0;
+  font-variant-numeric: tabular-nums;
 }
 
 .product-card-unit {
@@ -1924,7 +1997,8 @@ a {
 .market-stat-value {
   font-size: 1.75rem;
   font-weight: 800;
-  color: var(--accent-strong);
+  color: var(--ink-1);
+  font-variant-numeric: tabular-nums;
 }
 
 /* Stock Badges */
@@ -2008,9 +2082,9 @@ a {
 }
 
 .btn-inquiry-secondary:hover {
-  border-color: var(--accent);
-  background-color: var(--highlight);
-  color: var(--accent-strong);
+  border-color: var(--field);
+  background-color: var(--field-lo);
+  color: var(--field);
 }
 
 /* Quantity Input */

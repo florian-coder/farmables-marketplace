@@ -300,7 +300,12 @@ export default function VendorPublicProfilePage() {
                                   [product.id]: val,
                                 }));
                               }}
-                              style={{ width: '80px', padding: '0.4rem', border: '1px solid #ccc', borderRadius: '4px' }}
+                              style={{
+                                width: '80px',
+                                padding: '0.4rem',
+                                border: '1px solid var(--line-2)',
+                                borderRadius: 'var(--r-xs)',
+                              }}
                               title="Quantity"
                             />
                           )}
