@@ -22,6 +22,7 @@
   --field: #274d3c; /* buton principal, activ — alb pe el 9,49:1 */
   --field-hi: #487a60; /* hover, verde pentru dark mode */
   --field-lo: #e6ede8; /* fundal de badge */
+  --field-line: #c9dbd0; /* chenar pe fundal de badge */
 
   /* --- chihlimbar de recoltă: valoarea --- */
   --harvest: #b87514; /* accente, iconuri — doar text mare */
@@ -120,6 +121,7 @@
     --field: #6fa687; /* 6,08:1 */
     --field-hi: #86bb9d;
     --field-lo: #1b2a21;
+    --field-line: #2e4a3a;
 
     --harvest: #d9a245; /* 7,48:1 */
     --harvest-dk: #e8b863; /* 9,32:1 — rolul se inversează la lumină redusă */
@@ -1563,14 +1565,7 @@ a {
     grid-template-columns: 1fr;
   }
 
-  .farm-linear-row {
-    grid-template-columns: 1fr;
-    gap: 6px;
-  }
 
-  .farm-product-row {
-    grid-template-columns: 1fr;
-  }
 
   .farmer-card {
     grid-template-columns: 1fr;
@@ -1865,7 +1860,7 @@ a {
 
 .tag.bio {
   background: var(--field-lo);
-  border-color: #c9dbd0;
+  border-color: var(--field-line);
   color: var(--field);
 }
 
