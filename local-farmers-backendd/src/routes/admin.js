@@ -5,11 +5,11 @@ const { mapProductToApi, normalizeIban } = require('../lib/domain');
 const { recalculateAndPersistProductRatings } = require('../lib/productRating');
 const {
   ADMIN_COOKIE_NAME,
-  ADMIN_PASSWORD,
   ADMIN_SESSION_TTL_MS,
   ADMIN_USERNAME,
   createAdminSessionToken,
   requireAdmin,
+  verifyAdminCredentials,
 } = require('../middleware/adminAuth');
 
 const router = express.Router();
@@ -168,7 +168,7 @@ router.post('/login', async (req, res) => {
   const username = typeof req.body?.username === 'string' ? req.body.username.trim() : '';
   const password = typeof req.body?.password === 'string' ? req.body.password : '';
 
-  if (username !== ADMIN_USERNAME || password !== ADMIN_PASSWORD) {
+  if (!verifyAdminCredentials(username, password)) {
     return res.status(401).json({ error: 'Invalid admin credentials.' });
   }
 

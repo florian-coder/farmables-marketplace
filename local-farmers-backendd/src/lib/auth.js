@@ -1,11 +1,12 @@
 const crypto = require('crypto');
 const { promisify } = require('util');
 
+const { SESSION_SECRET } = require('./config');
+
 const scryptAsync = promisify(crypto.scrypt);
 
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7;
 const SESSION_COOKIE_NAME = 'lf_session';
-const SESSION_SECRET = process.env.SESSION_SECRET || 'local-farmers-dev-session-secret';
 
 const hashPassword = async (password) => {
   const salt = crypto.randomBytes(16).toString('hex');

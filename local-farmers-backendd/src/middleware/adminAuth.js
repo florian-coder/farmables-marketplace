@@ -1,14 +1,31 @@
 const crypto = require('crypto');
 
+const {
+  ADMIN_PASSWORD,
+  ADMIN_SESSION_SECRET,
+  ADMIN_USERNAME,
+} = require('../lib/config');
+
 const ADMIN_COOKIE_NAME = 'lf_admin_session';
 const ADMIN_SESSION_TTL_MS = 1000 * 60 * 60 * 12;
-const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'user';
-const ADMIN_PASSWORD =
-  process.env.ADMIN_PASSWORD || 'EmIqvVBOORxseKNX';
-const ADMIN_SESSION_SECRET =
-  process.env.ADMIN_SESSION_SECRET ||
-  process.env.SESSION_SECRET ||
-  'local-farmers-admin-secret';
+
+/**
+ * Comparație în timp constant, ca durata răspunsului să nu spună atacatorului
+ * câte caractere din parolă a nimerit.
+ */
+const safeEquals = (left, right) => {
+  const a = Buffer.from(String(left ?? ''), 'utf8');
+  const b = Buffer.from(String(right ?? ''), 'utf8');
+  if (a.length !== b.length) {
+    // Comparăm oricum, cu b față de el însuși, ca să nu revenim mai devreme.
+    crypto.timingSafeEqual(b, b);
+    return false;
+  }
+  return crypto.timingSafeEqual(a, b);
+};
+
+const verifyAdminCredentials = (username, password) =>
+  safeEquals(username, ADMIN_USERNAME) && safeEquals(password, ADMIN_PASSWORD);
 
 const base64UrlEncode = (value) =>
   Buffer.from(value, 'utf8').toString('base64url');
@@ -88,8 +105,8 @@ module.exports = {
   ADMIN_COOKIE_NAME,
   ADMIN_SESSION_TTL_MS,
   ADMIN_USERNAME,
-  ADMIN_PASSWORD,
   createAdminSessionToken,
   getAdminSession,
   requireAdmin,
+  verifyAdminCredentials,
 };
