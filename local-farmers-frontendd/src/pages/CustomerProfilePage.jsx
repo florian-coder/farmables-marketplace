@@ -17,6 +17,9 @@ const initialProfile = {
   county: '',
 };
 
+/** Toate sunt cerute de API la salvare, deci le numărăm pe cele goale. */
+const REQUIRED_FIELDS = Object.keys(initialProfile);
+
 const mapProfile = (profile) => ({
   firstName: profile?.firstName || '',
   lastName: profile?.lastName || '',
@@ -33,7 +36,7 @@ export default function CustomerProfilePage() {
   const { status: authStatus, user } = useAuth();
   const [profile, setProfile] = useState(initialProfile);
   const [profileStatus, setProfileStatus] = useState({
-    state: 'idle',
+    state: 'loading',
     message: '',
   });
 
@@ -129,132 +132,171 @@ export default function CustomerProfilePage() {
     );
   }
 
+  const missingCount = REQUIRED_FIELDS.filter(
+    (field) => !String(profile[field] || '').trim(),
+  ).length;
+  const isComplete = missingCount === 0;
+  const isLoadingProfile = profileStatus.state === 'loading';
+
   return (
     <div className="page-section">
       <div className="section-header">
         <div>
           <h1>My profile</h1>
-          <p className="muted">Complete your details for orders and delivery.</p>
+          <p className="muted">
+            Where your baskets are delivered, and how the farmers reach you.
+          </p>
+        </div>
+        <div className="button-group">
+          <Link className="button ghost" to="/orders">
+            Your orders
+          </Link>
+          <Link className="button ghost" to="/markets">
+            Browse markets
+          </Link>
         </div>
       </div>
 
-      <form className="profile-card" onSubmit={handleSubmit}>
-        <header className="profile-card-head">
-          <h2>Personal details</h2>
-          <p className="profile-card-sub">Used for delivery and for order updates.</p>
-        </header>
-        <div className="profile-card-body">
-          <div className="profile-fields">
-            <label className="field">
-              Name
-              <input
-                type="text"
-                name="firstName"
-                autoComplete="given-name"
-                value={profile.firstName}
-                onChange={handleChange}
-                required
-              />
-            </label>
-            <label className="field">
-              Surname
-              <input
-                type="text"
-                name="lastName"
-                autoComplete="family-name"
-                value={profile.lastName}
-                onChange={handleChange}
-                required
-              />
-            </label>
-            <label className="field">
-              Address street
-              <input
-                type="text"
-                name="streetAddress"
-                autoComplete="address-line1"
-                value={profile.streetAddress}
-                onChange={handleChange}
-                required
-              />
-            </label>
-            <label className="field">
-              Address number
-              <input
-                type="text"
-                name="streetNumber"
-                autoComplete="address-line2"
-                value={profile.streetNumber}
-                onChange={handleChange}
-                required
-              />
-            </label>
-            <label className="field">
-              Phone number
-              <input
-                type="tel"
-                name="phoneNumber"
-                autoComplete="tel"
-                value={profile.phoneNumber}
-                onChange={handleChange}
-                required
-              />
-            </label>
-            <label className="field">
-              Email
-              <input
-                type="email"
-                name="email"
-                autoComplete="email"
-                value={profile.email}
-                onChange={handleChange}
-                required
-              />
-            </label>
-            <label className="field">
-              City
-              <input
-                type="text"
-                name="city"
-                autoComplete="address-level2"
-                value={profile.city}
-                onChange={handleChange}
-                required
-              />
-            </label>
-            <label className="field">
-              County
-              <input
-                type="text"
-                name="county"
-                autoComplete="address-level1"
-                value={profile.county}
-                onChange={handleChange}
-                required
-              />
-            </label>
-            <label className="field is-wide">
-              Country
-              <input
-                type="text"
-                name="country"
-                autoComplete="country-name"
-                value={profile.country}
-                onChange={handleChange}
-                required
-              />
-            </label>
-          </div>
+      {!isLoadingProfile && (
+        <div className={`profile-status-bar ${isComplete ? 'is-complete' : 'is-incomplete'}`}>
+          <span className="profile-status-pill">
+            {isComplete ? 'Complete' : `${missingCount} to fill in`}
+          </span>
+          <p className="profile-status-note">
+            {isComplete
+              ? 'Your details are complete — orders can be delivered.'
+              : 'Farmers need every field filled in before they can deliver your order.'}
+          </p>
+        </div>
+      )}
 
-          <div className="profile-card-foot">
-            <button
-              className="button primary"
-              type="submit"
-              disabled={profileStatus.state === 'loading'}
-            >
-              {profileStatus.state === 'loading' ? 'Saving...' : 'Save profile'}
-            </button>
-            {profileStatus.message && (
+      <form className="profile-form" onSubmit={handleSubmit}>
+        <section className="profile-card">
+          <header className="profile-card-head">
+            <h2>Who you are</h2>
+            <p className="profile-card-sub">
+              The name and contact the farmer sees on your order.
+            </p>
+          </header>
+          <div className="profile-card-body">
+            <div className="profile-fields">
+              <label className="field">
+                Name
+                <input
+                  type="text"
+                  name="firstName"
+                  autoComplete="given-name"
+                  value={profile.firstName}
+                  onChange={handleChange}
+                  required
+                />
+              </label>
+              <label className="field">
+                Surname
+                <input
+                  type="text"
+                  name="lastName"
+                  autoComplete="family-name"
+                  value={profile.lastName}
+                  onChange={handleChange}
+                  required
+                />
+              </label>
+              <label className="field">
+                Phone number
+                <input
+                  type="tel"
+                  name="phoneNumber"
+                  autoComplete="tel"
+                  value={profile.phoneNumber}
+                  onChange={handleChange}
+                  required
+                />
+              </label>
+              <label className="field">
+                Email
+                <input
+                  type="email"
+                  name="email"
+                  autoComplete="email"
+                  value={profile.email}
+                  onChange={handleChange}
+                  required
+                />
+              </label>
+            </div>
+          </div>
+        </section>
+
+        <section className="profile-card">
+          <header className="profile-card-head">
+            <h2>Delivery address</h2>
+            <p className="profile-card-sub">Where the basket is dropped off.</p>
+          </header>
+          <div className="profile-card-body">
+            <div className="profile-fields">
+              <label className="field">
+                Address street
+                <input
+                  type="text"
+                  name="streetAddress"
+                  autoComplete="address-line1"
+                  value={profile.streetAddress}
+                  onChange={handleChange}
+                  required
+                />
+              </label>
+              <label className="field">
+                Address number
+                <input
+                  type="text"
+                  name="streetNumber"
+                  autoComplete="address-line2"
+                  value={profile.streetNumber}
+                  onChange={handleChange}
+                  required
+                />
+              </label>
+              <label className="field">
+                City
+                <input
+                  type="text"
+                  name="city"
+                  autoComplete="address-level2"
+                  value={profile.city}
+                  onChange={handleChange}
+                  required
+                />
+              </label>
+              <label className="field">
+                County
+                <input
+                  type="text"
+                  name="county"
+                  autoComplete="address-level1"
+                  value={profile.county}
+                  onChange={handleChange}
+                  required
+                />
+              </label>
+              <label className="field is-wide">
+                Country
+                <input
+                  type="text"
+                  name="country"
+                  autoComplete="country-name"
+                  value={profile.country}
+                  onChange={handleChange}
+                  required
+                />
+              </label>
+            </div>
+          </div>
+        </section>
+
+        <div className="profile-actions">
+          <div className="profile-actions-text">
+            {profileStatus.message ? (
               <p
                 className={`notice ${
                   profileStatus.state === 'error' ? 'error' : 'success'
@@ -262,8 +304,15 @@ export default function CustomerProfilePage() {
               >
                 {profileStatus.message}
               </p>
+            ) : (
+              <p className="profile-actions-hint">
+                Your address is shared only with the farms you order from.
+              </p>
             )}
           </div>
+          <button className="button primary" type="submit" disabled={isLoadingProfile}>
+            {isLoadingProfile ? 'Saving...' : 'Save profile'}
+          </button>
         </div>
       </form>
 

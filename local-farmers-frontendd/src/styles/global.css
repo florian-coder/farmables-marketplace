@@ -3630,6 +3630,14 @@ a {
   border-left-color: var(--bad);
 }
 
+.profile-status-bar.is-complete {
+  border-left-color: var(--ok);
+}
+
+.profile-status-bar.is-incomplete {
+  border-left-color: var(--warn);
+}
+
 .profile-status-pill {
   display: inline-flex;
   align-items: center;
@@ -3655,6 +3663,16 @@ a {
 .is-rejected .profile-status-pill {
   background: var(--bad-lo);
   color: var(--bad);
+}
+
+.is-complete .profile-status-pill {
+  background: var(--ok-lo);
+  color: var(--ok);
+}
+
+.is-incomplete .profile-status-pill {
+  background: var(--warn-lo);
+  color: var(--warn);
 }
 
 .profile-status-note {
