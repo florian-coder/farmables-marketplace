@@ -138,128 +138,133 @@ export default function CustomerProfilePage() {
         </div>
       </div>
 
-      <form className="form-card stack" onSubmit={handleSubmit}>
-        <div className="field-row">
-          <label className="field">
-            Name
-            <input
-              type="text"
-              name="firstName"
-              autoComplete="given-name"
-              value={profile.firstName}
-              onChange={handleChange}
-              required
-            />
-          </label>
-          <label className="field">
-            Surname
-            <input
-              type="text"
-              name="lastName"
-              autoComplete="family-name"
-              value={profile.lastName}
-              onChange={handleChange}
-              required
-            />
-          </label>
+      <form className="profile-card" onSubmit={handleSubmit}>
+        <header className="profile-card-head">
+          <h2>Personal details</h2>
+          <p className="profile-card-sub">Used for delivery and for order updates.</p>
+        </header>
+        <div className="profile-card-body">
+          <div className="profile-fields">
+            <label className="field">
+              Name
+              <input
+                type="text"
+                name="firstName"
+                autoComplete="given-name"
+                value={profile.firstName}
+                onChange={handleChange}
+                required
+              />
+            </label>
+            <label className="field">
+              Surname
+              <input
+                type="text"
+                name="lastName"
+                autoComplete="family-name"
+                value={profile.lastName}
+                onChange={handleChange}
+                required
+              />
+            </label>
+            <label className="field">
+              Address street
+              <input
+                type="text"
+                name="streetAddress"
+                autoComplete="address-line1"
+                value={profile.streetAddress}
+                onChange={handleChange}
+                required
+              />
+            </label>
+            <label className="field">
+              Address number
+              <input
+                type="text"
+                name="streetNumber"
+                autoComplete="address-line2"
+                value={profile.streetNumber}
+                onChange={handleChange}
+                required
+              />
+            </label>
+            <label className="field">
+              Phone number
+              <input
+                type="tel"
+                name="phoneNumber"
+                autoComplete="tel"
+                value={profile.phoneNumber}
+                onChange={handleChange}
+                required
+              />
+            </label>
+            <label className="field">
+              Email
+              <input
+                type="email"
+                name="email"
+                autoComplete="email"
+                value={profile.email}
+                onChange={handleChange}
+                required
+              />
+            </label>
+            <label className="field">
+              City
+              <input
+                type="text"
+                name="city"
+                autoComplete="address-level2"
+                value={profile.city}
+                onChange={handleChange}
+                required
+              />
+            </label>
+            <label className="field">
+              County
+              <input
+                type="text"
+                name="county"
+                autoComplete="address-level1"
+                value={profile.county}
+                onChange={handleChange}
+                required
+              />
+            </label>
+            <label className="field is-wide">
+              Country
+              <input
+                type="text"
+                name="country"
+                autoComplete="country-name"
+                value={profile.country}
+                onChange={handleChange}
+                required
+              />
+            </label>
+          </div>
+
+          <div className="profile-card-foot">
+            <button
+              className="button primary"
+              type="submit"
+              disabled={profileStatus.state === 'loading'}
+            >
+              {profileStatus.state === 'loading' ? 'Saving...' : 'Save profile'}
+            </button>
+            {profileStatus.message && (
+              <p
+                className={`notice ${
+                  profileStatus.state === 'error' ? 'error' : 'success'
+                }`} role="status"
+              >
+                {profileStatus.message}
+              </p>
+            )}
+          </div>
         </div>
-        <div className="field-row">
-          <label className="field">
-            Address street
-            <input
-              type="text"
-              name="streetAddress"
-              autoComplete="address-line1"
-              value={profile.streetAddress}
-              onChange={handleChange}
-              required
-            />
-          </label>
-          <label className="field">
-            Address number
-            <input
-              type="text"
-              name="streetNumber"
-              autoComplete="address-line2"
-              value={profile.streetNumber}
-              onChange={handleChange}
-              required
-            />
-          </label>
-        </div>
-        <label className="field">
-          Phone number
-          <input
-            type="tel"
-            name="phoneNumber"
-            autoComplete="tel"
-            value={profile.phoneNumber}
-            onChange={handleChange}
-            required
-          />
-        </label>
-        <label className="field">
-          Email
-          <input
-            type="email"
-            name="email"
-            autoComplete="email"
-            value={profile.email}
-            onChange={handleChange}
-            required
-          />
-        </label>
-        <div className="field-row">
-          <label className="field">
-            City
-            <input
-              type="text"
-              name="city"
-              autoComplete="address-level2"
-              value={profile.city}
-              onChange={handleChange}
-              required
-            />
-          </label>
-          <label className="field">
-            County
-            <input
-              type="text"
-              name="county"
-              autoComplete="address-level1"
-              value={profile.county}
-              onChange={handleChange}
-              required
-            />
-          </label>
-        </div>
-        <label className="field">
-          Country
-          <input
-            type="text"
-            name="country"
-            autoComplete="country-name"
-            value={profile.country}
-            onChange={handleChange}
-            required
-          />
-        </label>
-        <button
-          className="button primary"
-          type="submit"
-          disabled={profileStatus.state === 'loading'}
-        >
-          {profileStatus.state === 'loading' ? 'Saving...' : 'Save profile'}
-        </button>
-        {profileStatus.message && (
-          <p
-            className={`notice ${
-              profileStatus.state === 'error' ? 'error' : 'success'
-            }`} role="status"
-          >
-            {profileStatus.message}
-          </p>
-        )}
       </form>
 
       <PasswordChangeCard />

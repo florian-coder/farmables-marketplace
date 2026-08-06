@@ -7,6 +7,25 @@ import PasswordChangeCard from '../components/PasswordChangeCard.jsx';
 
 const MAX_FARM_IMAGES = 10;
 
+const STATUS_META = {
+  approved: {
+    label: 'Approved',
+    note: 'Your farm is live in the markets.',
+  },
+  pending: {
+    label: 'Waiting for review',
+    note: 'An admin checks your details before your products go live.',
+  },
+  rejected: {
+    label: 'Changes requested',
+    note: 'Update the details below and save again to resubmit.',
+  },
+  not_submitted: {
+    label: 'Not submitted',
+    note: 'Fill in the form and save. An admin reviews your farm before your products go live.',
+  },
+};
+
 const initialProfile = {
   id: '',
   farmName: '',
@@ -72,6 +91,30 @@ const mapVendorToProfile = (vendor) => ({
   product_oua: !!vendor?.documents?.sanitary_doc_egg,
   product_miere: !!vendor?.documents?.sanitary_doc_honey,
 });
+
+/** Un document încărcat arată la fel oriunde: etichetă, stare, câmp de fișier. */
+function DocumentField({ label, name, uploaded, inputRef }) {
+  return (
+    <label className="profile-doc">
+      <span className="profile-doc-head">
+        <span className="profile-doc-label">{label}</span>
+        <span className={`profile-doc-state ${uploaded ? 'is-uploaded' : ''}`}>
+          {uploaded ? 'Uploaded' : 'Required'}
+        </span>
+      </span>
+      <input
+        type="file"
+        name={name}
+        accept="image/*,.pdf"
+        ref={inputRef}
+        required={!uploaded}
+      />
+      {uploaded && (
+        <span className="profile-doc-hint">Pick a file only if you want to replace it.</span>
+      )}
+    </label>
+  );
+}
 
 export default function VendorPage() {
   const { status: authStatus, user } = useAuth();
@@ -152,7 +195,7 @@ export default function VendorPage() {
     try {
       const { id: _id, documents, ...profilePayload } = profile;
       const formData = new FormData();
-      
+
       const payload = {
         ...profilePayload,
         deliveryRadiusKm:
@@ -161,7 +204,7 @@ export default function VendorPage() {
             : Number(profile.deliveryRadiusKm),
         farmImages: JSON.stringify(normalizeFarmImages(profile.farmImages)),
       };
-      
+
       for (const [key, value] of Object.entries(payload)) {
         formData.append(key, value);
       }
@@ -209,7 +252,7 @@ export default function VendorPage() {
         setProfile(mapVendorToProfile(data.vendor));
         setFarmUploadStatus({ state: 'idle', message: '' });
       }
-      
+
       Object.values(fileInputRefs.current).forEach(input => {
         if (input) input.value = '';
       });
@@ -302,7 +345,7 @@ export default function VendorPage() {
   };
 
   if (authStatus === 'loading') {
-    return <div className="notice">Loading vendor dashboard...</div>;
+    return <div className="notice">Loading farm profile...</div>;
   }
 
   if (!user || user.role !== 'vendor') {
@@ -326,18 +369,25 @@ export default function VendorPage() {
         ? 'approved'
         : requestStatus;
 
-  const statusColor = effectiveProfileStatus === 'approved' ? 'var(--ok)' : effectiveProfileStatus === 'pending' ? 'var(--warn)' : 'inherit';
+  const statusMeta = STATUS_META[effectiveProfileStatus] || STATUS_META.not_submitted;
+  const statusNote =
+    effectiveProfileStatus === 'rejected'
+      ? `${requestReviewNote ? `Reason: ${requestReviewNote}. ` : ''}${statusMeta.note}`
+      : profileApproved && requestStatus === 'pending'
+        ? 'Your farm stays live while an admin reviews the latest changes.'
+        : statusMeta.note;
+
+  const galleryFull = profile.farmImages.length >= MAX_FARM_IMAGES;
+  const galleryBusy = farmUploadStatus.state === 'loading';
 
   return (
     <div className="page-section">
       <div className="section-header">
         <div>
-          <h1>Vendor dashboard</h1>
+          <h1>Farm profile</h1>
           <p className="muted">
-            Welcome back, {user.username}. Profile status:{' '}
-            <span style={{ fontWeight: 'bold', color: statusColor, textTransform: 'uppercase' }}>
-              {effectiveProfileStatus}
-            </span>
+            Everything customers see about your farm, and where the money lands at the end of the
+            month.
           </p>
         </div>
         <div className="button-group">
@@ -352,238 +402,309 @@ export default function VendorPage() {
         </div>
       </div>
 
-      {!profileApproved && (
-        <p className="notice">
-          Your farm profile is not approved yet. Save profile submits/updates a request in admin review queue.
-          Products become available after approval.
-        </p>
-      )}
-      {profileApproved && requestStatus === 'pending' && (
-        <p className="notice">
-          You already have an approved profile. Your latest changes are pending admin approval.
-        </p>
-      )}
-      {requestStatus === 'rejected' && (
-        <p className="notice error" role="alert">
-          Your latest profile request was rejected.
-          {requestReviewNote ? ` Reason: ${requestReviewNote}` : ''}
-          {' '}Update details and save again to resubmit.
-        </p>
-      )}
+      <div className={`profile-status-bar is-${effectiveProfileStatus}`}>
+        <span className="profile-status-pill">{statusMeta.label}</span>
+        <p className="profile-status-note">{statusNote}</p>
+      </div>
 
-      <div className="vendor-grid">
-        <form className="form-card" onSubmit={handleProfileSubmit}>
-          <h2>Farm profile</h2>
-          <label className="field">
-            Farm name
-            <input
-              type="text"
-              name="farmName"
-              value={profile.farmName}
-              onChange={handleProfileChange}
-              required
-            />
-          </label>
-          <label className="field">
-            Display name
-            <input
-              type="text"
-              name="displayName"
-              value={profile.displayName}
-              onChange={handleProfileChange}
-            />
-          </label>
-          <div className="field-row">
-            <label className="field">
-              Street address
-              <input
-                type="text"
-                name="streetAddress"
-                value={profile.streetAddress}
-                onChange={handleProfileChange}
-              />
-            </label>
-            <label className="field">
-              Street number
-              <input
-                type="text"
-                name="streetNumber"
-                value={profile.streetNumber}
-                onChange={handleProfileChange}
-              />
-            </label>
-          </div>
-          <div className="field-row">
-            <label className="field">
-              County
-              <input
-                type="text"
-                name="county"
-                autoComplete="address-level1"
-                value={profile.county}
-                onChange={handleProfileChange}
-              />
-            </label>
-            <label className="field">
-              City
-              <input
-                type="text"
-                name="city"
-                autoComplete="address-level2"
-                value={profile.city}
-                onChange={handleProfileChange}
-              />
-            </label>
-          </div>
-          <label className="field">
-            Phone number
-            <input
-              type="tel"
-              name="phoneNumber"
-              autoComplete="tel"
-              value={profile.phoneNumber}
-              onChange={handleProfileChange}
-            />
-          </label>
-          <label className="field">
-            Email
-            <input
-              type="email"
-              name="email"
-              autoComplete="email"
-              value={profile.email}
-              onChange={handleProfileChange}
-            />
-          </label>
-          <label className="field">
-            IBAN for payouts
-            <input
-              type="text"
-              name="iban"
-              inputMode="text"
-              autoComplete="off"
-              spellCheck="false"
-              value={profile.iban}
-              onChange={handleProfileChange}
-              placeholder="RO49 AAAA 1B31 0075 9384 0000"
-              required
-            />
-            <p className="muted upload-hint">
-              We send your money here at the end of every month. Only you and the Farmables team
-              can see it.
-            </p>
-          </label>
-          <label className="field">
-            Organic operator certificate
-            <input
-              type="text"
-              name="organicCertificate"
-              value={profile.organicCertificate}
-              onChange={handleProfileChange}
-              placeholder="Certificate ID or code"
-            />
-          </label>
-          <label className="field">
-            Delivery radius (km)
-            <input
-              type="number"
-              name="deliveryRadiusKm"
-              min="0"
-              step="1"
-              value={profile.deliveryRadiusKm}
-              onChange={handleProfileChange}
-            />
-          </label>
-          <label className="field">
-            Bio
-            <textarea
-              name="bio"
-              rows="3"
-              value={profile.bio}
-              onChange={handleProfileChange}
-            />
-          </label>
-          
-          <fieldset style={{ margin: '1rem 0', padding: '1rem', border: '1px solid var(--line)', borderRadius: '4px' }}>
-            <legend style={{ padding: '0 0.5rem', fontWeight: 'bold' }}>Legal Details & Documents</legend>
-            <label className="field">
-              Entity Type
-              <select name="entityType" value={profile.entityType} onChange={handleProfileChange}>
-                <option value="pf">Individual producer</option>
-                <option value="juridica">Registered business (PFA / II / SRL)</option>
-              </select>
-            </label>
-
-            {profile.entityType === 'pf' ? (
-              <>
-                <label className="field">
-                  Producer Certificate - Front {profile.documents?.atestat_prod && <span className="success">(Uploaded)</span>}
-                  <input type="file" name="atestat_prod" accept="image/*,.pdf" ref={setFileRef('atestat_prod')} required={!profile.documents?.atestat_prod} />
-                </label>
-                <label className="field">
-                  Producer Certificate - Back {profile.documents?.atestat_prod_2 && <span className="success">(Uploaded)</span>}
-                  <input type="file" name="atestat_prod_2" accept="image/*,.pdf" ref={setFileRef('atestat_prod_2')} required={!profile.documents?.atestat_prod_2} />
-                </label>
-                <label className="field">
-                  Commercialization Booklet {profile.documents?.carnet_commerce && <span className="success">(Uploaded)</span>}
-                  <input type="file" name="carnet_commerce" accept="image/*,.pdf" ref={setFileRef('carnet_commerce')} required={!profile.documents?.carnet_commerce} />
-                </label>
-              </>
-            ) : (
-              <>
-                <label className="field">
-                  Registration Certificate {profile.documents?.certificat_register && <span className="success">(Uploaded)</span>}
-                  <input type="file" name="certificat_register" accept="image/*,.pdf" ref={setFileRef('certificat_register')} required={!profile.documents?.certificat_register} />
-                </label>
-                <label className="field">
-                  Company ID (CUI) {profile.documents?.cui && <span className="success">(Uploaded)</span>}
-                  <input type="file" name="cui" accept="image/*,.pdf" ref={setFileRef('cui')} required={!profile.documents?.cui} />
-                </label>
-              </>
-            )}
-
-            <div className="field" style={{ marginTop: '1rem' }}>
-              <strong>Product Categories:</strong>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem' }}>
-                <input type="checkbox" name="product_oua" checked={profile.product_oua} onChange={handleProfileChange} /> Eggs
+      <form className="profile-form" onSubmit={handleProfileSubmit}>
+        <section className="profile-card">
+          <header className="profile-card-head">
+            <h2>Farm identity</h2>
+            <p className="profile-card-sub">The name and the story customers meet first.</p>
+          </header>
+          <div className="profile-card-body">
+            <div className="profile-fields">
+              <label className="field">
+                Farm name
+                <input
+                  type="text"
+                  name="farmName"
+                  value={profile.farmName}
+                  onChange={handleProfileChange}
+                  required
+                />
               </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem' }}>
-                <input type="checkbox" name="product_miere" checked={profile.product_miere} onChange={handleProfileChange} /> Honey
+              <label className="field">
+                Display name
+                <input
+                  type="text"
+                  name="displayName"
+                  value={profile.displayName}
+                  onChange={handleProfileChange}
+                />
+              </label>
+              <label className="field is-wide">
+                Bio
+                <textarea
+                  name="bio"
+                  rows="4"
+                  value={profile.bio}
+                  onChange={handleProfileChange}
+                />
+              </label>
+            </div>
+          </div>
+        </section>
+
+        <section className="profile-card">
+          <header className="profile-card-head">
+            <h2>Location &amp; contact</h2>
+            <p className="profile-card-sub">
+              How far you deliver and how customers reach you.
+            </p>
+          </header>
+          <div className="profile-card-body">
+            <div className="profile-fields">
+              <label className="field">
+                Street address
+                <input
+                  type="text"
+                  name="streetAddress"
+                  value={profile.streetAddress}
+                  onChange={handleProfileChange}
+                />
+              </label>
+              <label className="field">
+                Street number
+                <input
+                  type="text"
+                  name="streetNumber"
+                  value={profile.streetNumber}
+                  onChange={handleProfileChange}
+                />
+              </label>
+              <label className="field">
+                County
+                <input
+                  type="text"
+                  name="county"
+                  autoComplete="address-level1"
+                  value={profile.county}
+                  onChange={handleProfileChange}
+                />
+              </label>
+              <label className="field">
+                City
+                <input
+                  type="text"
+                  name="city"
+                  autoComplete="address-level2"
+                  value={profile.city}
+                  onChange={handleProfileChange}
+                />
+              </label>
+              <label className="field">
+                Phone number
+                <input
+                  type="tel"
+                  name="phoneNumber"
+                  autoComplete="tel"
+                  value={profile.phoneNumber}
+                  onChange={handleProfileChange}
+                />
+              </label>
+              <label className="field">
+                Email
+                <input
+                  type="email"
+                  name="email"
+                  autoComplete="email"
+                  value={profile.email}
+                  onChange={handleProfileChange}
+                />
+              </label>
+              <label className="field">
+                Delivery radius (km)
+                <input
+                  type="number"
+                  name="deliveryRadiusKm"
+                  min="0"
+                  step="1"
+                  value={profile.deliveryRadiusKm}
+                  onChange={handleProfileChange}
+                />
+              </label>
+            </div>
+          </div>
+        </section>
+
+        <section className="profile-card">
+          <header className="profile-card-head">
+            <h2>Payouts</h2>
+            <p className="profile-card-sub">The account your monthly earnings are sent to.</p>
+          </header>
+          <div className="profile-card-body">
+            <div className="profile-fields">
+              <label className="field is-wide">
+                IBAN
+                <input
+                  type="text"
+                  name="iban"
+                  inputMode="text"
+                  autoComplete="off"
+                  spellCheck="false"
+                  value={profile.iban}
+                  onChange={handleProfileChange}
+                  placeholder="RO49 AAAA 1B31 0075 9384 0000"
+                  required
+                />
+              </label>
+            </div>
+            <p className="profile-hint">
+              We send your money here at the end of every month. Only you and the Farmables team
+              can see it — follow the running total on your{' '}
+              <Link to="/earnings">earnings page</Link>.
+            </p>
+          </div>
+        </section>
+
+        <section className="profile-card">
+          <header className="profile-card-head">
+            <h2>Certification &amp; documents</h2>
+            <p className="profile-card-sub">
+              Checked once by an admin, before your products go live.
+            </p>
+          </header>
+          <div className="profile-card-body">
+            <div className="profile-fields">
+              <label className="field">
+                Organic operator certificate
+                <input
+                  type="text"
+                  name="organicCertificate"
+                  value={profile.organicCertificate}
+                  onChange={handleProfileChange}
+                  placeholder="Certificate ID or code"
+                />
+              </label>
+              <label className="field">
+                Entity type
+                <select
+                  name="entityType"
+                  value={profile.entityType}
+                  onChange={handleProfileChange}
+                >
+                  <option value="pf">Individual producer</option>
+                  <option value="juridica">Registered business (PFA / II / SRL)</option>
+                </select>
               </label>
             </div>
 
-            {profile.product_oua && (
-              <label className="field">
-                Sanitary Registration Document (DSVSA) for Eggs {profile.documents?.sanitary_doc_egg && <span className="success">(Uploaded)</span>}
-                <input type="file" name="sanitary_doc_egg" accept="image/*,.pdf" ref={setFileRef('sanitary_doc_egg')} required={!profile.documents?.sanitary_doc_egg} />
-              </label>
-            )}
+            <div className="profile-docs">
+              {profile.entityType === 'pf' ? (
+                <>
+                  <DocumentField
+                    label="Producer certificate — front"
+                    name="atestat_prod"
+                    uploaded={Boolean(profile.documents?.atestat_prod)}
+                    inputRef={setFileRef('atestat_prod')}
+                  />
+                  <DocumentField
+                    label="Producer certificate — back"
+                    name="atestat_prod_2"
+                    uploaded={Boolean(profile.documents?.atestat_prod_2)}
+                    inputRef={setFileRef('atestat_prod_2')}
+                  />
+                  <DocumentField
+                    label="Commercialization booklet"
+                    name="carnet_commerce"
+                    uploaded={Boolean(profile.documents?.carnet_commerce)}
+                    inputRef={setFileRef('carnet_commerce')}
+                  />
+                </>
+              ) : (
+                <>
+                  <DocumentField
+                    label="Registration certificate"
+                    name="certificat_register"
+                    uploaded={Boolean(profile.documents?.certificat_register)}
+                    inputRef={setFileRef('certificat_register')}
+                  />
+                  <DocumentField
+                    label="Company ID (CUI)"
+                    name="cui"
+                    uploaded={Boolean(profile.documents?.cui)}
+                    inputRef={setFileRef('cui')}
+                  />
+                </>
+              )}
+            </div>
 
-            {profile.product_miere && (
-              <label className="field">
-                Sanitary Registration Document (DSVSA) for Honey {profile.documents?.sanitary_doc_honey && <span className="success">(Uploaded)</span>}
-                <input type="file" name="sanitary_doc_honey" accept="image/*,.pdf" ref={setFileRef('sanitary_doc_honey')} required={!profile.documents?.sanitary_doc_honey} />
-              </label>
-            )}
-          </fieldset>
+            <fieldset className="profile-categories">
+              <legend>Product categories</legend>
+              <div className="profile-toggles">
+                <label className="profile-toggle">
+                  <input
+                    type="checkbox"
+                    name="product_oua"
+                    checked={profile.product_oua}
+                    onChange={handleProfileChange}
+                  />
+                  Eggs
+                </label>
+                <label className="profile-toggle">
+                  <input
+                    type="checkbox"
+                    name="product_miere"
+                    checked={profile.product_miere}
+                    onChange={handleProfileChange}
+                  />
+                  Honey
+                </label>
+              </div>
+            </fieldset>
 
-          <label className="field">
-            Farm gallery (up to 10 images)
-            <input
-              key={farmImagesInputKey}
-              type="file"
-              accept="image/*"
-              multiple
-              onChange={handleFarmImagesUpload}
-              disabled={
-                farmUploadStatus.state === 'loading' ||
-                profile.farmImages.length >= MAX_FARM_IMAGES
-              }
-            />
-            <p className="muted upload-hint">
-              {profile.farmImages.length}/{MAX_FARM_IMAGES} uploaded · JPG, PNG, or
-              WebP · max 5MB each.
+            {(profile.product_oua || profile.product_miere) && (
+              <div className="profile-docs">
+                {profile.product_oua && (
+                  <DocumentField
+                    label="Sanitary registration (DSVSA) — eggs"
+                    name="sanitary_doc_egg"
+                    uploaded={Boolean(profile.documents?.sanitary_doc_egg)}
+                    inputRef={setFileRef('sanitary_doc_egg')}
+                  />
+                )}
+                {profile.product_miere && (
+                  <DocumentField
+                    label="Sanitary registration (DSVSA) — honey"
+                    name="sanitary_doc_honey"
+                    uploaded={Boolean(profile.documents?.sanitary_doc_honey)}
+                    inputRef={setFileRef('sanitary_doc_honey')}
+                  />
+                )}
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section className="profile-card">
+          <header className="profile-card-head">
+            <h2>Farm gallery</h2>
+            <p className="profile-card-sub">
+              Up to {MAX_FARM_IMAGES} photos. The first one becomes the cover.
             </p>
+          </header>
+          <div className="profile-card-body">
+            <label className={`profile-upload ${galleryFull || galleryBusy ? 'is-disabled' : ''}`}>
+              <input
+                key={farmImagesInputKey}
+                className="visually-hidden"
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handleFarmImagesUpload}
+                disabled={galleryBusy || galleryFull}
+              />
+              <span className="profile-upload-title">
+                {galleryFull ? 'Gallery is full' : galleryBusy ? 'Uploading...' : 'Add photos'}
+              </span>
+              <span className="profile-upload-hint">
+                {profile.farmImages.length}/{MAX_FARM_IMAGES} uploaded · JPG, PNG or WebP · max 5MB
+                each
+              </span>
+            </label>
+
             <div className="farm-gallery-grid">
               {profile.farmImages.length > 0 ? (
                 profile.farmImages.map((imageUrl, imageIndex) => (
@@ -607,20 +728,39 @@ export default function VendorPage() {
                 </div>
               )}
             </div>
-          </label>
-          {farmUploadStatus.message && (
-            <p
-              className={`notice ${
-                farmUploadStatus.state === 'error'
-                  ? 'error'
-                  : farmUploadStatus.state === 'success'
-                    ? 'success'
-                    : ''
-              }`} role="status"
-            >
-              {farmUploadStatus.message}
-            </p>
-          )}
+
+            {farmUploadStatus.message && (
+              <p
+                className={`notice ${
+                  farmUploadStatus.state === 'error'
+                    ? 'error'
+                    : farmUploadStatus.state === 'success'
+                      ? 'success'
+                      : ''
+                }`} role="status"
+              >
+                {farmUploadStatus.message}
+              </p>
+            )}
+          </div>
+        </section>
+
+        <div className="profile-actions">
+          <div className="profile-actions-text">
+            {profileStatus.message ? (
+              <p
+                className={`notice ${
+                  profileStatus.state === 'error' ? 'error' : 'success'
+                }`} role="status"
+              >
+                {profileStatus.message}
+              </p>
+            ) : (
+              <p className="profile-actions-hint">
+                Saving sends your profile to the admin review queue.
+              </p>
+            )}
+          </div>
           <button
             className="button primary"
             type="submit"
@@ -628,19 +768,10 @@ export default function VendorPage() {
           >
             {profileStatus.state === 'loading' ? 'Saving...' : 'Save profile'}
           </button>
-          {profileStatus.message && (
-            <p
-              className={`notice ${
-                profileStatus.state === 'error' ? 'error' : 'success'
-              }`} role="status"
-            >
-              {profileStatus.message}
-            </p>
-          )}
-        </form>
+        </div>
+      </form>
 
-        <PasswordChangeCard />
-      </div>
+      <PasswordChangeCard />
     </div>
   );
 }

@@ -47,61 +47,66 @@ export default function PasswordChangeCard() {
   };
 
   return (
-    <form className="form-card" onSubmit={handleSubmit}>
-      <div>
+    <form className="profile-card" onSubmit={handleSubmit}>
+      <header className="profile-card-head">
         <h2>Password</h2>
-        <p className="muted">
+        <p className="profile-card-sub">
           Enter your current password to set a new one. At least 6 characters.
         </p>
+      </header>
+      <div className="profile-card-body">
+        <div className="profile-fields">
+          <label className="field is-wide">
+            Current password
+            <input
+              type="password"
+              name="currentPassword"
+              autoComplete="current-password"
+              value={form.currentPassword}
+              onChange={handleChange}
+              required
+            />
+          </label>
+          <label className="field">
+            New password
+            <input
+              type="password"
+              name="newPassword"
+              autoComplete="new-password"
+              minLength={6}
+              value={form.newPassword}
+              onChange={handleChange}
+              required
+            />
+          </label>
+          <label className="field">
+            Repeat new password
+            <input
+              type="password"
+              name="confirmPassword"
+              autoComplete="new-password"
+              minLength={6}
+              value={form.confirmPassword}
+              onChange={handleChange}
+              required
+            />
+          </label>
+        </div>
+
+        <div className="profile-card-foot">
+          <button className="button primary" type="submit" disabled={status.state === 'loading'}>
+            {status.state === 'loading' ? 'Changing...' : 'Change password'}
+          </button>
+          {status.message && (
+            <p
+              className={`notice ${status.state === 'error' ? 'error' : 'success'}`}
+              role={status.state === 'error' ? 'alert' : 'status'}
+            >
+              {status.message}
+            </p>
+          )}
+        </div>
       </div>
-      <label className="field">
-        Current password
-        <input
-          type="password"
-          name="currentPassword"
-          autoComplete="current-password"
-          value={form.currentPassword}
-          onChange={handleChange}
-          required
-        />
-      </label>
-      <div className="field-row">
-        <label className="field">
-          New password
-          <input
-            type="password"
-            name="newPassword"
-            autoComplete="new-password"
-            minLength={6}
-            value={form.newPassword}
-            onChange={handleChange}
-            required
-          />
-        </label>
-        <label className="field">
-          Repeat new password
-          <input
-            type="password"
-            name="confirmPassword"
-            autoComplete="new-password"
-            minLength={6}
-            value={form.confirmPassword}
-            onChange={handleChange}
-            required
-          />
-        </label>
-      </div>
-      <button className="button primary" type="submit" disabled={status.state === 'loading'}>
-        {status.state === 'loading' ? 'Changing...' : 'Change password'}
-      </button>
-      {status.message && (
-        <p
-          className={`notice ${status.state === 'error' ? 'error' : 'success'}`}
-          role={status.state === 'error' ? 'alert' : 'status'}
-        >
-          {status.message}
-        </p>
-      )}
     </form>
   );
 }

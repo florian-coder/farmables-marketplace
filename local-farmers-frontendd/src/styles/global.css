@@ -1070,13 +1070,6 @@ a {
   color: var(--ok);
 }
 
-.vendor-grid {
-  display: grid;
-  gap: 20px;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  align-items: start;
-}
-
 .products-list {
   display: grid;
   gap: 12px;
@@ -3605,5 +3598,357 @@ a {
   .earnings-order-total {
     text-align: left;
     min-width: 0;
+  }
+}
+
+/* ============================================================
+   Profile — formularul lung tăiat în carduri cu antet, aceleași
+   ca la Orders și Earnings. Salvarea stă lipită jos, ca totalul
+   coșului, ca să nu fie nevoie de derulat până la capăt.
+   ============================================================ */
+.profile-status-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--line-2);
+  border-radius: var(--r-md);
+  background: var(--paper-0);
+}
+
+.profile-status-bar.is-approved {
+  border-left-color: var(--ok);
+}
+
+.profile-status-bar.is-pending {
+  border-left-color: var(--warn);
+}
+
+.profile-status-bar.is-rejected {
+  border-left-color: var(--bad);
+}
+
+.profile-status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--s-1) var(--s-3);
+  border-radius: var(--r-xs);
+  background: var(--paper-2);
+  color: var(--ink-1);
+  font-size: var(--t-1);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.is-approved .profile-status-pill {
+  background: var(--ok-lo);
+  color: var(--ok);
+}
+
+.is-pending .profile-status-pill {
+  background: var(--warn-lo);
+  color: var(--warn);
+}
+
+.is-rejected .profile-status-pill {
+  background: var(--bad-lo);
+  color: var(--bad);
+}
+
+.profile-status-note {
+  margin: 0;
+  flex: 1 1 260px;
+  font-size: var(--t-2);
+  color: var(--ink-3);
+}
+
+.profile-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.profile-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--paper-0);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+
+.profile-card-head {
+  padding: var(--s-3) var(--s-4);
+  border-bottom: 1px solid var(--line);
+  background: var(--paper-1);
+}
+
+.profile-card-head h2 {
+  margin: 0;
+  font-size: var(--t-5);
+  color: var(--field);
+}
+
+.profile-card-sub {
+  margin: 2px 0 0;
+  font-size: var(--t-1);
+  color: var(--ink-3);
+}
+
+.profile-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  padding: var(--s-5) var(--s-4);
+}
+
+/* Două coloane de la lățimea la care un câmp singur ar deveni prea lung. */
+.profile-fields {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--s-4);
+}
+
+@media (min-width: 760px) {
+  .profile-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.profile-fields .field.is-wide {
+  grid-column: 1 / -1;
+}
+
+.profile-hint {
+  margin: 0;
+  font-size: var(--t-1);
+  color: var(--ink-3);
+}
+
+.profile-hint a {
+  color: var(--leaf-dk);
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+.profile-card-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.profile-card-foot .notice {
+  margin: 0;
+}
+
+/* --- documente: aceeași casetă pentru fiecare act cerut --- */
+.profile-docs {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--s-3);
+}
+
+@media (min-width: 760px) {
+  .profile-docs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.profile-doc {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--paper-1);
+}
+
+.profile-doc:focus-within {
+  border-color: var(--leaf);
+}
+
+.profile-doc-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+}
+
+.profile-doc-label {
+  font-size: var(--t-2);
+  font-weight: 600;
+  color: var(--ink-1);
+}
+
+.profile-doc-state {
+  flex: 0 0 auto;
+  padding: 2px var(--s-2);
+  border-radius: var(--r-xs);
+  background: var(--paper-2);
+  color: var(--ink-3);
+  font-size: var(--t-1);
+  font-weight: 700;
+}
+
+.profile-doc-state.is-uploaded {
+  background: var(--ok-lo);
+  color: var(--ok);
+}
+
+.profile-doc input[type='file'] {
+  font-size: var(--t-2);
+  color: var(--ink-3);
+}
+
+.profile-doc-hint {
+  font-size: var(--t-1);
+  color: var(--ink-3);
+}
+
+/* --- categorii: bifele devin pastile, ca filtrele din markets --- */
+.profile-categories {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.profile-categories legend {
+  padding: 0;
+  margin-bottom: var(--s-2);
+  font-size: var(--t-2);
+  font-weight: 700;
+  color: var(--ink-1);
+}
+
+.profile-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
+.profile-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-2) var(--s-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  background: var(--paper-0);
+  color: var(--ink-1);
+  font-size: var(--t-2);
+  cursor: pointer;
+  transition: background 0.14s ease, border-color 0.14s ease;
+}
+
+.profile-toggle:hover {
+  border-color: var(--line-2);
+}
+
+.profile-toggle:focus-within {
+  border-color: var(--leaf);
+  box-shadow: 0 0 0 3px var(--leaf-lo);
+}
+
+.profile-toggle:has(input:checked) {
+  background: var(--leaf-lo);
+  border-color: var(--leaf-line);
+  color: var(--field);
+  font-weight: 600;
+}
+
+/* --- galeria: o singură zonă de încărcat, separată de miniaturi --- */
+.profile-upload {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: var(--s-5);
+  border: 1px dashed var(--line-2);
+  border-radius: var(--r-md);
+  background: var(--paper-1);
+  text-align: center;
+  cursor: pointer;
+  transition: background 0.14s ease, border-color 0.14s ease;
+}
+
+.profile-upload:hover {
+  border-color: var(--leaf);
+  background: var(--leaf-lo);
+}
+
+.profile-upload:focus-within {
+  border-color: var(--leaf);
+  box-shadow: 0 0 0 3px var(--leaf-lo);
+}
+
+.profile-upload.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.profile-upload.is-disabled:hover {
+  border-color: var(--line-2);
+  background: var(--paper-1);
+}
+
+.profile-upload-title {
+  font-weight: 700;
+  color: var(--leaf-dk);
+}
+
+.profile-upload-hint {
+  font-size: var(--t-1);
+  color: var(--ink-3);
+}
+
+/* --- bara de salvare, lipită jos ca totalul coșului --- */
+.profile-actions {
+  position: sticky;
+  bottom: var(--s-4);
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--leaf-line);
+  border-radius: var(--r-md);
+  background: var(--leaf-lo);
+  box-shadow: var(--sh-2);
+}
+
+.profile-actions-text {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
+.profile-actions-text .notice {
+  margin: 0;
+}
+
+.profile-actions-hint {
+  margin: 0;
+  font-size: var(--t-2);
+  color: var(--ink-3);
+}
+
+.profile-actions .button {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 640px) {
+  .profile-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .profile-actions .button {
+    width: 100%;
+    justify-content: center;
   }
 }
