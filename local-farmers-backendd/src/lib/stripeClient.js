@@ -32,21 +32,21 @@ const describeStripeError = (error) => {
   const code = error?.code || '';
 
   if (type === 'StripeCardError') {
-    return 'Cardul a fost refuzat. Încearcă alt card sau contactează banca.';
+    return 'Your card was declined. Try another card or contact your bank.';
   }
   if (code === 'account_invalid' || code === 'account_country_invalid_address') {
-    return 'Contul Stripe al fermierului nu este complet configurat.';
+    return 'The farm\u2019s Stripe account is not fully set up.';
   }
   if (code === 'balance_insufficient') {
-    return 'Fonduri insuficiente în contul platformei pentru această operațiune.';
+    return 'Insufficient funds in the platform account for this operation.';
   }
   if (type === 'StripeConnectionError' || type === 'StripeAPIError') {
-    return 'Stripe nu răspunde momentan. Reîncearcă în câteva minute.';
+    return 'Stripe is not responding right now. Try again in a few minutes.';
   }
   if (type === 'StripeRateLimitError') {
-    return 'Prea multe cereri către Stripe. Reîncearcă în câteva secunde.';
+    return 'Too many requests to Stripe. Try again in a few seconds.';
   }
-  return 'Plata nu a putut fi procesată. Am notificat echipa.';
+  return 'The payment could not be processed. The team has been notified.';
 };
 
 /** The `req_...` id Stripe puts on every response — the only useful log key. */

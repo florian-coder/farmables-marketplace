@@ -74,19 +74,19 @@ export default function SignupPage() {
     if (!termsAccepted) {
       setStatus({
         state: 'error',
-        message: 'Trebuie să accepți termenii și condițiile ca să îți creezi cont.',
+        message: 'You must accept the terms and conditions to create an account.',
       });
       return;
     }
     if (versionCheck && !versionCheck.ok) {
       setStatus({
         state: 'error',
-        message: 'Termenii afișați nu sunt cei în vigoare. Reîncarcă pagina.',
+        message: 'The terms shown are not the current ones. Please reload the page.',
       });
       return;
     }
 
-    setStatus({ state: 'loading', message: 'Se creează contul...' });
+    setStatus({ state: 'loading', message: 'Creating your account...' });
 
     try {
       const response = await apiFetch('/api/auth/signup', {
@@ -101,19 +101,19 @@ export default function SignupPage() {
 
       const data = await response.json();
       if (!response.ok) {
-        throw new Error(data.error || 'Înregistrarea a eșuat.');
+        throw new Error(data.error || 'Signup failed.');
       }
 
       setStatus({
         state: 'success',
-        message: 'Cont creat. Verifică-ți emailul, apoi te poți autentifica.',
+        message: 'Account created. Check your email, then you can log in.',
       });
       setForm((prev) => ({ ...prev, password: '' }));
       setTermsAccepted(false);
     } catch (error) {
       setStatus({
         state: 'error',
-        message: error.message || 'Înregistrarea a eșuat.',
+        message: error.message || 'Signup failed.',
       });
     }
   };
@@ -122,17 +122,17 @@ export default function SignupPage() {
     <div className="page-section auth-section">
       <div className="section-header">
         <div>
-          <h1>Creează-ți contul</h1>
-          <p className="muted">Alege un rol și începe.</p>
+          <h1>Create your account</h1>
+          <p className="muted">Choose a role and get started.</p>
         </div>
         <Link className="button ghost" to="/auth/login">
-          Autentificare
+          Log in
         </Link>
       </div>
 
       <form className="form-card" onSubmit={handleSubmit}>
         <label className="field">
-          Nume de utilizator
+          Username
           <input
             type="text"
             name="username"
@@ -154,11 +154,11 @@ export default function SignupPage() {
             required
           />
           <p className="muted upload-hint">
-            Îl folosim ca să îți confirmăm contul și ca să îți poți recupera parola.
+            We use it to confirm your account and to let you recover your password.
           </p>
         </label>
         <label className="field">
-          Parolă
+          Password
           <input
             type="password"
             name="password"
@@ -168,13 +168,13 @@ export default function SignupPage() {
             required
             minLength={10}
           />
-          <p className="muted upload-hint">Minimum 10 caractere.</p>
+          <p className="muted upload-hint">At least 10 characters.</p>
         </label>
         <label className="field">
-          Rol
+          Role
           <select name="role" value={form.role} onChange={handleChange}>
-            <option value="customer">Client</option>
-            <option value="vendor">Producător</option>
+            <option value="customer">Customer</option>
+            <option value="vendor">Producer</option>
           </select>
         </label>
 
@@ -189,16 +189,16 @@ export default function SignupPage() {
               required
             />
             <span>
-              Am citit și accept{' '}
+              I have read and accept the{' '}
               <Link to={`/legal/${legalDocument.key}`} target="_blank" rel="noopener noreferrer">
                 {legalDocument.title.toLowerCase()}
               </Link>{' '}
-              (versiunea {legalDocument.version})
+              (version {legalDocument.version})
               {form.role === 'vendor' && (
                 <>
                   {' '}
-                  — inclusiv răspunderea integrală pentru siguranța alimentară, documentele și
-                  livrarea produselor mele.
+                  — including full responsibility for the food safety, documents and delivery
+                  of my products.
                 </>
               )}
             </span>
@@ -210,12 +210,12 @@ export default function SignupPage() {
             aria-expanded={termsOpen}
             onClick={() => setTermsOpen((open) => !open)}
           >
-            {termsOpen ? 'Ascunde textul' : 'Citește aici'}
+            {termsOpen ? 'Hide the text' : 'Read it here'}
           </button>
 
           {termsOpen && (
             <div className="legal-consent-body">
-              <Suspense fallback={<p className="muted">Se încarcă textul...</p>}>
+              <Suspense fallback={<p className="muted">Loading the text...</p>}>
                 <LegalDocument document={legalDocument} compact />
               </Suspense>
             </div>
@@ -223,9 +223,9 @@ export default function SignupPage() {
 
           {versionCheck && !versionCheck.ok && (
             <p className="notice error" role="alert">
-              Termenii s-au actualizat între timp
-              {versionCheck.serverVersion ? ` (versiunea ${versionCheck.serverVersion})` : ''}.
-              Reîncarcă pagina ca să citești versiunea nouă.
+              The terms have been updated
+              {versionCheck.serverVersion ? ` (version ${versionCheck.serverVersion})` : ''}.
+              Reload the page to read the new version.
             </p>
           )}
         </div>
@@ -235,7 +235,7 @@ export default function SignupPage() {
           type="submit"
           disabled={status.state === 'loading' || !termsAccepted}
         >
-          {status.state === 'loading' ? 'Se creează...' : 'Creează cont'}
+          {status.state === 'loading' ? 'Creating...' : 'Sign up'}
         </button>
         {status.message && (
           <p
@@ -246,7 +246,7 @@ export default function SignupPage() {
           </p>
         )}
         <p className="muted">
-          Ai deja cont? <Link to="/auth/login">Autentifică-te</Link>.
+          Already have an account? <Link to="/auth/login">Log in</Link>.
         </p>
       </form>
     </div>

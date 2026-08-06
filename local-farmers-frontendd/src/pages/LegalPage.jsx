@@ -15,10 +15,10 @@ export default function LegalPage({ documentKey }) {
   if (!document) {
     return (
       <div className="page-section">
-        <h1>Document indisponibil</h1>
-        <p className="muted">Documentul cerut nu există.</p>
+        <h1>Document unavailable</h1>
+        <p className="muted">The requested document does not exist.</p>
         <Link className="button primary" to="/">
-          Înapoi la pagina principală
+          Back to home
         </Link>
       </div>
     );
@@ -28,9 +28,9 @@ export default function LegalPage({ documentKey }) {
     <div className="page-section legal-page">
       <LegalDocument document={document} />
 
-      <nav className="legal-page-nav" aria-label="Alte documente">
-        <Link to="/legal/terms-customers">Termeni pentru clienți</Link>
-        <Link to="/legal/terms-producers">Termeni pentru producători</Link>
+      <nav className="legal-page-nav" aria-label="Other documents">
+        <Link to="/legal/terms-customers">Customer terms</Link>
+        <Link to="/legal/terms-producers">Producer terms</Link>
       </nav>
     </div>
   );

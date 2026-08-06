@@ -18,14 +18,14 @@ const MIN_PASSWORD_LENGTH = 12;
 const readRequired = (name, { minLength = 1 } = {}) => {
   const raw = process.env[name];
   if (typeof raw !== 'string' || !raw.trim()) {
-    return { name, value: '', problem: 'lipsește' };
+    return { name, value: '', problem: 'missing' };
   }
   const value = raw.trim();
   if (value.length < minLength) {
     return {
       name,
       value: '',
-      problem: `are ${value.length} caractere, minimul e ${minLength}`,
+      problem: `is ${value.length} characters, the minimum is ${minLength}`,
     };
   }
   return { name, value, problem: null };
@@ -51,13 +51,13 @@ if (problems.length > 0) {
   const lines = problems.map((entry) => `  - ${entry.name}: ${entry.problem}`);
   throw new Error(
     [
-      'Configurare incompletă. Procesul nu pornește fără aceste variabile de mediu:',
+      'Incomplete configuration. The process will not start without these environment variables:',
       ...lines,
       '',
-      'Generează secretele cu:  openssl rand -base64 48',
-      'Pune-le în .env local și în variabilele de mediu ale serverului deployat.',
-      'Nu există valori implicite: un secret cunoscut public permite oricui să',
-      'semneze un cookie de sesiune pentru orice cont.',
+      'Generate the secrets with:  openssl rand -base64 48',
+      'Put them in your local .env and in the deployed server environment.',
+      'There are no defaults: a publicly known secret lets anyone sign a session',
+      'cookie for any account.',
     ].join('\n'),
   );
 }

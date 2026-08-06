@@ -554,7 +554,7 @@ export default function AdminPage() {
                             <p className="admin-request-value">{formatText(product.name)}</p>
                             <p className="muted">
                               {formatText(product.category)} · {formatText(product.unit)} ·{' '}
-                              {formatPrice(product.price)} lei
+                              {formatPrice(product.price)} RON
                             </p>
                           </div>
                         </div>

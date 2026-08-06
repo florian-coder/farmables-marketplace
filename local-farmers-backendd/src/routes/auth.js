@@ -257,8 +257,8 @@ router.post('/signup', authLimiter, async (req, res, next) => {
       const link = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/auth/verify-email?token=${token}`;
       await sendMail({
         to: normalizedEmail,
-        subject: 'Confirmă adresa de email — Farmables',
-        text: `Bine ai venit pe Farmables.\n\nConfirmă adresa de email deschizând linkul de mai jos:\n\n${link}\n\nLinkul e valabil 24 de ore.`,
+        subject: 'Confirm your email address — Farmables',
+        text: `Welcome to Farmables.\n\nConfirm your email address by opening the link below:\n\n${link}\n\nThe link is valid for 24 hours.`,
       });
     } catch (tokenError) {
       console.error('[auth] Unable to send verification email:', tokenError?.message);
@@ -421,8 +421,8 @@ router.post('/forgot-password', authLimiter, usernameLimiter, async (req, res, n
         const link = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/auth/reset-password?token=${token}`;
         await sendMail({
           to: user.email,
-          subject: 'Resetare parolă — Farmables',
-          text: `Am primit o cerere de resetare a parolei pentru contul ${user.username}.\n\nDeschide linkul de mai jos ca să alegi o parolă nouă:\n\n${link}\n\nLinkul e valabil 30 de minute și poate fi folosit o singură dată.\nDacă nu tu ai cerut resetarea, ignoră mesajul — parola rămâne neschimbată.`,
+          subject: 'Password reset — Farmables',
+          text: `We received a password reset request for the account ${user.username}.\n\nOpen the link below to choose a new password:\n\n${link}\n\nThe link is valid for 30 minutes and can be used once.\nIf you did not request the reset, ignore this message — your password stays unchanged.`,
         });
       } catch (tokenError) {
         console.error('[auth] Unable to issue reset token:', tokenError?.message);

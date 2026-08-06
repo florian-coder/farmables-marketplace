@@ -38,7 +38,7 @@ const failPayment = (res, { status = 500, message, logLabel, error }) => {
 
 const requireCustomer = (req, res) => {
   if (req.user.role !== 'customer') {
-    res.status(403).json({ error: 'Doar conturile de client pot plasa comenzi.' });
+    res.status(403).json({ error: 'Only customer accounts can place orders.' });
     return false;
   }
   return true;
@@ -75,7 +75,7 @@ const buildLineItems = (groups) => {
   let commissionTotalBani = 0;
 
   for (const group of groups) {
-    const farmName = group.farmName || 'Fermă';
+    const farmName = group.farmName || 'Farm';
 
     for (const item of group.items) {
       lineItems.push({
@@ -114,8 +114,8 @@ const buildLineItems = (groups) => {
       price_data: {
         currency: 'ron',
         product_data: {
-          name: 'Taxă de serviciu platformă',
-          description: 'Comisionul Farmables pentru intermediere și procesarea plății.',
+          name: 'Platform service fee',
+          description: 'The Farmables fee for intermediation and payment processing.',
         },
         unit_amount: commissionTotalBani,
       },
@@ -174,14 +174,14 @@ const loadFrozenGroups = async (checkoutId) => {
   const namesById = new Map(
     (farmersResult.data || []).map((row) => [
       String(row.id),
-      row['farm name'] || row['display name'] || 'Fermă',
+      row['farm name'] || row['display name'] || 'Farm',
     ]),
   );
 
   return (orders || []).map((row) => ({
     orderId: String(row.id),
     farmerId: String(row.farmer_id),
-    farmName: namesById.get(String(row.farmer_id)) || 'Fermă',
+    farmName: namesById.get(String(row.farmer_id)) || 'Farm',
     productsSubtotalBani: toBani(row.products_subtotal_bani),
     deliveryFeeBani: toBani(row.delivery_fee_bani),
     commissionBani: toBani(row.commission_bani),
@@ -220,7 +220,7 @@ router.post('/create-checkout-session', requireAuth, async (req, res, next) => {
 
     if (openError) {
       return failPayment(res, {
-        message: 'Nu am putut verifica plățile în curs. Reîncearcă.',
+        message: 'Could not check for payments in progress. Please try again.',
         logLabel: 'open checkout lookup failed',
         error: openError,
       });
@@ -243,11 +243,11 @@ router.post('/create-checkout-session', requireAuth, async (req, res, next) => {
     const quote = await buildCartQuote({ clientId: req.user.id });
 
     if (quote.groups.length === 0) {
-      return res.status(400).json({ error: 'Coșul este gol.' });
+      return res.status(400).json({ error: 'Your basket is empty.' });
     }
     if (!quote.payable) {
       return res.status(409).json({
-        error: quote.blockers[0]?.message || 'Coșul nu poate fi finalizat încă.',
+        error: quote.blockers[0]?.message || 'Your basket cannot be checked out yet.',
         blockers: quote.blockers,
         quote: serializeQuote(quote),
       });
@@ -269,7 +269,7 @@ router.post('/create-checkout-session', requireAuth, async (req, res, next) => {
 
     if (checkoutError || !checkoutRow) {
       return failPayment(res, {
-        message: 'Nu am putut deschide plata. Reîncearcă în câteva momente.',
+        message: 'Could not open the payment. Try again in a moment.',
         logLabel: 'checkout insert failed',
         error: checkoutError,
       });
@@ -295,7 +295,7 @@ router.post('/create-checkout-session', requireAuth, async (req, res, next) => {
         error:
           rpcData?.error ||
           rpcError?.message ||
-          'Stocul nu mai acoperă comanda. Verifică coșul și reîncearcă.',
+          'Stock no longer covers your order. Check your basket and try again.',
         blockers: rpcData?.blockers || [],
       });
     }
@@ -307,7 +307,7 @@ router.post('/create-checkout-session', requireAuth, async (req, res, next) => {
 
     if (lineItems.length === 0 || totalBani <= 0) {
       await supabase.rpc('rollback_checkout', { p_checkout_id: checkoutId });
-      return res.status(400).json({ error: 'Coșul nu conține nimic de plată.' });
+      return res.status(400).json({ error: 'There is nothing to pay for in your basket.' });
     }
 
     const { data: userRow } = await supabase
@@ -364,7 +364,7 @@ router.post('/create-checkout-session', requireAuth, async (req, res, next) => {
       // payment. Better to fail visibly and let the customer retry, because
       // the retry reuses the same idempotency key and the same session.
       return failPayment(res, {
-        message: 'Plata a fost pregătită, dar nu am putut salva referința. Reîncearcă.',
+        message: 'The payment was prepared but we could not save the reference. Please try again.',
         logLabel: `session ${session.id} not persisted for checkout ${checkoutId}`,
         error: sessionSaveError,
       });
@@ -406,7 +406,7 @@ router.get('/:checkoutId/status', requireAuth, async (req, res, next) => {
   try {
     const checkoutId = String(req.params.checkoutId || '').trim();
     if (!checkoutId) {
-      return res.status(400).json({ error: 'checkoutId este obligatoriu.' });
+      return res.status(400).json({ error: 'checkoutId is required.' });
     }
 
     const { data: checkout, error } = await supabase
@@ -417,14 +417,14 @@ router.get('/:checkoutId/status', requireAuth, async (req, res, next) => {
 
     if (error) {
       return failPayment(res, {
-        message: 'Nu am putut verifica plata.',
+        message: 'Could not check the payment.',
         logLabel: 'status lookup failed',
         error,
       });
     }
     // A checkout that is not yours and one that does not exist look identical.
     if (!checkout || String(checkout.client_id) !== String(req.user.id)) {
-      return res.status(404).json({ error: 'Plata nu a fost găsită.' });
+      return res.status(404).json({ error: 'Payment not found.' });
     }
 
     if (checkout.state === 'paid') {
@@ -449,7 +449,7 @@ router.get('/:checkoutId/status', requireAuth, async (req, res, next) => {
 
     if (applyError) {
       return failPayment(res, {
-        message: 'Plata a reușit, dar comanda nu s-a actualizat încă. Reîncarcă pagina în câteva secunde.',
+        message: 'Payment succeeded but the order has not updated yet. Reload the page in a few seconds.',
         logLabel: `mark_checkout_paid failed for ${checkoutId}`,
         error: applyError,
       });

@@ -1649,7 +1649,7 @@ a {
   font-size: var(--t-1);
 }
 
-.product-card-rating {
+.product-card-popularity {
   display: inline-flex;
   align-items: center;
   gap: 3px;
@@ -1658,7 +1658,7 @@ a {
   font-variant-numeric: tabular-nums;
 }
 
-.product-card-rating svg {
+.product-card-popularity svg {
   width: 12px;
   height: 12px;
   color: var(--sun-dk);

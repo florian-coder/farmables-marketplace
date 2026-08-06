@@ -42,13 +42,13 @@ const blockingReason = ({ farmer, farmName, productsSubtotalBani }) => {
   if (!farmer) {
     return {
       code: 'farmer_missing',
-      message: `Ferma nu mai există. Golește produsele ei din coș.`,
+      message: `This farm no longer exists. Remove its products from your basket.`,
     };
   }
   if (!farmer.stripe_account_id || !asBool(farmer.charges_enabled)) {
     return {
       code: 'farmer_not_payable',
-      message: `${farmName} nu poate încă primi plăți. Produsele ei nu pot fi cumpărate acum.`,
+      message: `${farmName} cannot receive payments yet, so its products cannot be bought right now.`,
     };
   }
 
@@ -57,7 +57,7 @@ const blockingReason = ({ farmer, farmName, productsSubtotalBani }) => {
     const missing = minimum - productsSubtotalBani;
     return {
       code: 'below_minimum',
-      message: `Mai adaugă ${formatBani(missing)} de la ${farmName} ca să atingi comanda minimă de ${formatBani(minimum)}.`,
+      message: `Add ${formatBani(missing)} more from ${farmName} to reach its ${formatBani(minimum)} minimum order.`,
       missingBani: missing,
       minimumBani: minimum,
     };
@@ -66,7 +66,7 @@ const blockingReason = ({ farmer, farmName, productsSubtotalBani }) => {
   if (productsSubtotalBani <= 0) {
     return {
       code: 'empty_group',
-      message: `Sub-coșul de la ${farmName} este gol.`,
+      message: `Your basket from ${farmName} is empty.`,
     };
   }
 
@@ -145,7 +145,7 @@ const buildCartQuote = async ({ clientId }) => {
     const orderId = String(order.id);
     const farmerId = String(order.farmer_id);
     const farmer = farmersById.get(farmerId) || null;
-    const farmName = farmer?.['farm name'] || farmer?.['display name'] || 'Fermă';
+    const farmName = farmer?.['farm name'] || farmer?.['display name'] || 'Farm';
 
     const items = (itemsByOrder.get(orderId) || []).map((item) => ({
       id: String(item.id),
@@ -205,7 +205,7 @@ const buildCartQuote = async ({ clientId }) => {
   if (totals.customerTotalBani > 0 && totals.customerTotalBani < minChargeBani) {
     blockers.push({
       code: 'below_stripe_minimum',
-      message: `Plata cu cardul se poate face de la ${formatBani(minChargeBani)}. Mai adaugă produse în coș.`,
+      message: `Card payments start at ${formatBani(minChargeBani)}. Add more products to your basket.`,
     });
   }
 

@@ -329,15 +329,28 @@ router.post('/farmer-requests/:requestId/approve', requireAdmin, async (req, res
       .eq('id', request.user_id)
       .single();
 
-    // Set initial permissions during approval based on uploaded documents.
-    // If they have eggs doc, allow eggs. If they have honey doc, allow honey.
-    // Fruits and veggies are generally open to any registered individual.
-    // Merge with any permissions the admin might have already granted during the pending phase.
+    // BIZ-03 — initial permissions, derived from the documents actually
+    // uploaded, merged with anything the admin granted during the pending
+    // phase.
+    //
+    // This used to read `existingPerms?.fruits_and_veggies || true`. The
+    // `|| true` made the whole expression unconditionally true, so every
+    // approved farm got the right to sell fruit and vegetables regardless of
+    // what they had uploaded — which made the document check for that
+    // category purely decorative. Selling produce requires a producer's
+    // certificate or a trade register registration, so that is what is
+    // checked here.
+    const hasProduceDocs = Boolean(
+      request.documents?.atestat_prod ||
+        request.documents?.certificat_register ||
+        request.documents?.cui,
+    );
+
     const permissionPayload = {
       id: request.user_id,
-      fruits_and_veggies: existingPerms?.fruits_and_veggies || true, 
-      eggs: existingPerms?.eggs || !!request.documents?.sanitary_doc_egg,
-      honey: existingPerms?.honey || !!request.documents?.sanitary_doc_honey,
+      fruits_and_veggies: Boolean(existingPerms?.fruits_and_veggies) || hasProduceDocs,
+      eggs: Boolean(existingPerms?.eggs) || !!request.documents?.sanitary_doc_egg,
+      honey: Boolean(existingPerms?.honey) || !!request.documents?.sanitary_doc_honey,
     };
     
     const { error: permissionError } = await supabase

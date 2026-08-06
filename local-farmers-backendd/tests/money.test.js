@@ -176,9 +176,9 @@ describe('sumGroups + assertTotalsBalance', () => {
 });
 
 describe('formatBani', () => {
-  it('formats Romanian money for emails and error messages', () => {
-    expect(formatBani(1234)).toBe('12,34 lei');
-    expect(formatBani(0)).toBe('0,00 lei');
-    expect(formatBani(100)).toBe('1,00 lei');
+  it('formats money for emails and error messages', () => {
+    expect(formatBani(1234)).toBe('12.34 RON');
+    expect(formatBani(0)).toBe('0.00 RON');
+    expect(formatBani(100)).toBe('1.00 RON');
   });
 });

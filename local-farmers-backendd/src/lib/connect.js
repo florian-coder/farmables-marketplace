@@ -98,7 +98,7 @@ const ensureConnectAccount = async ({ farmerId, email, farmName, country = 'RO' 
       email: email || undefined,
       business_profile: {
         name: farmName || undefined,
-        product_description: 'Produse agricole vândute prin platforma Farmables.',
+        product_description: 'Farm produce sold through the Farmables platform.',
       },
       capabilities: {
         transfers: { requested: true },
@@ -127,7 +127,7 @@ const ensureConnectAccount = async ({ farmerId, email, farmName, country = 'RO' 
       `[connect] Account ${account.id} created for farmer ${farmerId} but not saved:`,
       error.message,
     );
-    throw new Error('Contul Stripe a fost creat, dar nu a putut fi salvat. Reîncearcă.');
+    throw new Error('Your Stripe account was created but could not be saved. Please try again.');
   }
 
   return { accountId: account.id, created: true };

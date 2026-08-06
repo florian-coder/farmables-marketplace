@@ -30,8 +30,8 @@ const MAX_ORDERS_READ = 2000;
 const TOP_PRODUCTS = 5;
 
 const MONTH_NAMES = [
-  'ianuarie', 'februarie', 'martie', 'aprilie', 'mai', 'iunie',
-  'iulie', 'august', 'septembrie', 'octombrie', 'noiembrie', 'decembrie',
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
 ];
 
 const parseDate = (value) => {
@@ -90,7 +90,7 @@ const selectRowsByIds = async (table, columns, idColumn, ids) => {
 };
 
 const emptyPayload = (reference, payouts) => ({
-  currency: 'lei',
+  currency: 'RON',
   profileApproved: false,
   payouts,
   summary: {
@@ -223,7 +223,7 @@ router.get('/', requireVendor, async (req, res, next) => {
       const orderId = String(item.order_id || '');
       itemCountByOrder.set(orderId, (itemCountByOrder.get(orderId) || 0) + 1);
 
-      const name = item.product_name || 'Produs';
+      const name = item.product_name || 'Product';
       const entry = productTotals.get(name) || {
         name,
         unit: item.product_unit || '',
@@ -241,7 +241,7 @@ router.get('/', requireVendor, async (req, res, next) => {
       .reduce((sum, order) => sum + order.amountBani, 0);
 
     return res.json({
-      currency: 'lei',
+      currency: 'RON',
       profileApproved: true,
       payouts,
       summary: {
@@ -264,7 +264,7 @@ router.get('/', requireVendor, async (req, res, next) => {
         return {
           id: order.id,
           reference: order.id.slice(0, 8),
-          customerName: customerName || usersById.get(order.clientId)?.username || 'Client',
+          customerName: customerName || usersById.get(order.clientId)?.username || 'Customer',
           customerLocation: [customer?.city, customer?.county].filter(Boolean).join(', '),
           orderState: order.orderState,
           amountBani: order.amountBani,

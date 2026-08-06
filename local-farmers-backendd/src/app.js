@@ -98,9 +98,33 @@ app.use((req, res) => {
   res.status(404).json({ error: 'Not Found' });
 });
 
+// SEC-13 — an error the user can report and we can find.
+//
+// The old handler logged the stack and answered "Internal Server Error". The
+// user had nothing to tell us and we had nothing to search by, so the only
+// way we learned about a broken flow was someone writing in. Every failure
+// now carries a short id that appears both in the response and in a
+// single-line JSON log entry.
 app.use((err, req, res, _next) => {
-  console.error(err);
-  res.status(500).json({ error: 'Internal Server Error' });
+  const requestId = require('crypto').randomUUID().slice(0, 8);
+
+  console.error(
+    JSON.stringify({
+      level: 'error',
+      requestId,
+      method: req.method,
+      path: req.originalUrl,
+      userId: req.user?.id || null,
+      message: err?.message || String(err),
+      stack: err?.stack || null,
+      at: new Date().toISOString(),
+    }),
+  );
+
+  res.status(500).json({
+    error: 'Something went wrong on our side. Quote this code if you contact us.',
+    requestId,
+  });
 });
 
 module.exports = app;

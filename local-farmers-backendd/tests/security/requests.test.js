@@ -57,8 +57,8 @@ const seed = () => ({
 
 const ORDER_ID = 'aaaaaaaa-0000-0000-0000-000000000001';
 
-describe('SEC-04 — cereri de pe alte site-uri', () => {
-  it('respinge o cerere cu cookie de sesiune venită de la o origine străină', async () => {
+describe('SEC-04 — requests from other sites', () => {
+  it('rejects a request carrying a session cookie from a foreign origin', async () => {
     const { app } = buildApp(seed());
     const cookie = await sessionCookieFor({ id: '77', role: 'vendor', tokenVersion: 0 });
 
@@ -136,8 +136,8 @@ describe('SEC-04 — cereri de pe alte site-uri', () => {
 // altuia și să îi golească stocul. Acum coșul e definit strict ca „rândurile
 // `placed_order` ale celui autentificat", deci nu mai există parametru de
 // falsificat. Testele verifică proprietatea, nu vechea apărare.
-describe('SEC-05 — coșul e al celui autentificat, fără identificator în cerere', () => {
-  it('nu atinge coșul altui client, nici cu id-ul lui în corp', async () => {
+describe('SEC-05 — the basket belongs to the authenticated user, no id in the request', () => {
+  it('never touches another customer\u2019s basket, even with their id in the body', async () => {
     const { app, fake } = buildApp(seed());
     const cookie = await sessionCookieFor(OTHER_CUSTOMER);
 
@@ -149,13 +149,13 @@ describe('SEC-05 — coșul e al celui autentificat, fără identificator în ce
 
     // Coșul lui radu e gol; comanda anei nu intră în el.
     expect(response.status).toBe(400);
-    expect(response.body.error).toMatch(/coșul este gol/i);
+    expect(response.body.error).toMatch(/basket is empty/i);
     // Esențial: stocul nu a fost atins.
     expect(fake._calls.rpc).toHaveLength(0);
     expect(fake._db.orders[0].order_state).toBe('placed_order');
   });
 
-  it('ignoră complet un orderId trimis de un client vechi', async () => {
+  it('ignores an orderId sent by an old client entirely', async () => {
     const { app } = buildApp(seed());
     const cookie = await sessionCookieFor(OTHER_CUSTOMER);
 
@@ -174,7 +174,7 @@ describe('SEC-05 — coșul e al celui autentificat, fără identificator în ce
     expect(withId.body).toEqual(withoutId.body);
   });
 
-  it('refuză starea plății pentru checkout-ul altcuiva, la fel ca pentru unul inventat', async () => {
+  it('refuses payment status for someone else\u2019s checkout, same as for an invented one', async () => {
     const data = seed();
     data.checkouts = [
       {
@@ -199,7 +199,7 @@ describe('SEC-05 — coșul e al celui autentificat, fără identificator în ce
     expect(real.body).toEqual(fabricated.body);
   });
 
-  it('nu rezervă stocul pentru o comandă care a trecut deja de coș', async () => {
+  it('does not reserve stock for an order that already left the basket', async () => {
     const data = seed();
     data.orders[0].order_state = 'pending_order'; // stocul e deja rezervat
     const { app, fake } = buildApp(data);
@@ -216,7 +216,7 @@ describe('SEC-05 — coșul e al celui autentificat, fără identificator în ce
     expect(checkoutCalls).toHaveLength(0);
   });
 
-  it('nu rezervă stocul pentru o comandă deja plătită', async () => {
+  it('does not reserve stock for an already paid order', async () => {
     const data = seed();
     data.orders[0].order_state = 'received_by_farmer';
     data.orders[0].paid_at = new Date().toISOString();
@@ -235,8 +235,8 @@ describe('SEC-05 — coșul e al celui autentificat, fără identificator în ce
 });
 
 // LEG-01 / BIZ-01 — ce vede clientul înainte să plătească.
-describe('Checkout — defalcarea costurilor și pragurile fermierului', () => {
-  it('arată subtotal, comision și total, fără costuri surpriză', async () => {
+describe('Checkout — price breakdown and farmer thresholds', () => {
+  it('shows subtotal, fee and total, with no surprise costs', async () => {
     const { app } = buildApp(seed());
     const cookie = await sessionCookieFor(CUSTOMER);
 
@@ -253,7 +253,7 @@ describe('Checkout — defalcarea costurilor și pragurile fermierului', () => {
     expect(response.body.payable).toBe(true);
   });
 
-  it('adaugă taxa de livrare o singură dată per fermier', async () => {
+  it('adds the delivery fee once per farmer', async () => {
     const data = seed();
     data.farmers[0].delivery_fee_bani = 1500;
     data.order_items.push({
@@ -278,7 +278,7 @@ describe('Checkout — defalcarea costurilor și pragurile fermierului', () => {
     expect(response.body.totals.customerTotalBani).toBe(13000 + 1500 + 1300);
   });
 
-  it('blochează coșul sub comanda minimă a fermierului și spune cât lipsește', async () => {
+  it('blocks a basket below the farmer minimum and says how much is missing', async () => {
     const data = seed();
     data.farmers[0].min_order_value_bani = 20000;
     const { app, fake } = buildApp(data);
@@ -286,8 +286,8 @@ describe('Checkout — defalcarea costurilor și pragurile fermierului', () => {
 
     const summary = await request(app).get('/api/checkout/summary').set('Cookie', cookie);
     expect(summary.body.payable).toBe(false);
-    expect(summary.body.blockers[0].message).toMatch(/mai adaugă 80,00 lei/i);
-    expect(summary.body.blockers[0].message).toMatch(/200,00 lei/);
+    expect(summary.body.blockers[0].message).toMatch(/add 80\.00 RON more/i);
+    expect(summary.body.blockers[0].message).toMatch(/200\.00 RON minimum/);
 
     const attempt = await request(app)
       .post('/api/checkout/create-checkout-session')
@@ -299,7 +299,7 @@ describe('Checkout — defalcarea costurilor și pragurile fermierului', () => {
     expect(fake._calls.rpc).toHaveLength(0);
   });
 
-  it('refuză coșul unui fermier care nu poate încă primi plăți', async () => {
+  it('refuses a basket from a farmer who cannot receive payments yet', async () => {
     const data = seed();
     data.farmers[0].charges_enabled = false;
     const { app, fake } = buildApp(data);
@@ -312,11 +312,11 @@ describe('Checkout — defalcarea costurilor și pragurile fermierului', () => {
       .send({});
 
     expect(response.status).toBe(409);
-    expect(response.body.error).toMatch(/nu poate încă primi plăți/i);
+    expect(response.body.error).toMatch(/cannot receive payments yet/i);
     expect(fake._calls.rpc).toHaveLength(0);
   });
 
-  it('scutește livrarea peste pragul de livrare gratuită', async () => {
+  it('waives delivery above the free-delivery threshold', async () => {
     const data = seed();
     data.farmers[0].delivery_fee_bani = 1500;
     data.farmers[0].free_delivery_threshold_bani = 10000;
@@ -330,14 +330,14 @@ describe('Checkout — defalcarea costurilor și pragurile fermierului', () => {
   });
 });
 
-describe('SEC-06 — webhook Stripe', () => {
+describe('SEC-06 — Stripe webhook', () => {
   const payload = JSON.stringify({
     id: 'evt_test_1',
     type: 'checkout.session.completed',
     data: { object: { metadata: { orderId: ORDER_ID } } },
   });
 
-  it('procesul nu pornește deloc fără secretul de webhook', async () => {
+  it('the process does not start at all without the webhook secret', async () => {
     // Verificarea s-a mutat din rută în configurare: fără secret nu se poate
     // valida semnătura, deci nu se poate ști dacă un eveniment vine de la
     // Stripe. Un proces care pornește oricum arată sănătos în timp ce acceptă
@@ -352,7 +352,7 @@ describe('SEC-06 — webhook Stripe', () => {
     jest.resetModules();
   });
 
-  it('refuză un eveniment cu semnătură invalidă', async () => {
+  it('refuses an event with an invalid signature', async () => {
     process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test_secret';
     const { app, fake } = buildApp(seed());
 

@@ -37,10 +37,10 @@ const toBani = (value, fallback = 0) => {
   return Math.max(0, Math.round(parsed));
 };
 
-/** "12,50 lei" — Romanian formatting, for emails and error messages. */
+/** "12.50 RON" — for emails and error messages. */
 const formatBani = (bani) => {
   const value = baniToLei(toBani(bani));
-  return `${value.toFixed(2).replace('.', ',')} lei`;
+  return `${value.toFixed(2)} RON`;
 };
 
 /**

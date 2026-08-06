@@ -13,10 +13,10 @@ const logToConsole = (message, reason) => {
   console.warn(
     [
       '',
-      '  ┌─ EMAIL NETRIMIS ─────────────────────────────────────',
-      `  │ Motiv:      ${reason}`,
-      `  │ Către:      ${message.to}`,
-      `  │ Subiect:    ${message.subject}`,
+      '  ┌─ EMAIL NOT SENT ─────────────────────────────────────',
+      `  │ Reason:     ${reason}`,
+      `  │ To:         ${message.to}`,
+      `  │ Subject:    ${message.subject}`,
       '  │',
       ...String(message.text || '')
         .split('\n')
@@ -35,7 +35,7 @@ const sendMail = async (message) => {
   const apiKey = process.env.RESEND_API_KEY;
 
   if (!apiKey) {
-    logToConsole(message, 'RESEND_API_KEY nu e configurată');
+    logToConsole(message, 'RESEND_API_KEY is not configured');
     return { delivered: false, reason: 'not_configured' };
   }
 

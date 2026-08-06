@@ -289,7 +289,7 @@ function AppShell() {
     <div className="page">
       <Navigation />
       <main className="main">
-        <Suspense fallback={<div className="notice">Se încarcă...</div>}>
+        <Suspense fallback={<div className="notice">Loading...</div>}>
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route
@@ -334,9 +334,9 @@ function AppShell() {
           with the rest of the legal delivery — the placeholders below are the
           slots they drop into. */}
       <footer className="footer">
-        <nav className="footer-legal" aria-label="Documente legale">
-          <Link to="/legal/terms-customers">Termeni și condiții</Link>
-          <Link to="/legal/terms-producers">Termeni pentru producători</Link>
+        <nav className="footer-legal" aria-label="Legal documents">
+          <Link to="/legal/terms-customers">Terms &amp; Conditions</Link>
+          <Link to="/legal/terms-producers">Producer Terms</Link>
         </nav>
         <p>Farmables — built for community-powered food systems.</p>
       </footer>

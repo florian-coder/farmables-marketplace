@@ -52,13 +52,13 @@ const formatDateTime = (value) => {
 
 const formatMoney = (value) => {
   const amount = Number.isFinite(Number(value)) ? Number(value) : 0;
-  return `${amount.toFixed(2).replace('.', ',')} lei`;
+  return `${amount.toFixed(2)} RON`;
 };
 
 /** Amounts arrive from the API as integer bani. Never divide before here. */
 const formatBani = (bani) => {
   const amount = Number.isFinite(Number(bani)) ? Number(bani) : 0;
-  return `${(amount / 100).toFixed(2).replace('.', ',')} lei`;
+  return `${(amount / 100).toFixed(2)} RON`;
 };
 
 const formatQuantity = (value) => {
@@ -170,7 +170,7 @@ export default function OrdersPage() {
     } catch (error) {
       // A failed quote leaves the previous breakdown on screen rather than
       // showing a total we are no longer sure of.
-      console.error('Nu am putut încărca defalcarea costurilor:', error);
+      console.error('Could not load the price breakdown:', error);
     }
   }, [user?.role]);
 
@@ -231,7 +231,7 @@ export default function OrdersPage() {
    * whatever `placed_order` rows belong to the authenticated customer.
    */
   const handlePayCart = async () => {
-    setPayStatus({ state: 'loading', message: 'Deschidem plata securizată...' });
+    setPayStatus({ state: 'loading', message: 'Opening secure checkout...' });
     try {
       const response = await apiFetch('/api/checkout/create-checkout-session', {
         method: 'POST',
@@ -242,15 +242,15 @@ export default function OrdersPage() {
         if (data.quote) {
           setQuote(data.quote);
         }
-        throw new Error(data.error || 'Plata nu a putut fi pornită.');
+        throw new Error(data.error || 'Could not start the payment.');
       }
       if (data.url) {
         window.location.href = data.url;
         return;
       }
-      throw new Error('Stripe nu a returnat o adresă de plată.');
+      throw new Error('Stripe did not return a payment URL.');
     } catch (error) {
-      setPayStatus({ state: 'error', message: error.message || 'Plata nu a putut fi pornită.' });
+      setPayStatus({ state: 'error', message: error.message || 'Could not start the payment.' });
       await loadQuote();
     }
   };
@@ -285,23 +285,23 @@ export default function OrdersPage() {
     const orderId = order.id;
     const checkoutId = order.checkoutId;
     if (!checkoutId) {
-      setActionStatusForOrder(orderId, 'error', 'Comanda nu are o plată asociată.');
+      setActionStatusForOrder(orderId, 'error', 'This order has no payment attached.');
       return;
     }
 
-    setActionStatusForOrder(orderId, 'loading', 'Verificăm plata...');
+    setActionStatusForOrder(orderId, 'loading', 'Checking the payment...');
     try {
       const response = await apiFetch(`/api/checkout/${checkoutId}/status`, { method: 'GET' });
       const data = await response.json();
       if (!response.ok) {
-        throw new Error(data.error || 'Verificarea a eșuat.');
+        throw new Error(data.error || 'Verification failed.');
       }
       if (data.state === 'paid') {
-        setActionStatusForOrder(orderId, 'success', 'Plata confirmată.');
+        setActionStatusForOrder(orderId, 'success', 'Payment confirmed.');
         setActiveTab('active');
         await loadOrders('active');
       } else {
-        setActionStatusForOrder(orderId, 'error', 'Nicio plată găsită încă. Reîncearcă în câteva momente.');
+        setActionStatusForOrder(orderId, 'error', 'No payment found yet. Try again in a moment.');
       }
     } catch (error) {
       setActionStatusForOrder(orderId, 'error', error.message);
@@ -596,14 +596,14 @@ export default function OrdersPage() {
               {isCart && groupQuote && (
                 <dl className="order-card-breakdown">
                   <div>
-                    <dt>Produse</dt>
+                    <dt>Products</dt>
                     <dd>{formatBani(groupQuote.productsSubtotalBani)}</dd>
                   </div>
                   <div>
-                    <dt>Livrare</dt>
+                    <dt>Delivery</dt>
                     <dd>
                       {groupQuote.deliveryFeeWaived
-                        ? 'Gratuit'
+                        ? 'Free'
                         : groupQuote.deliveryFeeBani > 0
                           ? formatBani(groupQuote.deliveryFeeBani)
                           : '—'}
@@ -611,13 +611,13 @@ export default function OrdersPage() {
                   </div>
                   {groupQuote.minOrderValueBani > 0 && (
                     <div>
-                      <dt>Comandă minimă</dt>
+                      <dt>Minimum order</dt>
                       <dd>{formatBani(groupQuote.minOrderValueBani)}</dd>
                     </div>
                   )}
                   {groupQuote.freeDeliveryThresholdBani > 0 && !groupQuote.deliveryFeeWaived && (
                     <div>
-                      <dt>Livrare gratuită peste</dt>
+                      <dt>Free delivery above</dt>
                       <dd>{formatBani(groupQuote.freeDeliveryThresholdBani)}</dd>
                     </div>
                   )}
@@ -633,9 +633,9 @@ export default function OrdersPage() {
               <div className="order-card-foot">
                 <div className="order-card-meta">
                   {isCart ? (
-                    <span>Cantitățile pot fi schimbate până la plată.</span>
+                    <span>Quantities can be changed until you pay.</span>
                   ) : (
-                    <span>Actualizat {formatDateTime(order.updatedAt) || 'recent'}</span>
+                    <span>Updated {formatDateTime(order.updatedAt) || 'recently'}</span>
                   )}
                 </div>
 
@@ -647,7 +647,7 @@ export default function OrdersPage() {
                       onClick={() => verifyPaymentStatus(order)}
                       disabled={isBusy}
                     >
-                      Verifică plata
+                      Check payment
                     </button>
                   )}
                   {order.allowedActions?.map((action) => (
@@ -760,11 +760,11 @@ export default function OrdersPage() {
       */}
       {activeTab === 'cart' && visibleOrders.length > 0 && quote && (
         <aside className="cart-summary cart-summary-detailed">
-          <h2 className="cart-summary-heading">Rezumatul comenzii</h2>
+          <h2 className="cart-summary-heading">Order summary</h2>
 
           <dl className="cart-summary-lines">
             <div className="cart-summary-line">
-              <dt>Produse</dt>
+              <dt>Products</dt>
               <dd>{formatBani(quote.totals.productsSubtotalBani)}</dd>
             </div>
 
@@ -772,10 +772,10 @@ export default function OrdersPage() {
               .filter((group) => group.deliveryFeeBani > 0 || group.deliveryFeeWaived)
               .map((group) => (
                 <div className="cart-summary-line is-sub" key={`delivery-${group.orderId}`}>
-                  <dt>Livrare · {group.farmName}</dt>
+                  <dt>Delivery · {group.farmName}</dt>
                   <dd>
                     {group.deliveryFeeWaived ? (
-                      <span className="cart-summary-free">Gratuit</span>
+                      <span className="cart-summary-free">Free</span>
                     ) : (
                       formatBani(group.deliveryFeeBani)
                     )}
@@ -785,16 +785,16 @@ export default function OrdersPage() {
 
             <div className="cart-summary-line">
               <dt>
-                Taxă de serviciu platformă ({quote.commissionPercentLabel})
+                Platform service fee ({quote.commissionPercentLabel})
                 <span className="cart-summary-hint">
-                  Comisionul Farmables, aplicat doar produselor.
+                  The Farmables fee, applied to products only.
                 </span>
               </dt>
               <dd>{formatBani(quote.totals.commissionBani)}</dd>
             </div>
 
             <div className="cart-summary-line is-total">
-              <dt>Total de plată</dt>
+              <dt>Total to pay</dt>
               <dd>{formatBani(quote.totals.customerTotalBani)}</dd>
             </div>
           </dl>
@@ -822,13 +822,13 @@ export default function OrdersPage() {
             onClick={handlePayCart}
           >
             {payStatus.state === 'loading'
-              ? 'Se deschide plata...'
-              : 'Comandă cu obligație de plată'}
+              ? 'Opening checkout...'
+              : 'Order with obligation to pay'}
           </button>
 
           <p className="cart-summary-note">
-            O singură plată pentru toate cele {visibleOrders.length} ferme din coș. Fiecare fermă
-            își pregătește și livrează partea ei separat.
+            One single payment for all {visibleOrders.length} farms in your basket. Each farm
+            prepares and delivers its own part separately.
           </p>
         </aside>
       )}

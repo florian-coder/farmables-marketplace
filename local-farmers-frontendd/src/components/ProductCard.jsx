@@ -16,16 +16,41 @@ const formatQuantity = (value) => {
 const formatPrice = (value) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) {
-    return '0,00';
+    return '0.00';
   }
-  return parsed.toFixed(2).replace('.', ',');
+  return parsed.toFixed(2);
 };
 
-const StarIcon = () => (
-  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">
-    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+/**
+ * LEG-06 — this is a popularity indicator, not a rating.
+ *
+ * The number behind it comes from src/lib/productRating.js, which computes it
+ * from price, quantity sold and order count. It has never been an opinion from
+ * a buyer. Showing it as a star with a decimal told customers "quality rated
+ * by shoppers", which is a misleading commercial practice under Law 363/2007.
+ *
+ * So: no star, no decimals, and a label that says what the number is. Real
+ * customer reviews, when they exist, get their own separate display.
+ */
+const TrendIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+       strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+    <polyline points="3 17 9 11 13 15 21 7" />
+    <polyline points="21 7 21 12 16 7" />
   </svg>
 );
+
+/** 0-5 internal score rendered as five coarse buckets, never as a mark. */
+const popularityLabel = (score) => {
+  const value = Number(score);
+  if (!Number.isFinite(value) || value <= 0) {
+    return null;
+  }
+  if (value >= 4.5) return 'Top seller';
+  if (value >= 3.5) return 'Popular';
+  if (value >= 2) return 'Selling well';
+  return 'New';
+};
 
 export const resolveProductImage = (image) => {
   if (!image?.url) {
@@ -100,16 +125,21 @@ export default function ProductCard({
         </p>
 
         <p className="product-card-price-container">
-          <span className="product-card-price">{formatPrice(product.price)} lei</span>
-          <span className="product-card-unit">/ {product.unit || 'buc'}</span>
+          <span className="product-card-price">{formatPrice(product.price)} RON</span>
+          <span className="product-card-unit">/ {product.unit || 'unit'}</span>
         </p>
 
         <p className="product-card-meta">
           <span className={`stock-badge ${stockClass}`}>{stockLabel}</span>
-          <span className="product-card-rating">
-            <StarIcon />
-            {Number(product.rating ?? 0).toFixed(1)}
-          </span>
+          {popularityLabel(product.rating) && (
+            <span
+              className="product-card-popularity"
+              title="Based on sales volume, not on customer reviews."
+            >
+              <TrendIcon />
+              {popularityLabel(product.rating)}
+            </span>
+          )}
         </p>
 
         {vendor?.id && (

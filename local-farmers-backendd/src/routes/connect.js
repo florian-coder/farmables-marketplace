@@ -34,21 +34,21 @@ const failConnect = (res, { status = 502, message, logLabel, error }) => {
 /** Guidance in Romanian for whatever Stripe still wants from the farmer. */
 const requirementHint = (state) => {
   if (!state.connected) {
-    return 'Nu ai încă un cont de plată. Apasă „Configurează plățile" ca să îl creezi la Stripe.';
+    return 'You do not have a payout account yet. Press \u201cSet up payouts\u201d to create one at Stripe.';
   }
   if (!state.detailsSubmitted) {
-    return 'Onboardingul Stripe nu e finalizat. Reia-l ca să poți primi bani.';
+    return 'Stripe onboarding is not finished. Resume it so you can receive money.';
   }
   if (!state.chargesEnabled) {
-    return 'Stripe încă verifică datele tale. Produsele tale nu apar în magazin până când verificarea se încheie.';
+    return 'Stripe is still verifying your details. Your products stay hidden until the check completes.';
   }
   if (state.requirementsDue.length > 0) {
-    return 'Stripe cere documente sau informații suplimentare. Deschide-ți contul Stripe ca să le completezi.';
+    return 'Stripe needs extra documents or information. Open your Stripe account to provide them.';
   }
   if (!state.payoutSettingsSet) {
-    return 'Setează taxa de livrare și comanda minimă ca să știe clienții la ce să se aștepte.';
+    return 'Set your delivery fee and minimum order so customers know what to expect.';
   }
-  return 'Contul tău de plată este activ.';
+  return 'Your payout account is active.';
 };
 
 const buildStatusPayload = (state) => ({
@@ -64,7 +64,7 @@ router.get('/status', requireVendor, async (req, res, next) => {
     const state = await refreshConnectState(req.user.id);
     if (!state) {
       return res.status(404).json({
-        error: 'Profilul de fermă nu e încă aprobat. Plățile se configurează după aprobare.',
+        error: 'Your farm profile is not approved yet. Payouts are set up after approval.',
       });
     }
     return res.json(buildStatusPayload(state));
@@ -92,7 +92,7 @@ router.post('/onboard', requireVendor, async (req, res, next) => {
     }
     if (!farmer) {
       return res.status(409).json({
-        error: 'Profilul fermei trebuie aprobat de administrator înainte de configurarea plăților.',
+        error: 'Your farm profile must be approved by an admin before you can set up payouts.',
       });
     }
 
@@ -150,7 +150,7 @@ router.post('/dashboard', requireVendor, async (req, res, next) => {
   try {
     const row = await fetchFarmerConnectRow(req.user.id);
     if (!row?.stripe_account_id) {
-      return res.status(409).json({ error: 'Nu ai încă un cont Stripe configurat.' });
+      return res.status(409).json({ error: 'You do not have a Stripe account set up yet.' });
     }
 
     const url = await createDashboardLink(String(row.stripe_account_id));
@@ -178,7 +178,7 @@ router.put('/payout-settings', requireVendor, async (req, res, next) => {
   try {
     const row = await fetchFarmerConnectRow(req.user.id);
     if (!row) {
-      return res.status(404).json({ error: 'Profilul de fermă nu a fost găsit.' });
+      return res.status(404).json({ error: 'Farm profile not found.' });
     }
 
     const parseAmount = (value, label) => {
@@ -187,16 +187,16 @@ router.put('/payout-settings', requireVendor, async (req, res, next) => {
       }
       const parsed = Number(value);
       if (!Number.isFinite(parsed) || parsed < 0) {
-        return { problem: `${label} trebuie să fie un număr pozitiv sau zero.` };
+        return { problem: `${label} must be a positive number or zero.` };
       }
       if (parsed > 100000000) {
-        return { problem: `${label} este nerealist de mare.` };
+        return { problem: `${label} is unrealistically large.` };
       }
       return { value: Math.round(parsed) };
     };
 
-    const fee = parseAmount(req.body?.deliveryFeeBani, 'Taxa de livrare');
-    const minimum = parseAmount(req.body?.minOrderValueBani, 'Comanda minimă');
+    const fee = parseAmount(req.body?.deliveryFeeBani, 'The delivery fee');
+    const minimum = parseAmount(req.body?.minOrderValueBani, 'The minimum order');
     if (fee.problem) {
       return res.status(400).json({ error: fee.problem });
     }
@@ -208,7 +208,7 @@ router.put('/payout-settings', requireVendor, async (req, res, next) => {
     let threshold = null;
     const rawThreshold = req.body?.freeDeliveryThresholdBani;
     if (rawThreshold !== null && rawThreshold !== undefined && rawThreshold !== '') {
-      const parsed = parseAmount(rawThreshold, 'Pragul de livrare gratuită');
+      const parsed = parseAmount(rawThreshold, 'The free-delivery threshold');
       if (parsed.problem) {
         return res.status(400).json({ error: parsed.problem });
       }
@@ -217,7 +217,7 @@ router.put('/payout-settings', requireVendor, async (req, res, next) => {
 
     if (threshold !== null && minimum.value > 0 && threshold < minimum.value) {
       return res.status(400).json({
-        error: `Pragul de livrare gratuită (${formatBani(threshold)}) nu poate fi sub comanda minimă (${formatBani(minimum.value)}).`,
+        error: `The free-delivery threshold (${formatBani(threshold)}) cannot be below the minimum order (${formatBani(minimum.value)}).`,
       });
     }
 

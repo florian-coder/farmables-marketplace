@@ -16,7 +16,7 @@ const formatDate = (value) => {
     // Placeholders like "[EFFECTIVE DATE]" pass through unchanged.
     return value;
   }
-  return parsed.toLocaleDateString('ro-RO', { day: 'numeric', month: 'long', year: 'numeric' });
+  return parsed.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
 };
 
 /**
@@ -27,7 +27,7 @@ export default function LegalDocument({ document, compact = false }) {
   if (!document) {
     return (
       <p className="notice error" role="alert">
-        Acest document nu a fost găsit.
+        This document was not found.
       </p>
     );
   }
@@ -38,9 +38,9 @@ export default function LegalDocument({ document, compact = false }) {
         <header className="legal-document-head">
           <h1>{document.title}</h1>
           <p className="legal-document-meta">
-            Versiunea {document.version}
-            {document.updatedAt ? ` · actualizat ${formatDate(document.updatedAt)}` : ''}
-            {document.effectiveFrom ? ` · în vigoare din ${formatDate(document.effectiveFrom)}` : ''}
+            Version {document.version}
+            {document.updatedAt ? ` · updated ${formatDate(document.updatedAt)}` : ''}
+            {document.effectiveFrom ? ` · effective from ${formatDate(document.effectiveFrom)}` : ''}
           </p>
         </header>
       )}
@@ -50,8 +50,8 @@ export default function LegalDocument({ document, compact = false }) {
           presenting a draft as settled terms. */}
       {document.isDraft && (
         <p className="legal-draft-banner" role="status">
-          <strong>Document în lucru.</strong> Textul este un proiect, aflat în revizuire juridică.
-          Nu este încă versiunea finală și poate fi modificat înainte de intrarea în vigoare.
+          <strong>Working draft.</strong> This text is a draft under legal review. It is not the
+          final version and may change before it takes effect.
         </p>
       )}
 

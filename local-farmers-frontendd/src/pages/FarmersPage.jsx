@@ -146,15 +146,11 @@ export default function FarmersPage() {
                     <p className="farmer-card-place">
                       {place || 'Location not provided'}
                     </p>
+                    {/* LEG-06 — the star and the decimal are gone. The number
+                        behind them was an average of internal sales scores,
+                        never an opinion from a buyer, and presenting it as a
+                        mark is a misleading commercial practice. */}
                     <p className="farmer-card-stats">
-                      {vendor.vendorRating !== null && vendor.vendorRating !== undefined && (
-                        <span className="farmer-card-rating">
-                          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                          </svg>
-                          {Number(vendor.vendorRating).toFixed(1)}
-                        </span>
-                      )}
                       <span className="farmer-card-count">
                         {count} product{count === 1 ? '' : 's'}
                       </span>

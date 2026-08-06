@@ -201,7 +201,7 @@ const DEFAULT_FARMER_OF_MONTH = CATEGORY_TABS.map((entry) => ({
 
 const formatPrice = (value) => {
   const parsed = Number.isFinite(Number(value)) ? Number(value) : 0;
-  return `${parsed.toFixed(2).replace('.', ',')} lei`;
+  return `${parsed.toFixed(2)} RON`;
 };
 
 const withRecommendationImageFallback = (categoryKey, product, index) => {

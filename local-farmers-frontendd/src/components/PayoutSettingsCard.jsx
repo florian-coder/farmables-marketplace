@@ -27,18 +27,18 @@ const inputToBani = (value) => {
 
 const formatBani = (bani) => {
   const value = Number(bani);
-  return `${(Number.isFinite(value) ? value / 100 : 0).toFixed(2).replace('.', ',')} lei`;
+  return `${(Number.isFinite(value) ? value / 100 : 0).toFixed(2)} RON`;
 };
 
 /** Romanian labels for the requirement keys Stripe returns. */
 const REQUIREMENT_LABELS = {
-  'individual.verification.document': 'Act de identitate',
+  'individual.verification.document': 'Identity document',
   'individual.id_number': 'CNP',
-  'individual.address.line1': 'Adresa',
-  'external_account': 'Cont bancar (IBAN)',
-  'business_profile.url': 'Site sau pagină a fermei',
-  'business_profile.mcc': 'Domeniul de activitate',
-  'tos_acceptance.date': 'Acceptarea termenilor Stripe',
+  'individual.address.line1': 'Address',
+  'external_account': 'Bank account (IBAN)',
+  'business_profile.url': 'Farm website or page',
+  'business_profile.mcc': 'Line of business',
+  'tos_acceptance.date': 'Stripe terms acceptance',
 };
 
 const describeRequirement = (key) => REQUIREMENT_LABELS[key] || key;
@@ -98,17 +98,17 @@ export default function PayoutSettingsCard() {
       const response = await apiFetch(path, { method: 'POST', body: JSON.stringify({}) });
       const data = await response.json();
       if (!response.ok) {
-        throw new Error(data.error || 'Stripe nu a răspuns.');
+        throw new Error(data.error || 'Stripe did not respond.');
       }
       window.location.href = data.url;
     } catch (error) {
-      setLinkState({ state: 'error', message: error.message || 'Stripe nu a răspuns.' });
+      setLinkState({ state: 'error', message: error.message || 'Stripe did not respond.' });
     }
   };
 
   const handleSave = async (event) => {
     event.preventDefault();
-    setSaveState({ state: 'loading', message: 'Salvăm...' });
+    setSaveState({ state: 'loading', message: 'Saving...' });
 
     try {
       const response = await apiFetch('/api/connect/payout-settings', {
@@ -121,12 +121,12 @@ export default function PayoutSettingsCard() {
       });
       const data = await response.json();
       if (!response.ok) {
-        throw new Error(data.error || 'Nu am putut salva setările.');
+        throw new Error(data.error || 'Could not save your settings.');
       }
       applyStatus(data);
-      setSaveState({ state: 'success', message: 'Setările de livrare au fost salvate.' });
+      setSaveState({ state: 'success', message: 'Delivery terms saved.' });
     } catch (error) {
-      setSaveState({ state: 'error', message: error.message || 'Nu am putut salva setările.' });
+      setSaveState({ state: 'error', message: error.message || 'Could not save your settings.' });
     }
   };
 
@@ -134,10 +134,10 @@ export default function PayoutSettingsCard() {
     return (
       <section className="profile-card">
         <header className="profile-card-head">
-          <h2>Plăți</h2>
+          <h2>Payouts</h2>
         </header>
         <div className="profile-card-body">
-          <p className="muted">Se încarcă starea contului de plată...</p>
+          <p className="muted">Loading your payout account status...</p>
         </div>
       </section>
     );
@@ -147,13 +147,13 @@ export default function PayoutSettingsCard() {
     return (
       <section className="profile-card">
         <header className="profile-card-head">
-          <h2>Plăți</h2>
-          <p className="profile-card-sub">Disponibil după aprobarea fermei.</p>
+          <h2>Payouts</h2>
+          <p className="profile-card-sub">Available once your farm is approved.</p>
         </header>
         <div className="profile-card-body">
           <p className="muted">
-            Configurarea plăților se deschide după ce un administrator îți aprobă ferma. Nu îți
-            cerem IBAN-ul aici — îl colectează Stripe, direct de la tine, când ajungi la pasul ăla.
+            Payout setup opens once an admin approves your farm. We never ask for your IBAN
+            here — Stripe collects it directly from you when you reach that step.
           </p>
         </div>
       </section>
@@ -164,11 +164,11 @@ export default function PayoutSettingsCard() {
     return (
       <section className="profile-card">
         <header className="profile-card-head">
-          <h2>Plăți</h2>
+          <h2>Payouts</h2>
         </header>
         <div className="profile-card-body">
           <p className="notice error" role="alert">
-            Nu am putut încărca starea contului de plată. Reîncarcă pagina.
+            Could not load your payout account status. Please reload the page.
           </p>
         </div>
       </section>
@@ -178,9 +178,9 @@ export default function PayoutSettingsCard() {
   return (
     <section className="profile-card">
       <header className="profile-card-head">
-        <h2>Plăți</h2>
+        <h2>Payouts</h2>
         <p className="profile-card-sub">
-          Banii ajung la tine imediat după fiecare comandă plătită, direct în contul tău Stripe.
+          Money reaches you right after each paid order, straight into your own Stripe account.
         </p>
       </header>
 
@@ -188,22 +188,22 @@ export default function PayoutSettingsCard() {
         {/* The one thing that decides whether this farm is in the market. */}
         <div className={`payout-status is-${status.canSell ? 'active' : 'blocked'}`}>
           <p className="payout-status-title">
-            {status.canSell ? 'Contul de plată este activ' : 'Produsele tale nu sunt încă vizibile'}
+            {status.canSell ? 'Your payout account is active' : 'Your products are not visible yet'}
           </p>
           <p className="payout-status-hint">{status.hint}</p>
         </div>
 
         {!status.canSell && (
           <p className="notice error" role="alert">
-            Cât timp contul de plată nu e activ, produsele tale nu apar în magazin și nu pot fi
-            adăugate în coș. Rămân salvate în contul tău și reapar automat în momentul în care
-            Stripe confirmă verificarea.
+            While your payout account is inactive, your products do not appear in the shop and
+            cannot be added to a basket. They stay saved in your account and come back
+            automatically the moment Stripe confirms your verification.
           </p>
         )}
 
         {status.requirementsDue?.length > 0 && (
           <div className="payout-requirements">
-            <p className="payout-requirements-title">Stripe mai are nevoie de:</p>
+            <p className="payout-requirements-title">Stripe still needs:</p>
             <ul>
               {status.requirementsDue.map((item) => (
                 <li key={item}>{describeRequirement(item)}</li>
@@ -217,13 +217,13 @@ export default function PayoutSettingsCard() {
             type="button"
             className="button primary"
             disabled={linkState.state === 'loading'}
-            onClick={() => openStripe('/api/connect/onboard', 'Deschidem Stripe...')}
+            onClick={() => openStripe('/api/connect/onboard', 'Opening Stripe...')}
           >
             {!status.connected
-              ? 'Configurează plățile'
+              ? 'Set up payouts'
               : status.detailsSubmitted && status.requirementsDue.length === 0
-                ? 'Actualizează datele la Stripe'
-                : 'Continuă configurarea'}
+                ? 'Update your details at Stripe'
+                : 'Continue setup'}
           </button>
 
           {status.connected && status.detailsSubmitted && (
@@ -231,9 +231,9 @@ export default function PayoutSettingsCard() {
               type="button"
               className="button ghost"
               disabled={linkState.state === 'loading'}
-              onClick={() => openStripe('/api/connect/dashboard', 'Deschidem panoul Stripe...')}
+              onClick={() => openStripe('/api/connect/dashboard', 'Opening your Stripe dashboard...')}
             >
-              Deschide panoul Stripe
+              Open Stripe dashboard
             </button>
           )}
         </div>
@@ -245,27 +245,27 @@ export default function PayoutSettingsCard() {
         )}
 
         <p className="profile-hint">
-          Nu îți cerem IBAN-ul nicăieri pe Farmables. Stripe îl colectează direct de la tine, îți
-          verifică identitatea și tot el îți trimite banii în cont. Noi nu vedem și nu stocăm datele
-          tale bancare.
+          We never ask for your IBAN anywhere on Farmables. Stripe collects it directly from you,
+          verifies your identity, and pays the money into your account. We neither see nor store
+          your bank details.
         </p>
 
         <hr className="profile-divider" />
 
         {/* LOG-02 — the terms the farmer sets for their own sub-cart. */}
         <form className="payout-settings-form" onSubmit={handleSave}>
-          <h3 className="payout-settings-title">Livrare și comandă minimă</h3>
+          <h3 className="payout-settings-title">Delivery and minimum order</h3>
 
           {!status.payoutSettingsSet && (
             <p className="notice" role="status">
-              Nu ți-ai setat încă termenii de livrare. Clienții văd acum livrare gratuită și fără
-              comandă minimă — setează valorile care ți se potrivesc.
+              You have not set your delivery terms yet. Customers currently see free delivery and no
+              minimum order — set the values that work for you.
             </p>
           )}
 
           <div className="profile-fields">
             <label className="field">
-              Taxă de livrare (lei)
+              Delivery fee (RON)
               <input
                 type="number"
                 min="0"
@@ -277,13 +277,12 @@ export default function PayoutSettingsCard() {
                 placeholder="0.00"
               />
               <span className="field-hint">
-                Se adaugă o singură dată per comandă, oricâte produse ar cumpăra clientul de la
-                tine.
+                Charged once per order, however many of your products the customer buys.
               </span>
             </label>
 
             <label className="field">
-              Comandă minimă (lei)
+              Minimum order (RON)
               <input
                 type="number"
                 min="0"
@@ -295,13 +294,12 @@ export default function PayoutSettingsCard() {
                 placeholder="0.00"
               />
               <span className="field-hint">
-                Sub această valoare, clientul nu poate finaliza comanda de la tine. 0 înseamnă fără
-                minim.
+                Below this value the customer cannot check out with your products. 0 means no minimum.
               </span>
             </label>
 
             <label className="field">
-              Livrare gratuită peste (lei)
+              Free delivery above (RON)
               <input
                 type="number"
                 min="0"
@@ -310,22 +308,22 @@ export default function PayoutSettingsCard() {
                 onChange={(event) =>
                   setForm((prev) => ({ ...prev, freeDeliveryThreshold: event.target.value }))
                 }
-                placeholder="Opțional"
+                placeholder="Optional"
               />
               <span className="field-hint">
-                Lasă gol dacă taxa de livrare se aplică întotdeauna.
+                Leave empty if the delivery fee always applies.
               </span>
             </label>
           </div>
 
           <p className="profile-hint">
-            Din fiecare comandă primești <strong>produsele + taxa de livrare</strong>. Comisionul
-            platformei este plătit separat de client, peste prețurile tale — nu se scade din banii
-            tăi.
+            From every order you receive <strong>the products plus your delivery fee</strong>. The
+            platform fee is paid separately by the customer, on top of your prices — it is not
+            deducted from your money.
             {status.deliveryFeeBani > 0 && (
               <>
                 {' '}
-                La setările actuale, o comandă de 100,00 lei îți aduce{' '}
+                At your current settings, a 100.00 RON order brings you{' '}
                 {formatBani(10000 + status.deliveryFeeBani)}.
               </>
             )}
@@ -341,7 +339,7 @@ export default function PayoutSettingsCard() {
           )}
 
           <button type="submit" className="button primary" disabled={saveState.state === 'loading'}>
-            {saveState.state === 'loading' ? 'Se salvează...' : 'Salvează termenii de livrare'}
+            {saveState.state === 'loading' ? 'Saving...' : 'Save delivery terms'}
           </button>
         </form>
       </div>

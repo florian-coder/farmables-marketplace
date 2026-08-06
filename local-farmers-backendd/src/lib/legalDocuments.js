@@ -17,7 +17,7 @@
 const LEGAL_DOCUMENTS = Object.freeze({
   'terms-customers': Object.freeze({
     key: 'terms-customers',
-    title: 'Termeni și condiții pentru clienți',
+    title: 'Terms and Conditions for Customers',
     version: '1.0',
     audience: 'customer',
     path: '/legal/terms-customers',
@@ -26,7 +26,7 @@ const LEGAL_DOCUMENTS = Object.freeze({
   }),
   'terms-producers': Object.freeze({
     key: 'terms-producers',
-    title: 'Termeni și condiții pentru producători',
+    title: 'Terms and Conditions for Producers',
     version: '1.0',
     audience: 'vendor',
     path: '/legal/terms-producers',
@@ -68,7 +68,7 @@ const validateAcceptances = ({ role, moment = 'signup', accepted }) => {
         ok: false,
         code: 'terms_not_accepted',
         error:
-          'Trebuie să accepți termenii și condițiile și politica de confidențialitate ca să continui.',
+          'You must accept the terms and conditions and the privacy policy to continue.',
       };
     }
     if (offered.get(doc.key) !== doc.version) {
@@ -76,7 +76,7 @@ const validateAcceptances = ({ role, moment = 'signup', accepted }) => {
         ok: false,
         code: 'terms_version_stale',
         error:
-          'Termenii și condițiile s-au actualizat între timp. Reîncarcă pagina și citește versiunea nouă.',
+          'The terms and conditions have changed. Reload the page and read the new version.',
       };
     }
   }

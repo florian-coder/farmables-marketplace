@@ -90,18 +90,18 @@ const ORDER_BUCKETS = {
 // per order is what a single farmer group can still do on its own.
 const ALLOWED_TRANSITIONS = {
   customer: {
-    placed_order: [{ nextState: 'cancelled', label: 'Golește' }],
-    pending_order: [{ nextState: 'cancelled', label: 'Anulează comanda' }],
-    arrived: [{ nextState: 'received', label: 'Confirmă primirea' }],
+    placed_order: [{ nextState: 'cancelled', label: 'Empty basket' }],
+    pending_order: [{ nextState: 'cancelled', label: 'Cancel order' }],
+    arrived: [{ nextState: 'received', label: 'Confirm received' }],
   },
   vendor: {
-    pending_order: [{ nextState: 'cancelled', label: 'Refuză comanda' }],
+    pending_order: [{ nextState: 'cancelled', label: 'Decline order' }],
     received_by_farmer: [
-      { nextState: 'preparing_order', label: 'În pregătire' },
-      { nextState: 'cancelled', label: 'Refuză comanda' },
+      { nextState: 'preparing_order', label: 'Preparing order' },
+      { nextState: 'cancelled', label: 'Decline order' },
     ],
-    preparing_order: [{ nextState: 'in_transit', label: 'În tranzit' }],
-    in_transit: [{ nextState: 'arrived', label: 'A ajuns' }],
+    preparing_order: [{ nextState: 'in_transit', label: 'In transit' }],
+    in_transit: [{ nextState: 'arrived', label: 'Arrived' }],
   },
 };
 
@@ -598,7 +598,7 @@ router.post('/cart/items', requireAuth, async (req, res, next) => {
       farmerPayout?.charges_enabled === '1';
     if (!farmerCanSell) {
       return res.status(409).json({
-        error: `${farmerPayout?.['farm name'] || 'Această fermă'} nu poate încă primi plăți, așa că produsele ei nu pot fi cumpărate.`,
+        error: `${farmerPayout?.['farm name'] || 'This farm'} cannot receive payments yet, so its products cannot be bought.`,
       });
     }
 
