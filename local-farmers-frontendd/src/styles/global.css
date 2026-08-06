@@ -4189,3 +4189,205 @@ a {
   font-size: var(--t-0);
   color: var(--ink-3);
 }
+
+/* ---------------------------------------------------------------------
+   Documente legale (LEG-02, LEG-03)
+   Text lung, citit rar dar cu atenție: coloană îngustă, ierarhie clară.
+   --------------------------------------------------------------------- */
+
+.legal-page {
+  max-width: 46rem;
+}
+
+.legal-document-head {
+  margin-bottom: var(--s-5);
+}
+
+.legal-document-head h1 {
+  margin: 0 0 var(--s-2);
+}
+
+.legal-document-meta {
+  margin: 0;
+  font-size: var(--t-1);
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.legal-draft-banner {
+  margin: 0 0 var(--s-5);
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-md);
+  border: 1px solid var(--leaf-line);
+  background: var(--leaf-lo);
+  font-size: var(--t-1);
+  color: var(--ink-2);
+}
+
+.legal-document-body {
+  line-height: 1.7;
+  color: var(--ink-2);
+}
+
+.legal-document-body h1 {
+  font-size: var(--t-6);
+  margin: var(--s-6) 0 var(--s-3);
+  color: var(--field);
+}
+
+.legal-document-body h2 {
+  font-size: var(--t-5);
+  margin: var(--s-6) 0 var(--s-3);
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--leaf-line);
+  color: var(--field);
+}
+
+.legal-document-body h3 {
+  font-size: var(--t-3);
+  margin: var(--s-5) 0 var(--s-2);
+  color: var(--field);
+}
+
+.legal-document-body p {
+  margin: 0 0 var(--s-3);
+}
+
+.legal-document-body ul,
+.legal-document-body ol {
+  margin: 0 0 var(--s-3);
+  padding-left: var(--s-5);
+}
+
+.legal-document-body li {
+  margin-bottom: var(--s-2);
+}
+
+.legal-document-body strong {
+  color: var(--field);
+}
+
+.legal-document-body blockquote {
+  margin: var(--s-4) 0;
+  padding: var(--s-3) var(--s-4);
+  border-left: 3px solid var(--leaf);
+  background: var(--leaf-lo);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+}
+
+.legal-document-body blockquote p:last-child {
+  margin-bottom: 0;
+}
+
+.legal-document-body hr {
+  border: 0;
+  border-top: 1px solid var(--leaf-line);
+  margin: var(--s-6) 0;
+}
+
+/* Tabelele se derulează pe orizontală în cutia lor, nu impinge pagina. */
+.legal-table-wrap {
+  overflow-x: auto;
+  margin: 0 0 var(--s-4);
+}
+
+.legal-table-wrap table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: var(--t-1);
+}
+
+.legal-table-wrap th,
+.legal-table-wrap td {
+  text-align: left;
+  padding: var(--s-2) var(--s-3);
+  border-bottom: 1px solid var(--leaf-line);
+  vertical-align: top;
+}
+
+.legal-table-wrap th {
+  color: var(--field);
+  font-weight: 700;
+}
+
+.legal-page-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-4);
+  margin-top: var(--s-6);
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--leaf-line);
+  font-size: var(--t-1);
+}
+
+/* --- blocul de acceptare din formularul de inregistrare --- */
+
+.legal-consent {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-4);
+  border-radius: var(--r-md);
+  border: 1px solid var(--leaf-line);
+  background: var(--leaf-lo);
+}
+
+.legal-consent-check {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-3);
+  font-size: var(--t-1);
+  line-height: 1.5;
+  cursor: pointer;
+}
+
+.legal-consent-check input[type='checkbox'] {
+  flex-shrink: 0;
+  width: 1.15rem;
+  height: 1.15rem;
+  margin-top: 0.1rem;
+  cursor: pointer;
+}
+
+.legal-consent-toggle {
+  align-self: flex-start;
+  background: none;
+  border: 0;
+  padding: 0;
+  font-size: var(--t-1);
+  color: var(--leaf);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* Textul integral, citibil fara sa parasesti formularul. */
+.legal-consent-body {
+  max-height: 22rem;
+  overflow-y: auto;
+  padding: var(--s-3);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--leaf-line);
+  background: var(--surface, #fff);
+  font-size: var(--t-0);
+}
+
+.legal-document.is-compact .legal-document-body h1 {
+  font-size: var(--t-4);
+}
+
+.legal-document.is-compact .legal-document-body h2 {
+  font-size: var(--t-3);
+}
+
+.legal-document.is-compact .legal-document-body h3 {
+  font-size: var(--t-2);
+}
+
+.footer-legal {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--s-4);
+  margin-bottom: var(--s-3);
+  font-size: var(--t-1);
+}

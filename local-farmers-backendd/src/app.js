@@ -19,6 +19,7 @@ const ordersRouter = require('./routes/orders');
 const earningsRouter = require('./routes/earnings');
 const checkoutRouter = require('./routes/checkout');
 const connectRouter = require('./routes/connect');
+const legalRouter = require('./routes/legal');
 const { purgeLegacyState } = require('./lib/legacyCleanup');
 
 const app = express();
@@ -91,6 +92,7 @@ app.use('/api/orders', ordersRouter);
 app.use('/api/earnings', earningsRouter);
 app.use('/api/checkout', checkoutRouter);
 app.use('/api/connect', connectRouter);
+app.use('/api/legal', legalRouter);
 
 app.use((req, res) => {
   res.status(404).json({ error: 'Not Found' });

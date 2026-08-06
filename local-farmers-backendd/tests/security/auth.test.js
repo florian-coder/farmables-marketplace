@@ -67,6 +67,9 @@ describe('SEC-07 — politica de parole', () => {
       password: 'salata-verde-de-gradina',
       role: 'customer',
       email: 'nou@example.com',
+      // LEG-03: înregistrarea cere acum acceptarea termenilor. Acoperirea
+      // completă a acceptării e în tests/security/legal.test.js.
+      acceptedDocuments: [{ key: 'terms-customers', version: '1.0' }],
     });
 
     expect(response.status).toBe(201);

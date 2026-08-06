@@ -42,6 +42,9 @@ const TABLES = {
   checkouts: 'checkouts',
   orderTransfers: 'order_transfers',
   platformSettings: 'platform_settings',
+  // LEG-02/LEG-03 — consent to the legal documents: which version, when, from
+  // where. Append-only.
+  legalAcceptances: 'legal_acceptances',
 };
 
 const dedupe = (values) => {

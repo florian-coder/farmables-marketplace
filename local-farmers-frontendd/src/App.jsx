@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { Suspense, lazy, useEffect, useState } from 'react';
 import {
   BrowserRouter,
   Link,
@@ -25,6 +25,11 @@ import NotFoundPage from './pages/NotFoundPage.jsx';
 import AdminPage from './pages/AdminPage.jsx';
 import OrdersPage from './pages/OrdersPage.jsx';
 import EarningsPage from './pages/EarningsPage.jsx';
+
+// Split out: the legal pages pull in the Markdown renderer, which is ~65 kB
+// gzipped. Almost nobody opens them, and nobody should pay for them on the
+// landing page.
+const LegalPage = lazy(() => import('./pages/LegalPage.jsx'));
 import { apiFetch } from './lib/api.js';
 import { AuthProvider, useAuth } from './lib/auth.jsx';
 import { supabase } from './lib/supabase.js';
@@ -284,6 +289,7 @@ function AppShell() {
     <div className="page">
       <Navigation />
       <main className="main">
+        <Suspense fallback={<div className="notice">Se încarcă...</div>}>
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route
@@ -305,10 +311,33 @@ function AppShell() {
           <Route path="/vendor" element={<Navigate to="/profile" replace />} />
           <Route path="/vendor/products_uploaded" element={<VendorProductsPage />} />
           <Route path="/vendor/upload_product" element={<VendorAddProductPage />} />
+          {/* One page component per document key. Adding a legal document is a
+              Markdown file plus a line here. */}
+          <Route
+            path="/legal/terms-customers"
+            element={<LegalPage documentKey="terms-customers" />}
+          />
+          <Route
+            path="/legal/terms-producers"
+            element={<LegalPage documentKey="terms-producers" />}
+          />
+          <Route
+            path="/termeni-si-conditii"
+            element={<Navigate to="/legal/terms-customers" replace />}
+          />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
+        </Suspense>
       </main>
+      {/* The legal links have to be reachable from every page, not only from
+          signup. The operator identification block and the ANPC/SAL links come
+          with the rest of the legal delivery — the placeholders below are the
+          slots they drop into. */}
       <footer className="footer">
+        <nav className="footer-legal" aria-label="Documente legale">
+          <Link to="/legal/terms-customers">Termeni și condiții</Link>
+          <Link to="/legal/terms-producers">Termeni pentru producători</Link>
+        </nav>
         <p>Farmables — built for community-powered food systems.</p>
       </footer>
     </div>

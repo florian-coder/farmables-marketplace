@@ -16,6 +16,8 @@ const { mapDbUserToApi, normalizeText, toDbUserType } = require('../lib/domain')
 const { sendMail } = require('../lib/mailer');
 const { ACTIONS, recordAudit } = require('../lib/audit');
 const { IS_PRODUCTION } = require('../lib/config');
+const { validateAcceptances } = require('../lib/legalDocuments');
+const { recordAcceptances } = require('../lib/legalAcceptance');
 
 const router = express.Router();
 
@@ -163,6 +165,22 @@ router.post('/signup', authLimiter, async (req, res, next) => {
       return res.status(400).json({ error: 'A valid email address is required.' });
     }
 
+    // LEG-02/LEG-03 — consent is checked before the account exists, so an
+    // account can never exist without a consent record attached to it. The
+    // version is validated too: a tab left open across an update must not be
+    // able to record consent to text nobody is showing any more.
+    const consent = validateAcceptances({
+      role,
+      moment: 'signup',
+      accepted: req.body?.acceptedDocuments,
+    });
+    if (!consent.ok) {
+      return res.status(consent.code === 'terms_version_stale' ? 409 : 400).json({
+        error: consent.error,
+        code: consent.code,
+      });
+    }
+
     const passwordHash = await hashPassword(password);
 
     const { data: existingUser, error: existingUserError } = await supabase
@@ -216,6 +234,16 @@ router.post('/signup', authLimiter, async (req, res, next) => {
           'Account created but role profile initialization failed.',
       });
     }
+
+    // Consent is written immediately after the account exists, so the record
+    // and the account share a lifetime. A failure here does not undo the
+    // signup — it is logged, and the gap is closed by hand.
+    await recordAcceptances({
+      req,
+      userId: insertedUser.id,
+      documents: consent.documents,
+      context: 'signup',
+    });
 
     // Verificarea emailului nu blochează autentificarea deocamdată — trimitem
     // linkul, iar contul rămâne utilizabil. Când vrei să o faci obligatorie,
