@@ -8,7 +8,7 @@ const {
   SESSION_TTL_MS,
   revokeSession,
 } = require('../lib/auth');
-const { getUserFromRequest } = require('../middleware/auth');
+const { getUserFromRequest, requireAuth } = require('../middleware/auth');
 const { supabase, TABLES } = require('../lib/supabase');
 const { mapDbUserToApi, normalizeText, toDbUserType } = require('../lib/domain');
 
@@ -172,6 +172,49 @@ router.get('/me', async (req, res, next) => {
       username: user.username,
       role: user.role,
     });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.post('/change-password', requireAuth, async (req, res, next) => {
+  try {
+    const { currentPassword, newPassword } = req.body || {};
+
+    if (typeof currentPassword !== 'string' || !currentPassword) {
+      return res.status(400).json({ error: 'Current password is required.' });
+    }
+    if (typeof newPassword !== 'string' || newPassword.length < 6) {
+      return res.status(400).json({ error: 'New password must be at least 6 characters.' });
+    }
+    if (newPassword === currentPassword) {
+      return res.status(400).json({ error: 'The new password must be different from the current one.' });
+    }
+
+    const { data: user, error } = await supabase
+      .from(TABLES.users)
+      .select('id, password')
+      .eq('id', req.user.id)
+      .maybeSingle();
+    if (error || !user) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+
+    const valid = await verifyPassword(currentPassword, user.password);
+    if (!valid) {
+      return res.status(401).json({ error: 'Current password is incorrect.' });
+    }
+
+    const passwordHash = await hashPassword(newPassword);
+    const { error: updateError } = await supabase
+      .from(TABLES.users)
+      .update({ password: passwordHash })
+      .eq('id', user.id);
+    if (updateError) {
+      return res.status(500).json({ error: updateError.message || 'Unable to change password.' });
+    }
+
+    return res.json({ changed: true });
   } catch (error) {
     return next(error);
   }

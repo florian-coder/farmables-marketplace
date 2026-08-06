@@ -3176,3 +3176,434 @@ a {
     max-height: 52vh;
   }
 }
+
+/* ============================================================
+   Earnings — aceleași carduri cu antet ca la Orders și Chat.
+   Verdele înseamnă bani confirmați; restul e încă pe drum.
+   ============================================================ */
+.earnings-hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-5);
+  padding: var(--s-6);
+  border: 1px solid var(--leaf-line);
+  border-radius: var(--r-md);
+  background:
+    radial-gradient(circle at 92% 12%, rgba(95, 208, 126, 0.16), transparent 46%),
+    var(--leaf-lo);
+}
+
+.earnings-hero-main {
+  min-width: 0;
+  flex: 1 1 280px;
+}
+
+.earnings-hero-label {
+  margin: 0;
+  font-size: var(--t-2);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--leaf-dk);
+}
+
+.earnings-hero-amount {
+  margin: var(--s-1) 0 0;
+  font-family: var(--f-display);
+  font-size: var(--t-9);
+  font-weight: 600;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  color: var(--field);
+  font-variant-numeric: tabular-nums;
+}
+
+.earnings-hero-note {
+  margin: var(--s-2) 0 0;
+  font-size: var(--t-2);
+  color: var(--ink-3);
+}
+
+.earnings-hero-split {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.earnings-hero-split li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 150px;
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--leaf-line);
+  border-radius: var(--r-sm);
+  background: var(--paper-0);
+}
+
+.earnings-split-label {
+  font-size: var(--t-1);
+  font-weight: 700;
+  color: var(--ink-3);
+}
+
+.earnings-split-value {
+  font-size: var(--t-5);
+  font-weight: 700;
+  color: var(--ink-1);
+  font-variant-numeric: tabular-nums;
+}
+
+.earnings-split-note {
+  font-size: var(--t-1);
+  color: var(--ink-3);
+}
+
+.earnings-inline-link {
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+/* --- patru cifre scurte, citite dintr-o privire --- */
+.earnings-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: var(--s-4);
+}
+
+.earnings-stat {
+  padding: var(--s-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--paper-0);
+}
+
+.earnings-stat-label {
+  margin: 0;
+  font-size: var(--t-1);
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.earnings-stat-value {
+  margin: var(--s-1) 0 0;
+  font-size: var(--t-7);
+  font-weight: 700;
+  color: var(--field);
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.earnings-stat-note {
+  margin: 0;
+  font-size: var(--t-1);
+  color: var(--ink-3);
+}
+
+.earnings-columns {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--s-4);
+  align-items: start;
+}
+
+@media (min-width: 900px) {
+  .earnings-columns {
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  }
+}
+
+.earnings-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--paper-0);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+
+.earnings-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border-bottom: 1px solid var(--line);
+  background: var(--paper-1);
+}
+
+.earnings-card-head h2 {
+  margin: 0;
+  font-size: var(--t-5);
+  color: var(--field);
+}
+
+.earnings-card-sub {
+  font-size: var(--t-1);
+  color: var(--ink-3);
+}
+
+.earnings-card-body {
+  padding: var(--s-4);
+}
+
+.earnings-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  font-size: var(--t-1);
+  color: var(--ink-3);
+}
+
+.earnings-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.earnings-legend-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--r-xs);
+}
+
+.earnings-legend-swatch.is-cleared {
+  background: var(--leaf);
+}
+
+.earnings-legend-swatch.is-pending {
+  background: var(--leaf-lo);
+  border: 1px solid var(--leaf-line);
+}
+
+/* --- graficul lunar: bara plină e banul confirmat --- */
+.earnings-chart {
+  display: flex;
+  align-items: stretch;
+  gap: var(--s-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  height: 208px;
+}
+
+.earnings-chart-col {
+  display: flex;
+  flex: 1 1 0;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.earnings-chart-value {
+  font-size: var(--t-1);
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.earnings-chart-track {
+  position: relative;
+  flex: 1;
+  width: 100%;
+  max-width: 54px;
+  border-radius: var(--r-sm) var(--r-sm) 0 0;
+  background: linear-gradient(var(--paper-1), var(--paper-2));
+}
+
+.earnings-chart-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  min-height: 4px;
+  overflow: hidden;
+  border: 1px solid var(--leaf-line);
+  border-radius: var(--r-sm) var(--r-sm) 0 0;
+  background: var(--leaf-lo);
+}
+
+.earnings-chart-bar-cleared {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--leaf);
+}
+
+.earnings-chart-col.is-current .earnings-chart-bar {
+  border-color: var(--leaf);
+  box-shadow: 0 0 0 3px var(--leaf-lo);
+}
+
+.earnings-chart-month {
+  font-size: var(--t-1);
+  color: var(--ink-3);
+}
+
+.earnings-chart-col.is-current .earnings-chart-month,
+.earnings-chart-col.is-current .earnings-chart-value {
+  color: var(--field);
+  font-weight: 700;
+}
+
+/* --- top produse --- */
+.earnings-products {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  counter-reset: earnings-product;
+}
+
+.earnings-product {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-3);
+  padding: var(--s-3) 0;
+}
+
+.earnings-product + .earnings-product {
+  border-top: 1px solid var(--line);
+}
+
+.earnings-product::before {
+  counter-increment: earnings-product;
+  content: counter(earnings-product);
+  flex: 0 0 auto;
+  width: 20px;
+  font-size: var(--t-1);
+  font-weight: 700;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.earnings-product-name {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  color: var(--ink-1);
+  overflow-wrap: anywhere;
+}
+
+.earnings-product-qty {
+  font-size: var(--t-1);
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.earnings-product-total {
+  font-weight: 700;
+  color: var(--honey);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* --- comenzile plătite din luna curentă --- */
+.earnings-orders {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.earnings-order {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding: var(--s-3) 0;
+}
+
+.earnings-order + .earnings-order {
+  border-top: 1px solid var(--line);
+}
+
+.earnings-order-identity {
+  min-width: 0;
+  flex: 1 1 200px;
+}
+
+.earnings-order-customer {
+  margin: 0;
+  font-weight: 600;
+  color: var(--ink-1);
+}
+
+.earnings-order-ref {
+  margin: 2px 0 0;
+  font-size: var(--t-1);
+  color: var(--ink-3);
+}
+
+.earnings-order-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.earnings-order-date {
+  font-size: var(--t-1);
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.earnings-order-total {
+  min-width: 110px;
+  text-align: right;
+  font-weight: 700;
+  color: var(--ink-1);
+  font-variant-numeric: tabular-nums;
+}
+
+.earnings-order-total.is-cleared {
+  color: var(--ok);
+}
+
+.earnings-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-4);
+  padding: var(--s-6) var(--s-4);
+  border: 1px dashed var(--line-2);
+  border-radius: var(--r-md);
+}
+
+.earnings-foot {
+  margin: 0;
+  font-size: var(--t-1);
+}
+
+@media (max-width: 640px) {
+  .earnings-hero {
+    padding: var(--s-5);
+  }
+
+  .earnings-hero-amount {
+    font-size: var(--t-8);
+  }
+
+  .earnings-hero-split li {
+    flex: 1 1 140px;
+    min-width: 0;
+  }
+
+  .earnings-order {
+    align-items: flex-start;
+  }
+
+  .earnings-order-total {
+    text-align: left;
+    min-width: 0;
+  }
+}

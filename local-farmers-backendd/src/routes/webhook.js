@@ -34,10 +34,14 @@ router.post(
           const orderId = session.metadata.orderId;
           
           if (orderId) {
-            // Update order status to auto-accepted (received_by_farmer)
+            // Update order status to auto-accepted (received_by_farmer).
+            // paid_at is what the farmer's monthly earnings are grouped by.
             await supabase
               .from('orders')
-              .update({ order_state: 'received_by_farmer' }) 
+              .update({
+                order_state: 'received_by_farmer',
+                paid_at: new Date().toISOString(),
+              })
               .eq('id', orderId);
             console.log(`Order ${orderId} marked as paid/received_by_farmer`);
           }

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 
 import { apiFetch } from '../lib/api.js';
 import { useAuth } from '../lib/auth.jsx';
+import PasswordChangeCard from '../components/PasswordChangeCard.jsx';
 
 const initialProfile = {
   firstName: '',
@@ -260,6 +261,8 @@ export default function CustomerProfilePage() {
           </p>
         )}
       </form>
+
+      <PasswordChangeCard />
     </div>
   );
 }

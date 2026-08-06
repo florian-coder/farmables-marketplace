@@ -6,8 +6,10 @@ const multer = require('multer');
 const { requireVendor } = require('../middleware/auth');
 const { supabase, TABLES, BUCKET_ALIASES } = require('../lib/supabase');
 const {
+  isValidIban,
   mapFarmerToVendor,
   mapProductToApi,
+  normalizeIban,
   normalizeText,
   toIntFlag,
   toNumberOrNull,
@@ -44,6 +46,7 @@ const FARMER_COLUMNS = [
   '"organic operator certificate"',
   '"delivery radius"',
   'bio',
+  'IBAN',
 ].join(', ');
 
 const REQUEST_COLUMNS = [
@@ -60,6 +63,7 @@ const REQUEST_COLUMNS = [
   'organic_certificate',
   'delivery_radius_km',
   'bio',
+  'iban',
   'farm_images',
   'documents',
   'status',
@@ -258,6 +262,7 @@ const mapRequestToVendorResponse = (request, userEmail = '') => ({
   organicCertificate: request?.organic_certificate || '',
   deliveryRadiusKm: toNumberOrNull(request?.delivery_radius_km),
   bio: request?.bio || '',
+  iban: normalizeIban(request?.iban),
   farmImages: normalizePublicUrls(request?.farm_images),
   documents: request?.documents || {},
 });
@@ -408,6 +413,7 @@ router.post('/profile', requireVendor, upload.any(), async (req, res, next) => {
       organicCertificate,
       deliveryRadiusKm,
       bio,
+      iban,
     } = req.body || {};
 
     let farmImages = req.body.farmImages;
@@ -420,6 +426,15 @@ router.post('/profile', requireVendor, upload.any(), async (req, res, next) => {
     }
     if (farmImages !== undefined && !Array.isArray(farmImages)) {
       return res.status(400).json({ error: 'farmImages must be an array of URLs.' });
+    }
+
+    // Fără IBAN nu avem unde trimite banii la final de lună.
+    const normalizedIban = normalizeIban(iban);
+    if (!normalizedIban) {
+      return res.status(400).json({ error: 'IBAN is required so we can pay you at the end of the month.' });
+    }
+    if (!isValidIban(normalizedIban)) {
+      return res.status(400).json({ error: 'IBAN is not valid. Check the country code and the digits.' });
     }
 
     const deliveryRadius = toNumberOrNull(deliveryRadiusKm);
@@ -479,6 +494,7 @@ router.post('/profile', requireVendor, upload.any(), async (req, res, next) => {
       organic_certificate: normalizeText(organicCertificate, 200),
       delivery_radius_km: deliveryRadius,
       bio: normalizeText(bio, 1000),
+      iban: normalizedIban,
       farm_images: normalizedFarmImages,
       documents: documents,
       status: 'pending',
@@ -495,6 +511,19 @@ router.post('/profile', requireVendor, upload.any(), async (req, res, next) => {
 
     if (upsertError || !requestRow) {
       return res.status(500).json({ error: upsertError?.message || 'Unable to save request.' });
+    }
+
+    // Restul profilului așteaptă aprobarea adminului, dar contul bancar nu:
+    // dacă ferma e deja aprobată, plata următoare merge pe IBAN-ul nou.
+    const existingFarmer = await fetchFarmerByUserId(req.user.id);
+    if (existingFarmer) {
+      const { error: ibanError } = await supabase
+        .from(TABLES.farmers)
+        .update({ IBAN: normalizedIban })
+        .eq('id', existingFarmer.id);
+      if (ibanError) {
+        console.error('[vendor] Unable to update farmer IBAN:', ibanError);
+      }
     }
 
     const userRow = await fetchUserRow(req.user.id);

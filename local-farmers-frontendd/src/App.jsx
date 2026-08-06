@@ -22,6 +22,7 @@ import VendorAddProductPage from './pages/VendorAddProductPage.jsx';
 import NotFoundPage from './pages/NotFoundPage.jsx';
 import AdminPage from './pages/AdminPage.jsx';
 import OrdersPage from './pages/OrdersPage.jsx';
+import EarningsPage from './pages/EarningsPage.jsx';
 import { apiFetch } from './lib/api.js';
 import { AuthProvider, useAuth } from './lib/auth.jsx';
 import { supabase } from './lib/supabase.js';
@@ -225,7 +226,10 @@ function Navigation() {
           </Link>
         )}
         {status === 'authenticated' && <Link to="/orders">Orders</Link>}
-        
+        {status === 'authenticated' && user?.role === 'vendor' && (
+          <Link to="/earnings">Earnings</Link>
+        )}
+
         {status === 'authenticated' && user?.role === 'vendor' ? (
           <div className="nav-market-menu">
             <button
@@ -287,6 +291,7 @@ function AppShell() {
           <Route path="/farmers" element={<FarmersPage />} />
           <Route path="/chat" element={<ChatPage />} />
           <Route path="/orders" element={<OrdersPage />} />
+          <Route path="/earnings" element={<EarningsPage />} />
           <Route path="/markets/:category" element={<MarketsPage />} />
           <Route path="/auth/signup" element={<SignupPage />} />
           <Route path="/auth/login" element={<LoginPage />} />

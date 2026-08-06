@@ -102,16 +102,20 @@ router.get('/verify-status/:orderId', requireAuth, async (req, res) => {
       // 3. Update the order state to received_by_farmer if it's still pending
       const { data: order, error: fetchError } = await supabase
         .from(TABLES.orders)
-        .select('order_state')
+        .select('order_state, paid_at')
         .eq('id', orderId)
         .single();
 
       if (!fetchError && order.order_state === 'pending_order') {
         await supabase
           .from(TABLES.orders)
-          .update({ order_state: 'received_by_farmer' })
+          .update({
+            order_state: 'received_by_farmer',
+            // Nu suprascriem momentul plății dacă webhook-ul a ajuns primul.
+            paid_at: order.paid_at || new Date().toISOString(),
+          })
           .eq('id', orderId);
-        
+
         return res.json({ status: 'paid', updated: true });
       }
 

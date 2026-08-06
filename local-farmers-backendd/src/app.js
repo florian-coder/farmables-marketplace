@@ -16,6 +16,7 @@ const externalRouter = require('./routes/external');
 const productsRouter = require('./routes/products');
 const adminRouter = require('./routes/admin');
 const ordersRouter = require('./routes/orders');
+const earningsRouter = require('./routes/earnings');
 const checkoutRouter = require('./routes/checkout');
 const { purgeLegacyState } = require('./lib/legacyCleanup');
 
@@ -78,6 +79,7 @@ app.use('/api/external', externalRouter);
 app.use('/api/products', productsRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/orders', ordersRouter);
+app.use('/api/earnings', earningsRouter);
 app.use('/api/checkout', checkoutRouter);
 
 app.use((req, res) => {

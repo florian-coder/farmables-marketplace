@@ -1,7 +1,7 @@
 const express = require('express');
 
 const { supabase, TABLES } = require('../lib/supabase');
-const { mapProductToApi } = require('../lib/domain');
+const { mapProductToApi, normalizeIban } = require('../lib/domain');
 const { recalculateAndPersistProductRatings } = require('../lib/productRating');
 const {
   ADMIN_COOKIE_NAME,
@@ -28,6 +28,7 @@ const REQUEST_COLUMNS = [
   'organic_certificate',
   'delivery_radius_km',
   'bio',
+  'iban',
   'farm_images',
   'documents',
   'status',
@@ -280,6 +281,7 @@ router.post('/farmer-requests/:requestId/approve', requireAdmin, async (req, res
       'organic operator certificate': request.organic_certificate || '',
       'delivery radius': request.delivery_radius_km,
       bio: request.bio || '',
+      IBAN: normalizeIban(request.iban),
     };
 
     const { error: farmerError } = await supabase

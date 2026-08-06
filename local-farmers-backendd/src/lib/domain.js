@@ -25,6 +25,45 @@ const toNumberOrNull = (value) => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
+/** IBAN stocat fără spații și cu majuscule, ca să fie comparabil. */
+const normalizeIban = (value) => {
+  if (typeof value !== 'string') {
+    return '';
+  }
+  return value.replace(/[\s-]/g, '').toUpperCase().slice(0, 34);
+};
+
+/** Verificarea mod-97 din ISO 13616: prinde cifrele tastate greșit. */
+const isValidIban = (value) => {
+  const iban = normalizeIban(value);
+  if (!/^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$/.test(iban)) {
+    return false;
+  }
+
+  const rearranged = `${iban.slice(4)}${iban.slice(0, 4)}`;
+  const digits = rearranged.replace(/[A-Z]/g, (letter) =>
+    String(letter.charCodeAt(0) - 55),
+  );
+
+  let remainder = 0;
+  for (const digit of digits) {
+    remainder = (remainder * 10 + Number(digit)) % 97;
+  }
+  return remainder === 1;
+};
+
+/** Doar țara și ultimele patru cifre pleacă spre pagina de câștiguri. */
+const maskIban = (value) => {
+  const iban = normalizeIban(value);
+  if (!iban) {
+    return '';
+  }
+  if (iban.length <= 8) {
+    return iban;
+  }
+  return `${iban.slice(0, 4)} •••• ${iban.slice(-4)}`;
+};
+
 const toApiRole = (userType) => (userType === 'farmer' ? 'vendor' : 'customer');
 const toDbUserType = (role) => (role === 'vendor' ? 'farmer' : 'customer');
 
@@ -84,6 +123,7 @@ const mapFarmerToVendor = (farmer, options = {}) => {
     organicCertificate: farmer['organic operator certificate'] || '',
     deliveryRadiusKm: toNumberOrNull(farmer['delivery radius']),
     bio: farmer.bio || '',
+    iban: normalizeIban(farmer.IBAN),
     farmImages,
   };
 };
@@ -125,6 +165,9 @@ const mapProductToApi = (product, vendor = null) => ({
 module.exports = {
   DEFAULT_MARKETS,
   normalizeText,
+  normalizeIban,
+  isValidIban,
+  maskIban,
   toNumberOrNull,
   toApiRole,
   toDbUserType,
