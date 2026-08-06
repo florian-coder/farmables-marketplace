@@ -1,180 +1,479 @@
+// Checkout — one payment for the whole cart, however many farms are in it.
+//
+// LOG-03: the customer used to pay each farm separately, which meant three
+// card forms for a three-farm basket. Now the whole cart is one
+// `checkouts` row, one Stripe Checkout Session, one `PaymentIntent` on the
+// platform account, and one `transfer_group`. The per-farmer split happens
+// after the payment confirms, in `lib/transfers.js`.
+
 const express = require('express');
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+const crypto = require('crypto');
+
 const { requireAuth } = require('../middleware/auth');
 const { supabase, TABLES } = require('../lib/supabase');
+const { stripe, describeStripeError, stripeRequestId } = require('../lib/stripeClient');
+const { FRONTEND_URL } = require('../lib/config');
+const { buildCartQuote, serializeQuote } = require('../lib/pricing');
+const { formatBani, toBani } = require('../lib/money');
+const { transferCheckoutGroups } = require('../lib/transfers');
 
 const router = express.Router();
 
 /**
- * SEC-05 — Nicio operațiune pe o comandă înainte de a ști că e a celui care cere.
+ * Errors on the payment path never become a bare 500.
  *
- * Fără verificarea asta, orice utilizator logat putea trimite identificatorul
- * comenzii altcuiva și declanșa `process_checkout`, care scade stocul. Repetat
- * în buclă, golea stocul fermierilor fără să plătească nimic.
- *
- * Întoarce { order } sau { error, status } — niciodată detalii despre comenzile
- * altora, ca ruta să nu devină oracol pentru identificatori valizi.
+ * The customer gets a sentence they can act on, and the logs get a request id
+ * they can be searched by. A generic "Internal Server Error" on a payment
+ * screen tells the customer nothing and tells us nothing either.
  */
-const loadOwnedOrder = async (orderId, user) => {
-  const id = typeof orderId === 'string' ? orderId.trim() : '';
-  if (!id) {
-    return { error: 'Order ID is required', status: 400 };
-  }
-
-  const { data: order, error } = await supabase
-    .from(TABLES.orders)
-    .select('id, client_id, farmer_id, order_state, paid_at')
-    .eq('id', id)
-    .maybeSingle();
-
-  if (error) {
-    return { error: 'Unable to load order.', status: 500 };
-  }
-  // Comandă inexistentă și comandă a altcuiva primesc același răspuns.
-  if (!order || String(order.client_id) !== String(user.id)) {
-    return { error: 'Order not found.', status: 404 };
-  }
-
-  return { order };
+const failPayment = (res, { status = 500, message, logLabel, error }) => {
+  const requestId = crypto.randomUUID().slice(0, 8);
+  console.error(
+    `[checkout:${requestId}] ${logLabel}:`,
+    error?.message || error || 'no detail',
+    stripeRequestId(error) ? `stripe_request=${stripeRequestId(error)}` : '',
+  );
+  return res.status(status).json({ error: message, requestId });
 };
 
-router.post('/create-checkout-session', requireAuth, async (req, res) => {
-  const { orderId } = req.body;
-
-  const owned = await loadOwnedOrder(orderId, req.user);
-  if (owned.error) {
-    return res.status(owned.status).json({ error: owned.error });
+const requireCustomer = (req, res) => {
+  if (req.user.role !== 'customer') {
+    res.status(403).json({ error: 'Doar conturile de client pot plasa comenzi.' });
+    return false;
   }
-  const { order } = owned;
+  return true;
+};
 
-  // Idempotență: stocul se rezervă o singură dată per comandă. O comandă deja
-  // trecută în pending_order și-a consumat rezervarea, iar una plătită nu mai
-  // are ce căuta la casă.
-  if (order.paid_at || !['placed_order', 'pending_order'].includes(order.order_state)) {
-    return res.status(400).json({ error: 'This order can no longer be paid.' });
-  }
-  const alreadyReserved = order.order_state === 'pending_order';
-
-  // 1. Ia produsele din order_items pentru aceasta comanda
-  const { data: items, error: itemsError } = await supabase
-    .from(TABLES.orderItems)
-    .select('*')
-    .eq('order_id', order.id);
-
-  if (itemsError) {
-    console.error('Supabase items query error:', itemsError);
-  }
-
-  if (itemsError || !items || items.length === 0) {
-    return res.status(400).json({ error: 'Failed to retrieve order items.' });
-  }
-
-  // 2. Formatează produsele pentru Stripe și calculează totalul
-  let totalSessionAmountCents = 0;
-  const lineItems = items.map(item => {
-    // Math.round to avoid float precision issues, convert to cents
-    const unitPriceCents = Math.round(Number(item.unit_price) * 100);
-    const quantityMultiplier = Number(item.quantity);
-
-    const totalAmountInCents = Math.round(unitPriceCents * quantityMultiplier);
-    totalSessionAmountCents += totalAmountInCents;
-
-    const productName = item.product_name || 'Produs Ferma Mea';
-    const productUnit = item.product_unit || 'unitate';
-
-    return {
-      price_data: {
-        currency: 'ron',
-        product_data: {
-          name: `${productName} (${item.quantity} ${productUnit})`,
-        },
-        unit_amount: totalAmountInCents,
-      },
-      quantity: 1, // STRIPE VEDE DOAR 1 BUCATĂ
-    };
-  });
-
-  // Validare Stripe: Suma totală trebuie să fie minim 2.00 RON (200 bani)
-  if (totalSessionAmountCents < 200) {
-    return res.status(400).json({ error: 'Comanda minimă pentru plata cu cardul (Stripe) este de 2.00 RON.' });
-  }
-
-  // 3. Apelează funcția atomică pentru a tăia stocul (rezervare), o singură dată
-  if (!alreadyReserved) {
-    const { data: rpcData, error: rpcError } = await supabase.rpc('process_checkout', {
-      p_order_id: order.id,
-    });
-
-    if (rpcError || !rpcData?.success) {
-      return res.status(400).json({
-        error: rpcData?.error || rpcError?.message || 'Stoc insuficient, tranzacție anulată.',
-      });
-    }
-  }
-
+/**
+ * GET /api/checkout/summary
+ *
+ * Everything the cart page needs to show the price breakdown before the
+ * customer commits: per-farm subtotal, per-farm delivery fee, the platform
+ * service fee, the total, and any reason the cart cannot be paid for yet.
+ */
+router.get('/summary', requireAuth, async (req, res, next) => {
   try {
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-    // 4. Creează sesiunea Stripe
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
-      line_items: lineItems,
-      mode: 'payment',
-      metadata: { orderId: order.id },
-      success_url: `${frontendUrl}/orders?success=true`,
-      cancel_url: `${frontendUrl}/orders?canceled=true`,
-    });
-
-    res.json({ url: session.url });
-  } catch (err) {
-    // 5. Dacă Stripe aruncă o eroare, dăm ROLLBACK ca să nu lăsăm comanda blocată
-    console.error('Stripe error, rolling back checkout:', err.message);
-    if (!alreadyReserved) {
-      await supabase.rpc('rollback_checkout', { p_order_id: order.id });
+    if (!requireCustomer(req, res)) {
+      return null;
     }
-    res.status(500).json({ error: err.message });
+    const quote = await buildCartQuote({ clientId: req.user.id });
+    return res.json(serializeQuote(quote));
+  } catch (error) {
+    return next(error);
   }
 });
 
-router.get('/verify-status/:orderId', requireAuth, async (req, res) => {
-  const owned = await loadOwnedOrder(req.params.orderId, req.user);
-  if (owned.error) {
-    return res.status(owned.status).json({ error: owned.error });
-  }
-  const { order } = owned;
+/**
+ * Build the Stripe line items from the values frozen on the order rows.
+ *
+ * Reading the frozen columns rather than recomputing is deliberate: whatever
+ * `process_checkout` wrote is what the customer is charged and what the
+ * farmer is paid, so there is exactly one number in play.
+ */
+const buildLineItems = (groups) => {
+  const lineItems = [];
+  let commissionTotalBani = 0;
 
-  try {
-    // 1. Fetch recent sessions from Stripe
-    const sessions = await stripe.checkout.sessions.list({
-      limit: 10,
-    });
+  for (const group of groups) {
+    const farmName = group.farmName || 'Fermă';
 
-    // 2. Find if any session matches our orderId and is paid
-    const matchingSession = sessions.data.find(
-      (s) => s.metadata.orderId === order.id && s.payment_status === 'paid'
-    );
-
-    if (matchingSession) {
-      // 3. Update the order state to received_by_farmer if it's still pending
-      if (order.order_state === 'pending_order') {
-        await supabase
-          .from(TABLES.orders)
-          .update({
-            order_state: 'received_by_farmer',
-            // Nu suprascriem momentul plății dacă webhook-ul a ajuns primul.
-            paid_at: order.paid_at || new Date().toISOString(),
-          })
-          .eq('id', order.id);
-
-        return res.json({ status: 'paid', updated: true });
-      }
-
-      return res.json({ status: 'paid', updated: false });
+    for (const item of group.items) {
+      lineItems.push({
+        price_data: {
+          currency: 'ron',
+          product_data: {
+            name: `${item.productName || 'Produs'} — ${farmName}`,
+            description: `${item.quantity} ${item.productUnit || 'buc'} × ${formatBani(item.unitPriceBani)}`,
+          },
+          // One line per cart item, priced at its line total: Stripe sees
+          // quantity 1 because our quantities can be fractional (1.5 kg).
+          unit_amount: item.lineTotalBani,
+        },
+        quantity: 1,
+      });
     }
 
-    return res.json({ status: 'unpaid' });
+    if (group.deliveryFeeBani > 0) {
+      lineItems.push({
+        price_data: {
+          currency: 'ron',
+          product_data: { name: `Livrare — ${farmName}` },
+          unit_amount: group.deliveryFeeBani,
+        },
+        quantity: 1,
+      });
+    }
+
+    commissionTotalBani += group.commissionBani;
+  }
+
+  if (commissionTotalBani > 0) {
+    // One visible line, never folded into the product prices. The customer
+    // must see what the platform charges, itemised, before paying.
+    lineItems.push({
+      price_data: {
+        currency: 'ron',
+        product_data: {
+          name: 'Taxă de serviciu platformă',
+          description: 'Comisionul Farmables pentru intermediere și procesarea plății.',
+        },
+        unit_amount: commissionTotalBani,
+      },
+      quantity: 1,
+    });
+  }
+
+  return { lineItems, commissionTotalBani };
+};
+
+/** Re-read the frozen money columns after `process_checkout` has run. */
+const loadFrozenGroups = async (checkoutId) => {
+  const { data: orders, error } = await supabase
+    .from(TABLES.orders)
+    .select(
+      'id, farmer_id, products_subtotal_bani, delivery_fee_bani, commission_bani, commission_bps, transfer_amount_bani, stripe_account_id',
+    )
+    .eq('checkout_id', String(checkoutId));
+
+  if (error) {
+    throw new Error(error.message || 'Unable to load frozen order groups.');
+  }
+
+  const orderIds = (orders || []).map((row) => String(row.id));
+  const farmerIds = [...new Set((orders || []).map((row) => String(row.farmer_id)))];
+
+  const [itemsResult, farmersResult] = await Promise.all([
+    supabase
+      .from(TABLES.orderItems)
+      .select('order_id, product_name, product_unit, quantity, unit_price, line_total')
+      .in('order_id', orderIds.length > 0 ? orderIds : ['-']),
+    supabase
+      .from(TABLES.farmers)
+      .select('id, "farm name", "display name"')
+      .in('id', farmerIds.length > 0 ? farmerIds : ['-']),
+  ]);
+
+  if (itemsResult.error) {
+    throw new Error(itemsResult.error.message || 'Unable to load order items.');
+  }
+
+  const itemsByOrder = new Map();
+  for (const item of itemsResult.data || []) {
+    const key = String(item.order_id);
+    const list = itemsByOrder.get(key) || [];
+    list.push({
+      productName: item.product_name || '',
+      productUnit: item.product_unit || '',
+      quantity: Number(item.quantity || 0),
+      unitPriceBani: Math.round(Number(item.unit_price || 0) * 100),
+      lineTotalBani: Math.round(Number(item.line_total || 0) * 100),
+    });
+    itemsByOrder.set(key, list);
+  }
+
+  const namesById = new Map(
+    (farmersResult.data || []).map((row) => [
+      String(row.id),
+      row['farm name'] || row['display name'] || 'Fermă',
+    ]),
+  );
+
+  return (orders || []).map((row) => ({
+    orderId: String(row.id),
+    farmerId: String(row.farmer_id),
+    farmName: namesById.get(String(row.farmer_id)) || 'Fermă',
+    productsSubtotalBani: toBani(row.products_subtotal_bani),
+    deliveryFeeBani: toBani(row.delivery_fee_bani),
+    commissionBani: toBani(row.commission_bani),
+    commissionBps: toBani(row.commission_bps),
+    transferAmountBani: toBani(row.transfer_amount_bani),
+    stripeAccountId: String(row.stripe_account_id || ''),
+    items: itemsByOrder.get(String(row.id)) || [],
+  }));
+};
+
+/**
+ * POST /api/checkout/create-checkout-session
+ *
+ * Takes no order id any more: the cart is whatever `placed_order` rows the
+ * authenticated customer owns. Passing an id was how SEC-05 let one customer
+ * drain another's stock, and the concept no longer exists here.
+ */
+router.post('/create-checkout-session', requireAuth, async (req, res, next) => {
+  let checkoutId = null;
+
+  try {
+    if (!requireCustomer(req, res)) {
+      return null;
+    }
+
+    // 1. An existing unpaid checkout is reused rather than duplicated, so a
+    //    customer who goes back and clicks pay again does not reserve stock
+    //    a second time.
+    const { data: openCheckouts, error: openError } = await supabase
+      .from(TABLES.checkouts)
+      .select('id, state, stripe_session_id, transfer_group, total_bani')
+      .eq('client_id', req.user.id)
+      .eq('state', 'awaiting_payment')
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (openError) {
+      return failPayment(res, {
+        message: 'Nu am putut verifica plățile în curs. Reîncearcă.',
+        logLabel: 'open checkout lookup failed',
+        error: openError,
+      });
+    }
+
+    const reusable = (openCheckouts || [])[0] || null;
+    if (reusable?.stripe_session_id) {
+      try {
+        const existingSession = await stripe.checkout.sessions.retrieve(reusable.stripe_session_id);
+        if (existingSession.status === 'open' && existingSession.url) {
+          return res.json({ url: existingSession.url, checkoutId: reusable.id, reused: true });
+        }
+      } catch (retrieveError) {
+        // Session gone or expired — fall through and build a fresh one.
+        console.warn('[checkout] Could not reuse session:', retrieveError?.message);
+      }
+    }
+
+    // 2. Price the cart and refuse early on anything the customer must fix.
+    const quote = await buildCartQuote({ clientId: req.user.id });
+
+    if (quote.groups.length === 0) {
+      return res.status(400).json({ error: 'Coșul este gol.' });
+    }
+    if (!quote.payable) {
+      return res.status(409).json({
+        error: quote.blockers[0]?.message || 'Coșul nu poate fi finalizat încă.',
+        blockers: quote.blockers,
+        quote: serializeQuote(quote),
+      });
+    }
+
+    // 3. Create the parent checkout. `transfer_group` ties the charge and all
+    //    the farmer transfers together in Stripe's own reporting.
+    const transferGroup = `chk_${crypto.randomUUID().replace(/-/g, '')}`;
+    const { data: checkoutRow, error: checkoutError } = await supabase
+      .from(TABLES.checkouts)
+      .insert({
+        client_id: String(req.user.id),
+        transfer_group: transferGroup,
+        currency: 'ron',
+        state: 'open',
+      })
+      .select('id, transfer_group, state')
+      .single();
+
+    if (checkoutError || !checkoutRow) {
+      return failPayment(res, {
+        message: 'Nu am putut deschide plata. Reîncearcă în câteva momente.',
+        logLabel: 'checkout insert failed',
+        error: checkoutError,
+      });
+    }
+    checkoutId = checkoutRow.id;
+
+    // 4. Reserve stock and freeze the money, atomically, in one transaction.
+    //    The SQL function is the authority: it re-reads the farmer settings
+    //    and the commission rate itself, so the numbers it writes cannot
+    //    drift from what it validated.
+    const { data: rpcData, error: rpcError } = await supabase.rpc('process_checkout', {
+      p_checkout_id: checkoutId,
+      p_order_ids: quote.groups.map((group) => group.orderId),
+    });
+
+    if (rpcError || !rpcData?.success) {
+      await supabase
+        .from(TABLES.checkouts)
+        .update({ state: 'cancelled', cancel_reason: rpcData?.error || 'reservation_failed' })
+        .eq('id', checkoutId);
+
+      return res.status(409).json({
+        error:
+          rpcData?.error ||
+          rpcError?.message ||
+          'Stocul nu mai acoperă comanda. Verifică coșul și reîncearcă.',
+        blockers: rpcData?.blockers || [],
+      });
+    }
+
+    // 5. Build the session from the frozen values.
+    const groups = await loadFrozenGroups(checkoutId);
+    const { lineItems } = buildLineItems(groups);
+    const totalBani = toBani(rpcData.total_bani);
+
+    if (lineItems.length === 0 || totalBani <= 0) {
+      await supabase.rpc('rollback_checkout', { p_checkout_id: checkoutId });
+      return res.status(400).json({ error: 'Coșul nu conține nimic de plată.' });
+    }
+
+    const { data: userRow } = await supabase
+      .from(TABLES.users)
+      .select('email')
+      .eq('id', req.user.id)
+      .maybeSingle();
+
+    const session = await stripe.checkout.sessions.create(
+      {
+        mode: 'payment',
+        payment_method_types: ['card'],
+        line_items: lineItems,
+        customer_email: userRow?.email || undefined,
+        locale: 'ro',
+        client_reference_id: String(checkoutId),
+        metadata: {
+          checkout_id: String(checkoutId),
+          client_id: String(req.user.id),
+          order_ids: groups.map((group) => group.orderId).join(','),
+        },
+        payment_intent_data: {
+          // The link between this charge and every transfer that follows.
+          transfer_group: transferGroup,
+          metadata: {
+            checkout_id: String(checkoutId),
+            client_id: String(req.user.id),
+          },
+        },
+        // Stripe expires the session and we roll the stock back on the
+        // `checkout.session.expired` webhook.
+        expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
+        success_url: `${FRONTEND_URL}/orders?success=true&checkout=${checkoutId}`,
+        cancel_url: `${FRONTEND_URL}/orders?canceled=true&checkout=${checkoutId}`,
+      },
+      { idempotencyKey: `session-${checkoutId}` },
+    );
+
+    const { error: sessionSaveError } = await supabase
+      .from(TABLES.checkouts)
+      .update({
+        stripe_session_id: session.id,
+        stripe_payment_intent_id:
+          typeof session.payment_intent === 'string' ? session.payment_intent : null,
+        total_bani: totalBani,
+        products_subtotal_bani: toBani(rpcData.products_subtotal_bani),
+        delivery_fee_total_bani: toBani(rpcData.delivery_fee_total_bani),
+        commission_total_bani: toBani(rpcData.commission_total_bani),
+      })
+      .eq('id', checkoutId);
+
+    if (sessionSaveError) {
+      // The session exists at Stripe; not recording it would orphan the
+      // payment. Better to fail visibly and let the customer retry, because
+      // the retry reuses the same idempotency key and the same session.
+      return failPayment(res, {
+        message: 'Plata a fost pregătită, dar nu am putut salva referința. Reîncearcă.',
+        logLabel: `session ${session.id} not persisted for checkout ${checkoutId}`,
+        error: sessionSaveError,
+      });
+    }
+
+    return res.json({ url: session.url, checkoutId, totalBani });
   } catch (error) {
-    console.error('Error verifying payment status:', error);
-    res.status(500).json({ error: 'Failed to verify payment status.' });
+    // Anything unexpected past the reservation point releases the stock, so a
+    // failed attempt does not leave products locked away from other buyers.
+    if (checkoutId) {
+      try {
+        await supabase.rpc('rollback_checkout', { p_checkout_id: checkoutId });
+      } catch (rollbackError) {
+        console.error('[checkout] Rollback failed:', rollbackError?.message);
+      }
+    }
+
+    if (error?.type?.startsWith?.('Stripe')) {
+      return failPayment(res, {
+        status: 502,
+        message: describeStripeError(error),
+        logLabel: 'stripe session creation failed',
+        error,
+      });
+    }
+    return next(error);
+  }
+});
+
+/**
+ * GET /api/checkout/:checkoutId/status
+ *
+ * The customer lands here from Stripe's success page. The webhook is the
+ * authority on payment, but it can be seconds behind the redirect, so this
+ * asks Stripe directly and applies the same state change if it has not
+ * happened yet.
+ */
+router.get('/:checkoutId/status', requireAuth, async (req, res, next) => {
+  try {
+    const checkoutId = String(req.params.checkoutId || '').trim();
+    if (!checkoutId) {
+      return res.status(400).json({ error: 'checkoutId este obligatoriu.' });
+    }
+
+    const { data: checkout, error } = await supabase
+      .from(TABLES.checkouts)
+      .select('id, client_id, state, stripe_session_id, total_bani, paid_at')
+      .eq('id', checkoutId)
+      .maybeSingle();
+
+    if (error) {
+      return failPayment(res, {
+        message: 'Nu am putut verifica plata.',
+        logLabel: 'status lookup failed',
+        error,
+      });
+    }
+    // A checkout that is not yours and one that does not exist look identical.
+    if (!checkout || String(checkout.client_id) !== String(req.user.id)) {
+      return res.status(404).json({ error: 'Plata nu a fost găsită.' });
+    }
+
+    if (checkout.state === 'paid') {
+      return res.json({ state: 'paid', totalBani: checkout.total_bani, paidAt: checkout.paid_at });
+    }
+    if (!checkout.stripe_session_id) {
+      return res.json({ state: checkout.state });
+    }
+
+    const session = await stripe.checkout.sessions.retrieve(checkout.stripe_session_id);
+    if (session.payment_status !== 'paid') {
+      return res.json({ state: checkout.state, paymentStatus: session.payment_status });
+    }
+
+    // Paid at Stripe but not yet recorded here: apply it now. The webhook will
+    // find it already done and skip, because both paths guard on state.
+    const { data: applied, error: applyError } = await supabase.rpc('mark_checkout_paid', {
+      p_checkout_id: checkoutId,
+      p_payment_intent_id:
+        typeof session.payment_intent === 'string' ? session.payment_intent : null,
+    });
+
+    if (applyError) {
+      return failPayment(res, {
+        message: 'Plata a reușit, dar comanda nu s-a actualizat încă. Reîncarcă pagina în câteva secunde.',
+        logLabel: `mark_checkout_paid failed for ${checkoutId}`,
+        error: applyError,
+      });
+    }
+
+    if (applied?.newly_paid) {
+      // Transfers are the webhook's job, but if the redirect got here first we
+      // start them now — both paths claim through `order_transfers`.
+      transferCheckoutGroups({ checkoutId, eventId: `redirect-${checkoutId}` }).catch((err) =>
+        console.error('[checkout] Transfer after redirect failed:', err?.message),
+      );
+    }
+
+    return res.json({ state: 'paid', totalBani: checkout.total_bani, updated: true });
+  } catch (error) {
+    if (error?.type?.startsWith?.('Stripe')) {
+      return failPayment(res, {
+        status: 502,
+        message: describeStripeError(error),
+        logLabel: 'status check failed at stripe',
+        error,
+      });
+    }
+    return next(error);
   }
 });
 

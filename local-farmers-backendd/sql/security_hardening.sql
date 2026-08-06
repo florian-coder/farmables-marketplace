@@ -28,26 +28,13 @@ set
   allowed_mime_types = array['image/jpeg', 'image/png', 'image/webp', 'application/pdf']
 where id = 'docs';
 
--- Plasă de siguranță: dacă cineva a lăsat vreodată o politică permisivă pe
--- obiectele din storage, o eliminăm. Backendul folosește service role, care
--- ocolește RLS, deci nu are nevoie de nicio politică.
-do $$
-declare
-  policy_record record;
-begin
-  for policy_record in
-    select policyname
-    from pg_policies
-    where schemaname = 'storage'
-      and tablename = 'objects'
-      and (qual ilike '%docs%' or with_check ilike '%docs%')
-  loop
-    execute format('drop policy if exists %I on storage.objects', policy_record.policyname);
-  end loop;
-end;
-$$;
-
-alter table storage.objects enable row level security;
+-- Notă: storage.objects e deținut de rolul supabase_storage_admin, deci nu
+-- poate fi modificat din SQL Editor („must be owner of table objects"). Nici
+-- nu e nevoie: RLS pe el e activ implicit în Supabase, iar bucket-ul privat
+-- de mai sus e suficient ca accesul anonim să fie blocat. Dacă vrei să
+-- inspectezi politicile existente, o faci din panou, la Storage → Policies:
+--   select policyname, roles, cmd from pg_policies
+--   where schemaname = 'storage' and tablename = 'objects';
 
 -- ============================================================
 -- 2. SEC-08 — Sesiunile devin revocabile

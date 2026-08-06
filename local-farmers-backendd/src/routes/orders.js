@@ -19,6 +19,18 @@ const ORDER_COLUMNS = [
   'total_price',
   'created_at',
   'updated_at',
+  // Money frozen at placement time. An `orders` row is one farmer's group
+  // inside a `checkouts` payment, and these five columns are what that group
+  // was worth on the day it was placed — a later fee or rate change never
+  // rewrites them.
+  'checkout_id',
+  'products_subtotal_bani',
+  'delivery_fee_bani',
+  'commission_bani',
+  'commission_bps',
+  'transfer_amount_bani',
+  'transfer_state',
+  'paid_at',
 ].join(', ');
 
 const ORDER_ITEM_COLUMNS = [
@@ -73,25 +85,23 @@ const ORDER_BUCKETS = {
   history: HISTORY_STATES,
 };
 
+// Payment is no longer a per-order action: the whole cart is paid once, from
+// the cart summary, so "Pay & Place order" is gone from here. What remains
+// per order is what a single farmer group can still do on its own.
 const ALLOWED_TRANSITIONS = {
   customer: {
-    placed_order: [
-      { nextState: 'pending_order', label: 'Pay & Place order' },
-      { nextState: 'cancelled', label: 'Cancel order' }
-    ],
-    pending_order: [
-      { nextState: 'pending_order', label: 'Pay & Place order' },
-      { nextState: 'cancelled', label: 'Cancel order' }
-    ],
-    arrived: [{ nextState: 'received', label: 'Confirm received' }],
+    placed_order: [{ nextState: 'cancelled', label: 'Golește' }],
+    pending_order: [{ nextState: 'cancelled', label: 'Anulează comanda' }],
+    arrived: [{ nextState: 'received', label: 'Confirmă primirea' }],
   },
   vendor: {
-    pending_order: [
-      { nextState: 'cancelled', label: 'Decline order' }
+    pending_order: [{ nextState: 'cancelled', label: 'Refuză comanda' }],
+    received_by_farmer: [
+      { nextState: 'preparing_order', label: 'În pregătire' },
+      { nextState: 'cancelled', label: 'Refuză comanda' },
     ],
-    received_by_farmer: [{ nextState: 'preparing_order', label: 'Preparing order' }],
-    preparing_order: [{ nextState: 'in_transit', label: 'In transit' }],
-    in_transit: [{ nextState: 'arrived', label: 'Arrived' }],
+    preparing_order: [{ nextState: 'in_transit', label: 'În tranzit' }],
+    in_transit: [{ nextState: 'arrived', label: 'A ajuns' }],
   },
 };
 
@@ -155,6 +165,11 @@ const toPartnerForVendor = (order, usersById, customersById) => {
   };
 };
 
+const toBaniValue = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.round(parsed) : 0;
+};
+
 const mapOrderRow = (row) => ({
   id: normalizeIdentifier(row.id),
   farmerId: normalizeIdentifier(row.farmer_id),
@@ -163,6 +178,14 @@ const mapOrderRow = (row) => ({
   totalPrice: formatMoney(row.total_price),
   createdAt: row.created_at || null,
   updatedAt: row.updated_at || null,
+  checkoutId: normalizeIdentifier(row.checkout_id),
+  productsSubtotalBani: toBaniValue(row.products_subtotal_bani),
+  deliveryFeeBani: toBaniValue(row.delivery_fee_bani),
+  commissionBani: toBaniValue(row.commission_bani),
+  commissionBps: toBaniValue(row.commission_bps),
+  transferAmountBani: toBaniValue(row.transfer_amount_bani),
+  transferState: row.transfer_state || 'none',
+  paidAt: row.paid_at || null,
 });
 
 const mapOrderItemRow = (row) => ({
@@ -446,6 +469,14 @@ const fetchOrderDetails = async ({ orders, user }) => {
       totalPrice: order.totalPrice,
       createdAt: order.createdAt,
       updatedAt: order.updatedAt,
+      checkoutId: order.checkoutId,
+      productsSubtotalBani: order.productsSubtotalBani,
+      deliveryFeeBani: order.deliveryFeeBani,
+      commissionBani: order.commissionBani,
+      commissionBps: order.commissionBps,
+      transferAmountBani: order.transferAmountBani,
+      transferState: order.transferState,
+      paidAt: order.paidAt,
       partner,
       items,
       replies,
@@ -547,6 +578,28 @@ router.post('/cart/items', requireAuth, async (req, res, next) => {
     const farmerId = normalizeIdentifier(product.farmer_id);
     if (!farmerId) {
       return res.status(400).json({ error: 'Product does not have a valid farmer.' });
+    }
+
+    // The catalog already hides these products, but the endpoint is what
+    // actually enforces it: a stale tab or a direct call must not be able to
+    // put an unpayable farm into a cart that we then cannot settle.
+    const { data: farmerPayout, error: farmerPayoutError } = await supabase
+      .from(TABLES.farmers)
+      .select('id, charges_enabled, "farm name"')
+      .eq('id', farmerId)
+      .maybeSingle();
+
+    if (farmerPayoutError) {
+      return res.status(500).json({ error: 'Unable to verify the farm right now.' });
+    }
+    const farmerCanSell =
+      farmerPayout?.charges_enabled === true ||
+      farmerPayout?.charges_enabled === 1 ||
+      farmerPayout?.charges_enabled === '1';
+    if (!farmerCanSell) {
+      return res.status(409).json({
+        error: `${farmerPayout?.['farm name'] || 'Această fermă'} nu poate încă primi plăți, așa că produsele ei nu pot fi cumpărate.`,
+      });
     }
 
     const { data: openOrders, error: openOrderError } = await supabase
@@ -670,13 +723,42 @@ router.patch('/:orderId/state', requireAuth, async (req, res, next) => {
     }
 
     if (nextState === 'cancelled') {
+      // OPS-01 — a paid order is never deleted. Only an untouched cart, which
+      // has no payment and no accounting trace, is removed outright; anything
+      // that reached Stripe becomes a `cancelled` row so the money, the stock
+      // and the traceability record all survive. The refund side of this
+      // lands in the next delivery.
+      if (order.orderState !== 'placed_order') {
+        const { error: cancelError } = await supabase
+          .from(TABLES.orders)
+          .update({
+            order_state: 'cancelled',
+            cancelled_at: new Date().toISOString(),
+            cancelled_by: req.user.role === 'vendor' ? 'farmer' : 'customer',
+            cancel_reason: String(req.body?.reason || '').trim().slice(0, 500),
+          })
+          .eq('id', orderId);
+
+        if (cancelError) {
+          return res.status(500).json({ error: cancelError.message || 'Unable to cancel order.' });
+        }
+
+        const cancelledOrder = await fetchDetailedOrder({
+          orderId,
+          user: req.user,
+          vendorRecord,
+        });
+        return res.json({ order: cancelledOrder });
+      }
+
       const { error: deleteError } = await supabase
         .from(TABLES.orders)
         .delete()
-        .eq('id', orderId);
-        
+        .eq('id', orderId)
+        .eq('order_state', 'placed_order');
+
       if (deleteError) {
-        return res.status(500).json({ error: deleteError.message || 'Unable to delete order.' });
+        return res.status(500).json({ error: deleteError.message || 'Unable to delete cart.' });
       }
 
       return res.json({

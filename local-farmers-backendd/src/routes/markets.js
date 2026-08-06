@@ -39,7 +39,15 @@ const FARMER_COLUMNS = [
   '"display name"',
   'city',
   'county',
+  // A farm that cannot receive money cannot sell: its products are filtered
+  // out of every market listing below.
+  'charges_enabled',
 ].join(', ');
+
+const farmerCanSell = (farmer) =>
+  farmer?.charges_enabled === true ||
+  farmer?.charges_enabled === 1 ||
+  farmer?.charges_enabled === '1';
 
 const isNumber = (value) => typeof value === 'number' && Number.isFinite(value);
 const resolveArray = (value) => (Array.isArray(value) ? value : []);
@@ -98,21 +106,29 @@ const loadProducts = async (category, options = {}) => {
     ]),
   );
 
+  // The visibility gate. Products stay in the farmer's own account; they just
+  // do not appear in a market they cannot be bought from.
+  const sellableFarmerIds = new Set(
+    (farmersResult.data || []).filter(farmerCanSell).map((farmer) => String(farmer.id)),
+  );
+
   return Promise.all(
-    resolveArray(productsResult.data).map(async (product) => {
-      const vendor = farmersById.get(String(product.farmer_id)) || null;
-      const mapped = mapProductToApi(product, vendor);
-      if (withImageFallback && !mapped.image?.url) {
-        const fallback = await getProductImage(mapped.name);
-        if (fallback?.url) {
-          return {
-            ...mapped,
-            image: fallback,
-          };
+    resolveArray(productsResult.data)
+      .filter((product) => sellableFarmerIds.has(String(product.farmer_id)))
+      .map(async (product) => {
+        const vendor = farmersById.get(String(product.farmer_id)) || null;
+        const mapped = mapProductToApi(product, vendor);
+        if (withImageFallback && !mapped.image?.url) {
+          const fallback = await getProductImage(mapped.name);
+          if (fallback?.url) {
+            return {
+              ...mapped,
+              image: fallback,
+            };
+          }
         }
-      }
-      return mapped;
-    }),
+        return mapped;
+      }),
   );
 };
 

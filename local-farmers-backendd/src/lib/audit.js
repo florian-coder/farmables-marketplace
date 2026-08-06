@@ -17,6 +17,14 @@ const ACTIONS = Object.freeze({
   ADMIN_LOGIN_FAILED: 'admin.login_failed',
   FARM_APPROVED: 'farm.approved',
   DOCUMENT_VIEWED: 'document.viewed',
+  // Stripe Connect. The payout destination is now a Stripe account id rather
+  // than an IBAN, but changing it is still the most valuable action an
+  // attacker could take, so it still leaves a trace.
+  CONNECT_ACCOUNT_CREATED: 'connect.account_created',
+  CONNECT_ACCOUNT_UPDATED: 'connect.account_updated',
+  CONNECT_ONBOARDING_STARTED: 'connect.onboarding_started',
+  PAYOUT_SETTINGS_CHANGED: 'payout.settings_changed',
+  TRANSFER_SENT: 'transfer.sent',
 });
 
 /** Adresa clientului, cu încredere în proxy doar prin `trust proxy` din app. */

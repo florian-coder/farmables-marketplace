@@ -3970,3 +3970,222 @@ a {
     justify-content: center;
   }
 }
+
+/* ---------------------------------------------------------------------
+   Defalcarea costurilor în coș (BIZ-01, OUG 34/2014)
+   Fiecare componentă a prețului e vizibilă înainte de plată. Nimic nu
+   apare prima dată pe pagina Stripe.
+   --------------------------------------------------------------------- */
+
+.cart-summary-detailed {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--s-4);
+}
+
+.cart-summary-heading {
+  margin: 0;
+  font-size: var(--t-4);
+  font-weight: 700;
+  color: var(--field);
+}
+
+.cart-summary-lines {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin: 0;
+}
+
+.cart-summary-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+
+.cart-summary-line dt {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--ink-2);
+}
+
+.cart-summary-line dd {
+  margin: 0;
+  font-weight: 600;
+  color: var(--field);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.cart-summary-line.is-sub dt,
+.cart-summary-line.is-sub dd {
+  font-size: var(--t-1);
+  color: var(--ink-3);
+  font-weight: 400;
+}
+
+.cart-summary-line.is-total {
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--leaf-line);
+}
+
+.cart-summary-line.is-total dt {
+  font-size: var(--t-3);
+  font-weight: 700;
+  color: var(--field);
+}
+
+.cart-summary-line.is-total dd {
+  font-size: var(--t-6);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.cart-summary-hint {
+  font-size: var(--t-0);
+  color: var(--ink-3);
+  font-weight: 400;
+}
+
+.cart-summary-free {
+  color: var(--leaf);
+  font-weight: 600;
+}
+
+.cart-summary-blockers {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.cart-summary-pay {
+  width: 100%;
+  justify-content: center;
+}
+
+/* Defalcarea per fermă, pe cardul fiecărui sub-coș. */
+.order-card-breakdown {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2) var(--s-5);
+  margin: 0;
+  padding: var(--s-3) 0 0;
+  border-top: 1px dashed var(--leaf-line);
+}
+
+.order-card-breakdown > div {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-2);
+}
+
+.order-card-breakdown dt {
+  font-size: var(--t-0);
+  color: var(--ink-3);
+}
+
+.order-card-breakdown dd {
+  margin: 0;
+  font-size: var(--t-1);
+  font-weight: 600;
+  color: var(--field);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------------------------------------------------------------
+   Cardul de plăți al fermierului (Stripe Connect + termeni de livrare)
+   --------------------------------------------------------------------- */
+
+.payout-status {
+  padding: var(--s-4);
+  border-radius: var(--r-md);
+  border: 1px solid var(--leaf-line);
+  background: var(--leaf-lo);
+  margin-bottom: var(--s-4);
+}
+
+.payout-status.is-blocked {
+  border-color: var(--danger-line, var(--leaf-line));
+  background: var(--danger-lo, var(--leaf-lo));
+}
+
+.payout-status-title {
+  margin: 0 0 4px;
+  font-weight: 700;
+  color: var(--field);
+}
+
+.payout-status-hint {
+  margin: 0;
+  font-size: var(--t-1);
+  color: var(--ink-2);
+}
+
+.payout-requirements {
+  margin-bottom: var(--s-4);
+  font-size: var(--t-1);
+}
+
+.payout-requirements-title {
+  margin: 0 0 var(--s-2);
+  font-weight: 600;
+  color: var(--field);
+}
+
+.payout-requirements ul {
+  margin: 0;
+  padding-left: var(--s-5);
+  color: var(--ink-2);
+}
+
+.payout-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  margin-bottom: var(--s-3);
+}
+
+.profile-divider {
+  border: 0;
+  border-top: 1px solid var(--leaf-line);
+  margin: var(--s-5) 0;
+}
+
+.payout-settings-title {
+  margin: 0 0 var(--s-3);
+  font-size: var(--t-3);
+  font-weight: 700;
+  color: var(--field);
+}
+
+.payout-settings-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.field-hint {
+  display: block;
+  margin-top: 4px;
+  font-size: var(--t-0);
+  font-weight: 400;
+  color: var(--ink-3);
+}
+
+/* Referința transferului, pe fiecare comandă din pagina de câștiguri. */
+.earnings-order-transfer {
+  margin: 2px 0 0;
+  font-size: var(--t-0);
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.earnings-order-split {
+  font-size: var(--t-0);
+  color: var(--ink-3);
+}

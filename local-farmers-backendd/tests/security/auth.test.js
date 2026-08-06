@@ -269,3 +269,43 @@ describe('SEC-09 — recuperarea parolei', () => {
     expect(fake._db.auth_tokens[0].used_at).toBeFalsy();
   });
 });
+
+describe('Diagnosticare — erorile de bază de date nu se maschează', () => {
+  it('răspunde 500, nu „parolă greșită", când interogarea eșuează', async () => {
+    const { app, fake } = buildApp(await seedWith());
+
+    // Simulează o migrare nerulată: coloana cerută nu există.
+    const originalFrom = fake.from;
+    fake.from = (table) => {
+      if (table !== 'users') return originalFrom(table);
+      return {
+        select: () => ({
+          eq: () => ({
+            maybeSingle: async () => ({
+              data: null,
+              error: { message: 'column users.token_version does not exist' },
+            }),
+          }),
+        }),
+      };
+    };
+
+    const response = await request(app)
+      .post('/api/auth/login')
+      .send({ username: 'ana', password: 'parola-veche-lunga' });
+
+    expect(response.status).toBe(500);
+    expect(response.body.error).not.toMatch(/invalid credentials/i);
+  });
+
+  it('păstrează 401 pentru un utilizator inexistent', async () => {
+    const { app } = buildApp(await seedWith());
+
+    const response = await request(app)
+      .post('/api/auth/login')
+      .send({ username: 'nimeni', password: 'orice-parola-lunga' });
+
+    expect(response.status).toBe(401);
+    expect(response.body.error).toMatch(/invalid credentials/i);
+  });
+});

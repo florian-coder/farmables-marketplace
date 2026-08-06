@@ -25,6 +25,14 @@ const toNumberOrNull = (value) => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
+// DEPRECATED — IBAN handling.
+//
+// The platform no longer collects bank details: Stripe Connect does, during
+// Express onboarding, under its own KYC obligations. These three helpers stay
+// only so the migration can mask what is already stored while it is being
+// cleared, and so the audit log can render historical `iban.changed` entries.
+// Nothing new should call them.
+
 /** IBAN stocat fără spații și cu majuscule, ca să fie comparabil. */
 const normalizeIban = (value) => {
   if (typeof value !== 'string') {
@@ -123,7 +131,14 @@ const mapFarmerToVendor = (farmer, options = {}) => {
     organicCertificate: farmer['organic operator certificate'] || '',
     deliveryRadiusKm: toNumberOrNull(farmer['delivery radius']),
     bio: farmer.bio || '',
-    iban: normalizeIban(farmer.IBAN),
+    // Delivery terms the farmer sets themselves, in integer bani.
+    deliveryFeeBani: Number(farmer.delivery_fee_bani || 0),
+    minOrderValueBani: Number(farmer.min_order_value_bani || 0),
+    freeDeliveryThresholdBani:
+      farmer.free_delivery_threshold_bani === null ||
+      farmer.free_delivery_threshold_bani === undefined
+        ? null
+        : Number(farmer.free_delivery_threshold_bani),
     farmImages,
   };
 };

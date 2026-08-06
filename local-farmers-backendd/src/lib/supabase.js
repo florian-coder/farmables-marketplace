@@ -36,6 +36,12 @@ const TABLES = {
   authTokens: 'auth_tokens',
   auditLog: 'audit_log',
   stripeEvents: 'stripe_events',
+  // Payments foundation. `checkouts` is the parent payment (one card charge,
+  // one transfer_group); each `orders` row under it is one farmer's group,
+  // with its own subtotal, delivery fee, commission and delivery state.
+  checkouts: 'checkouts',
+  orderTransfers: 'order_transfers',
+  platformSettings: 'platform_settings',
 };
 
 const dedupe = (values) => {

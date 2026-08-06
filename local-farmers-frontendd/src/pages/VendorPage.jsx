@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { apiFetch, getApiBase, resolveImageUrl } from '../lib/api.js';
 import { useAuth } from '../lib/auth.jsx';
 import PasswordChangeCard from '../components/PasswordChangeCard.jsx';
+import PayoutSettingsCard from '../components/PayoutSettingsCard.jsx';
 
 const MAX_FARM_IMAGES = 10;
 
@@ -39,7 +40,6 @@ const initialProfile = {
   organicCertificate: '',
   deliveryRadiusKm: '',
   bio: '',
-  iban: '',
   farmImages: [],
   documents: {},
   entityType: 'pf',
@@ -84,7 +84,6 @@ const mapVendorToProfile = (vendor) => ({
   organicCertificate: vendor?.organicCertificate || '',
   deliveryRadiusKm: vendor?.deliveryRadiusKm ?? '',
   bio: vendor?.bio || '',
-  iban: vendor?.iban || '',
   farmImages: normalizeFarmImages(vendor?.farmImages),
   documents: vendor?.documents || {},
   entityType: vendor?.documents?.cui ? 'juridica' : 'pf',
@@ -531,36 +530,6 @@ export default function VendorPage() {
 
         <section className="profile-card">
           <header className="profile-card-head">
-            <h2>Payouts</h2>
-            <p className="profile-card-sub">The account your monthly earnings are sent to.</p>
-          </header>
-          <div className="profile-card-body">
-            <div className="profile-fields">
-              <label className="field is-wide">
-                IBAN
-                <input
-                  type="text"
-                  name="iban"
-                  inputMode="text"
-                  autoComplete="off"
-                  spellCheck="false"
-                  value={profile.iban}
-                  onChange={handleProfileChange}
-                  placeholder="RO49 AAAA 1B31 0075 9384 0000"
-                  required
-                />
-              </label>
-            </div>
-            <p className="profile-hint">
-              We send your money here at the end of every month. Only you and the Farmables team
-              can see it — follow the running total on your{' '}
-              <Link to="/earnings">earnings page</Link>.
-            </p>
-          </div>
-        </section>
-
-        <section className="profile-card">
-          <header className="profile-card-head">
             <h2>Certification &amp; documents</h2>
             <p className="profile-card-sub">
               Checked once by an admin, before your products go live.
@@ -770,6 +739,10 @@ export default function VendorPage() {
           </button>
         </div>
       </form>
+
+      {/* Outside the profile form on purpose: payouts have their own form and
+          their own save button, and saving one must not submit the other. */}
+      <PayoutSettingsCard />
 
       <PasswordChangeCard />
     </div>

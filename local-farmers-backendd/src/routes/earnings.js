@@ -1,12 +1,21 @@
+// The farmer's money, as it actually moves now.
+//
+// BIZ-02 is gone: there is no monthly payout run, no manual bank transfer and
+// no reconciliation spreadsheet. Each order's share reaches the farmer's own
+// Stripe account within seconds of the customer paying, and Stripe pays it on
+// to their bank on its own schedule. This page reports what happened; it no
+// longer promises anything about the end of the month.
+
 const express = require('express');
 
 const { requireVendor } = require('../middleware/auth');
 const { supabase, TABLES } = require('../lib/supabase');
-const { maskIban } = require('../lib/domain');
+const { toBani } = require('../lib/money');
+const { refreshConnectState } = require('../lib/connect');
 
 const router = express.Router();
 
-/** Stările în care clientul a plătit deja: banii îi revin fermierului. */
+/** States in which the customer has paid and the money is the farmer's. */
 const PAID_STATES = [
   'received_by_farmer',
   'preparing_order',
@@ -15,37 +24,15 @@ const PAID_STATES = [
   'received',
 ];
 
-/** Comandă ajunsă și confirmată de client — suma nu se mai mișcă. */
-const CLEARED_STATES = ['received'];
-
-/** Câte luni intră în graficul de pe pagină și cât de mult citim din istoric. */
 const MONTHS_IN_CHART = 6;
 const MONTHS_IN_WINDOW = 12;
 const MAX_ORDERS_READ = 2000;
 const TOP_PRODUCTS = 5;
 
 const MONTH_NAMES = [
-  'January',
-  'February',
-  'March',
-  'April',
-  'May',
-  'June',
-  'July',
-  'August',
-  'September',
-  'October',
-  'November',
-  'December',
+  'ianuarie', 'februarie', 'martie', 'aprilie', 'mai', 'iunie',
+  'iulie', 'august', 'septembrie', 'octombrie', 'noiembrie', 'decembrie',
 ];
-
-const round2 = (value) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) {
-    return 0;
-  }
-  return Math.round(parsed * 100) / 100;
-};
 
 const parseDate = (value) => {
   if (!value) {
@@ -68,23 +55,16 @@ const shortMonthLabelOf = (monthKey) => {
   return MONTH_NAMES[Number(month) - 1].slice(0, 3);
 };
 
-/** Ultima zi a lunii — ziua în care pleacă virarea. */
-const payoutDateOf = (reference) =>
-  new Date(Date.UTC(reference.getUTCFullYear(), reference.getUTCMonth() + 1, 0))
-    .toISOString()
-    .slice(0, 10);
-
 const emptyBucket = (monthKey) => ({
   month: monthKey,
   label: monthLabelOf(monthKey),
   shortLabel: shortMonthLabelOf(monthKey),
-  total: 0,
-  cleared: 0,
-  pending: 0,
+  totalBani: 0,
+  transferredBani: 0,
+  inTransitBani: 0,
   orderCount: 0,
 });
 
-/** Cheile ultimelor `count` luni, de la cea mai veche la luna curentă. */
 const recentMonthKeys = (reference, count) => {
   const keys = [];
   for (let offset = count - 1; offset >= 0; offset -= 1) {
@@ -102,7 +82,6 @@ const selectRowsByIds = async (table, columns, idColumn, ids) => {
   if (filtered.length === 0) {
     return [];
   }
-
   const { data, error } = await supabase.from(table).select(columns).in(idColumn, filtered);
   if (error) {
     throw new Error(error.message || `Unable to load ${table}.`);
@@ -110,25 +89,25 @@ const selectRowsByIds = async (table, columns, idColumn, ids) => {
   return Array.isArray(data) ? data : [];
 };
 
-const emptyPayload = (reference, iban) => ({
+const emptyPayload = (reference, payouts) => ({
   currency: 'lei',
   profileApproved: false,
-  iban,
-  payout: {
+  payouts,
+  summary: {
     month: monthKeyOf(reference),
     label: monthLabelOf(monthKeyOf(reference)),
-    payoutDate: payoutDateOf(reference),
-    total: 0,
-    cleared: 0,
-    pending: 0,
+    totalBani: 0,
+    transferredBani: 0,
+    inTransitBani: 0,
+    failedBani: 0,
     orderCount: 0,
     customerCount: 0,
-    averageOrder: 0,
+    averageOrderBani: 0,
   },
   months: recentMonthKeys(reference, MONTHS_IN_CHART).map(emptyBucket),
   orders: [],
   topProducts: [],
-  window: { months: MONTHS_IN_WINDOW, total: 0, orderCount: 0 },
+  window: { months: MONTHS_IN_WINDOW, totalBani: 0, orderCount: 0 },
 });
 
 router.get('/', requireVendor, async (req, res, next) => {
@@ -138,31 +117,30 @@ router.get('/', requireVendor, async (req, res, next) => {
 
     const { data: farmer, error: farmerError } = await supabase
       .from(TABLES.farmers)
-      .select('id, IBAN')
+      .select('id')
       .eq('id', req.user.id)
       .maybeSingle();
     if (farmerError && farmerError.code !== 'PGRST116') {
       return res.status(500).json({ error: farmerError.message || 'Unable to load farm profile.' });
     }
 
-    const iban = {
-      present: Boolean(farmer?.IBAN),
-      masked: maskIban(farmer?.IBAN),
-    };
+    // Payout state doubles as the empty-state explanation: a farmer with no
+    // Stripe account needs to be told that, not shown a zero.
+    const payouts = farmer ? await refreshConnectState(farmer.id) : null;
 
     if (!farmer) {
-      return res.json(emptyPayload(now, iban));
+      return res.json(emptyPayload(now, payouts));
     }
 
-    // Fereastra e tăiată după created_at: paid_at e mereu ulterior, deci am
-    // pierde doar un coș lăsat neplătit mai bine de un an.
     const windowStart = new Date(
       Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - (MONTHS_IN_WINDOW - 1), 1),
     ).toISOString();
 
     const { data: orderRows, error: ordersError } = await supabase
       .from(TABLES.orders)
-      .select('id, client_id, order_state, total_price, created_at, paid_at')
+      .select(
+        'id, client_id, order_state, created_at, paid_at, checkout_id, products_subtotal_bani, delivery_fee_bani, commission_bani, transfer_amount_bani, transfer_state, stripe_transfer_id',
+      )
       .eq('farmer_id', farmer.id)
       .in('order_state', PAID_STATES)
       .gte('created_at', windowStart)
@@ -178,10 +156,15 @@ router.get('/', requireVendor, async (req, res, next) => {
         id: String(row.id || ''),
         clientId: String(row.client_id || ''),
         orderState: row.order_state || '',
-        total: round2(row.total_price),
+        // What the farmer earns: products plus delivery, commission excluded.
+        amountBani: toBani(row.transfer_amount_bani),
+        productsSubtotalBani: toBani(row.products_subtotal_bani),
+        deliveryFeeBani: toBani(row.delivery_fee_bani),
+        commissionBani: toBani(row.commission_bani),
+        transferState: row.transfer_state || 'none',
+        stripeTransferId: row.stripe_transfer_id || null,
         paidAt,
         month: monthKeyOf(paidAt),
-        cleared: CLEARED_STATES.includes(row.order_state),
       };
     });
 
@@ -189,19 +172,19 @@ router.get('/', requireVendor, async (req, res, next) => {
       recentMonthKeys(now, MONTHS_IN_CHART).map((key) => [key, emptyBucket(key)]),
     );
 
-    let windowTotal = 0;
+    let windowTotalBani = 0;
     for (const order of orders) {
-      windowTotal += order.total;
+      windowTotalBani += order.amountBani;
       const bucket = buckets.get(order.month);
       if (!bucket) {
         continue;
       }
-      bucket.total = round2(bucket.total + order.total);
+      bucket.totalBani += order.amountBani;
       bucket.orderCount += 1;
-      if (order.cleared) {
-        bucket.cleared = round2(bucket.cleared + order.total);
+      if (order.transferState === 'sent') {
+        bucket.transferredBani += order.amountBani;
       } else {
-        bucket.pending = round2(bucket.pending + order.total);
+        bucket.inTransitBani += order.amountBani;
       }
     }
 
@@ -234,41 +217,44 @@ router.get('/', requireVendor, async (req, res, next) => {
     const customersById = new Map(customerRows.map((row) => [String(row.id), row]));
     const usersById = new Map(userRows.map((row) => [String(row.id), row]));
 
-    const itemsByOrderId = new Map();
+    const itemCountByOrder = new Map();
     const productTotals = new Map();
     for (const item of itemRows) {
       const orderId = String(item.order_id || '');
-      itemsByOrderId.set(orderId, (itemsByOrderId.get(orderId) || 0) + 1);
+      itemCountByOrder.set(orderId, (itemCountByOrder.get(orderId) || 0) + 1);
 
-      const name = item.product_name || 'Product';
+      const name = item.product_name || 'Produs';
       const entry = productTotals.get(name) || {
         name,
         unit: item.product_unit || '',
         quantity: 0,
-        total: 0,
+        totalBani: 0,
       };
-      entry.quantity = round2(entry.quantity + Number(item.quantity || 0));
-      entry.total = round2(entry.total + Number(item.line_total || 0));
+      entry.quantity = Math.round((entry.quantity + Number(item.quantity || 0)) * 100) / 100;
+      entry.totalBani += Math.round(Number(item.line_total || 0) * 100);
       productTotals.set(name, entry);
     }
 
     const customerIds = new Set(currentOrders.map((order) => order.clientId).filter(Boolean));
+    const failedBani = currentOrders
+      .filter((order) => order.transferState === 'failed' || order.transferState === 'manual_required')
+      .reduce((sum, order) => sum + order.amountBani, 0);
 
     return res.json({
       currency: 'lei',
       profileApproved: true,
-      iban,
-      payout: {
+      payouts,
+      summary: {
         month: currentMonth,
         label: monthLabelOf(currentMonth),
-        payoutDate: payoutDateOf(now),
-        total: currentBucket.total,
-        cleared: currentBucket.cleared,
-        pending: currentBucket.pending,
+        totalBani: currentBucket.totalBani,
+        transferredBani: currentBucket.transferredBani,
+        inTransitBani: currentBucket.inTransitBani,
+        failedBani,
         orderCount: currentBucket.orderCount,
         customerCount: customerIds.size,
-        averageOrder: currentBucket.orderCount
-          ? round2(currentBucket.total / currentBucket.orderCount)
+        averageOrderBani: currentBucket.orderCount
+          ? Math.round(currentBucket.totalBani / currentBucket.orderCount)
           : 0,
       },
       months: [...buckets.values()],
@@ -278,22 +264,25 @@ router.get('/', requireVendor, async (req, res, next) => {
         return {
           id: order.id,
           reference: order.id.slice(0, 8),
-          customerName:
-            customerName || usersById.get(order.clientId)?.username || 'Customer',
+          customerName: customerName || usersById.get(order.clientId)?.username || 'Client',
           customerLocation: [customer?.city, customer?.county].filter(Boolean).join(', '),
           orderState: order.orderState,
-          cleared: order.cleared,
-          total: order.total,
+          amountBani: order.amountBani,
+          productsSubtotalBani: order.productsSubtotalBani,
+          deliveryFeeBani: order.deliveryFeeBani,
+          commissionBani: order.commissionBani,
+          transferState: order.transferState,
+          stripeTransferId: order.stripeTransferId,
           paidAt: order.paidAt.toISOString(),
-          itemCount: itemsByOrderId.get(order.id) || 0,
+          itemCount: itemCountByOrder.get(order.id) || 0,
         };
       }),
       topProducts: [...productTotals.values()]
-        .sort((left, right) => right.total - left.total)
+        .sort((left, right) => right.totalBani - left.totalBani)
         .slice(0, TOP_PRODUCTS),
       window: {
         months: MONTHS_IN_WINDOW,
-        total: round2(windowTotal),
+        totalBani: windowTotalBani,
         orderCount: orders.length,
       },
     });

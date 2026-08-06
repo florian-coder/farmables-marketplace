@@ -1,17 +1,22 @@
 const express = require('express');
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+
 const { supabase, TABLES } = require('../lib/supabase');
+const { stripe } = require('../lib/stripeClient');
+const { STRIPE_WEBHOOK_SECRET } = require('../lib/config');
 const { ACTIONS, recordAudit } = require('../lib/audit');
+const { syncAccountToFarmer } = require('../lib/connect');
+const { transferCheckoutGroups } = require('../lib/transfers');
 
 const router = express.Router();
 
 /**
- * SEC-06 — Idempotență.
+ * SEC-06 — Idempotency.
  *
- * Stripe reia livrarea unui eveniment până primește 2xx. Fără evidența
- * evenimentelor deja procesate, o reluare ar marca a doua oară aceeași plată.
- * Inserția e cea care decide: cheia primară pe id face ca a doua încercare să
- * pice cu 23505, iar noi ieșim fără să reprocesăm.
+ * Stripe redelivers an event until it gets a 2xx. Without a record of what we
+ * already processed, a redelivery would mark the same payment twice — and now
+ * that payment triggers transfers, twice would mean paying a farmer twice.
+ * The insert is the decision: the primary key on id makes the second attempt
+ * fail with 23505, and we return without reprocessing.
  */
 const claimEvent = async (event) => {
   const { error } = await supabase.from(TABLES.stripeEvents).insert({
@@ -25,98 +30,173 @@ const claimEvent = async (event) => {
   if (error.code === '23505') {
     return false;
   }
-  // Nu putem garanta unicitatea, deci nu procesăm: mai bine o plată
-  // neînregistrată și o reluare, decât o dublă procesare.
+  // We cannot guarantee uniqueness, so we do not process: an unrecorded
+  // payment plus a redelivery beats double processing.
   throw new Error(error.message || 'Unable to record Stripe event.');
 };
 
-router.post(
-  '/stripe',
-  express.raw({ type: 'application/json' }),
-  async (req, res) => {
-    const sig = req.headers['stripe-signature'];
-    const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
+/** The checkout id travels on both the session and the payment intent. */
+const checkoutIdFrom = (object) =>
+  String(object?.metadata?.checkout_id || object?.client_reference_id || '').trim();
 
-    // SEC-06: fără secret nu se poate verifica semnătura, deci nu se poate ști
-    // dacă evenimentul vine de la Stripe. Comportamentul implicit e refuzul.
-    if (!endpointSecret) {
-      console.error(
-        '[webhook] STRIPE_WEBHOOK_SECRET nu e configurat. Evenimentul a fost refuzat ' +
-          'fără procesare: fără el, oricine poate trimite confirmări de plată false.',
-      );
-      return res.status(500).json({ error: 'Webhook not configured.' });
-    }
-
-    let event;
-    try {
-      event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
-    } catch (err) {
-      console.error('Webhook signature verification failed.', err.message);
-      return res.status(400).send(`Webhook Error: ${err.message}`);
-    }
-
-    try {
-      const isNew = await claimEvent(event);
-      if (!isNew) {
-        // Deja procesat. 2xx, ca Stripe să nu mai reia.
-        return res.json({ received: true, duplicate: true });
-      }
-    } catch (claimError) {
-      console.error('[webhook] Unable to claim event:', claimError.message);
-      return res.status(500).json({ error: 'Unable to record event.' });
-    }
-
-    try {
-      switch (event.type) {
-        case 'checkout.session.completed': {
-          const session = event.data.object;
-          const orderId = session.metadata?.orderId;
-
-          if (orderId) {
-            // Update order status to auto-accepted (received_by_farmer).
-            // paid_at is what the farmer's monthly earnings are grouped by.
-            await supabase
-              .from('orders')
-              .update({
-                order_state: 'received_by_farmer',
-                paid_at: new Date().toISOString(),
-              })
-              .eq('id', orderId)
-              .eq('order_state', 'pending_order');
-
-            await recordAudit({
-              actorType: 'system',
-              actorId: 'stripe',
-              action: ACTIONS.ORDER_PAID,
-              entityType: 'order',
-              entityId: orderId,
-              newValue: 'received_by_farmer',
-            });
-            console.log(`Order ${orderId} marked as paid/received_by_farmer`);
-          }
-          break;
-        }
-        case 'checkout.session.expired': {
-          const session = event.data.object;
-          const orderId = session.metadata?.orderId;
-
-          if (orderId) {
-            // Call rollback RPC
-            await supabase.rpc('rollback_checkout', { p_order_id: orderId });
-            console.log(`Order ${orderId} rolled back due to expired session`);
-          }
-          break;
-        }
-        // ... handle other event types
-        default:
-          console.log(`Unhandled event type ${event.type}`);
-      }
-    } catch (error) {
-      console.error('Error processing webhook event:', error);
-    }
-
-    res.json({ received: true });
+/**
+ * Payment confirmed: flip the checkout and all its farmer groups to paid,
+ * then push each farmer their share.
+ *
+ * `mark_checkout_paid` is idempotent and reports whether this call was the
+ * one that changed the state, so the two events that can both signal success
+ * (`checkout.session.completed` and `payment_intent.succeeded`) do the work
+ * exactly once between them.
+ */
+const handlePaymentSucceeded = async ({ checkoutId, paymentIntentId, eventId }) => {
+  if (!checkoutId) {
+    console.warn('[webhook] Payment event without a checkout id — ignored.');
+    return;
   }
-);
+
+  const { data: applied, error } = await supabase.rpc('mark_checkout_paid', {
+    p_checkout_id: checkoutId,
+    p_payment_intent_id: paymentIntentId || null,
+  });
+
+  if (error) {
+    // Throwing gives Stripe a non-2xx and earns a redelivery, which is what
+    // we want: the payment is real and the order must eventually reflect it.
+    throw new Error(`mark_checkout_paid failed for ${checkoutId}: ${error.message}`);
+  }
+
+  if (applied?.newly_paid) {
+    await recordAudit({
+      actorType: 'system',
+      actorId: 'stripe',
+      action: ACTIONS.ORDER_PAID,
+      entityType: 'checkout',
+      entityId: checkoutId,
+      newValue: `paid:${applied.total_bani || 0}`,
+    });
+  }
+
+  // Transfers run on every delivery of the event, not only the first: if the
+  // first delivery marked the checkout paid and then crashed before paying
+  // the farmers, the redelivery has to finish the job. `order_transfers`
+  // makes the repeat harmless.
+  const summary = await transferCheckoutGroups({ checkoutId, eventId });
+
+  if (summary.failed > 0) {
+    console.error(
+      `[webhook] Checkout ${checkoutId}: ${summary.failed} of ${summary.attempted} transfers failed. ` +
+        'Farmers are unpaid — check order_transfers.last_error.',
+    );
+  }
+};
+
+router.post('/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
+  const sig = req.headers['stripe-signature'];
+
+  let event;
+  try {
+    event = stripe.webhooks.constructEvent(req.body, sig, STRIPE_WEBHOOK_SECRET);
+  } catch (err) {
+    console.error('[webhook] Signature verification failed:', err.message);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  try {
+    const isNew = await claimEvent(event);
+    if (!isNew) {
+      return res.json({ received: true, duplicate: true });
+    }
+  } catch (claimError) {
+    console.error('[webhook] Unable to claim event:', claimError.message);
+    return res.status(500).json({ error: 'Unable to record event.' });
+  }
+
+  try {
+    switch (event.type) {
+      case 'checkout.session.completed': {
+        const session = event.data.object;
+        if (session.payment_status !== 'paid') {
+          break;
+        }
+        await handlePaymentSucceeded({
+          checkoutId: checkoutIdFrom(session),
+          paymentIntentId:
+            typeof session.payment_intent === 'string' ? session.payment_intent : null,
+          eventId: event.id,
+        });
+        break;
+      }
+
+      case 'payment_intent.succeeded': {
+        const intent = event.data.object;
+        await handlePaymentSucceeded({
+          checkoutId: checkoutIdFrom(intent),
+          paymentIntentId: intent.id,
+          eventId: event.id,
+        });
+        break;
+      }
+
+      case 'payment_intent.payment_failed': {
+        const intent = event.data.object;
+        const checkoutId = checkoutIdFrom(intent);
+        if (checkoutId) {
+          // Stock goes back immediately. Waiting for the session to expire
+          // would keep other customers locked out for half an hour.
+          await supabase.rpc('rollback_checkout', { p_checkout_id: checkoutId });
+          console.log(`[webhook] Checkout ${checkoutId} rolled back after failed payment.`);
+        }
+        break;
+      }
+
+      case 'checkout.session.expired': {
+        const session = event.data.object;
+        const checkoutId = checkoutIdFrom(session);
+        if (checkoutId) {
+          await supabase.rpc('rollback_checkout', { p_checkout_id: checkoutId });
+          console.log(`[webhook] Checkout ${checkoutId} rolled back after session expiry.`);
+        }
+        break;
+      }
+
+      case 'account.updated': {
+        // The farmer finished (or broke) onboarding. This is what flips
+        // `charges_enabled`, and with it whether their products are buyable.
+        const account = event.data.object;
+        const result = await syncAccountToFarmer(account);
+        if (result) {
+          await recordAudit({
+            actorType: 'system',
+            actorId: 'stripe',
+            action: ACTIONS.CONNECT_ACCOUNT_UPDATED,
+            entityType: 'stripe_account',
+            entityId: result.accountId,
+            newValue: `charges_enabled=${result.chargesEnabled}`,
+          });
+        }
+        break;
+      }
+
+      case 'transfer.created':
+      case 'transfer.reversed': {
+        // Recorded for reconciliation; the authoritative write already
+        // happened in lib/transfers.js when we made the call.
+        console.log(`[webhook] ${event.type}: ${event.data.object?.id}`);
+        break;
+      }
+
+      default:
+        console.log(`[webhook] Unhandled event type ${event.type}`);
+    }
+  } catch (error) {
+    console.error(`[webhook] Error processing ${event.type} (${event.id}):`, error);
+    // Release the claim so Stripe's redelivery is allowed to try again —
+    // otherwise the event is marked processed while nothing happened.
+    await supabase.from(TABLES.stripeEvents).delete().eq('id', String(event.id));
+    return res.status(500).json({ error: 'Event processing failed.' });
+  }
+
+  return res.json({ received: true });
+});
 
 module.exports = router;

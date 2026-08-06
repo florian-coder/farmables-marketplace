@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import { apiFetch } from '../lib/api.js';
@@ -6,11 +6,21 @@ import { useAuth } from '../lib/auth.jsx';
 import { supabase } from '../lib/supabase.js';
 
 const STATE_LABELS = {
-  received_by_farmer: 'Accepted',
-  preparing_order: 'Being prepared',
-  in_transit: 'On the way',
-  arrived: 'Arrived',
-  received: 'Delivered',
+  received_by_farmer: 'Acceptată',
+  preparing_order: 'În pregătire',
+  in_transit: 'În tranzit',
+  arrived: 'A ajuns',
+  received: 'Livrată',
+};
+
+/** Where each order's money currently is, in the farmer's own terms. */
+const TRANSFER_LABELS = {
+  none: 'În procesare',
+  pending: 'Se transferă',
+  sent: 'Transferat',
+  failed: 'Transfer eșuat',
+  reversed: 'Stornat',
+  manual_required: 'Necesită verificare',
 };
 
 const amountFormatter = new Intl.NumberFormat('ro-RO', {
@@ -18,9 +28,10 @@ const amountFormatter = new Intl.NumberFormat('ro-RO', {
   maximumFractionDigits: 2,
 });
 
-const formatMoney = (value) => {
-  const amount = Number.isFinite(Number(value)) ? Number(value) : 0;
-  return `${amountFormatter.format(amount)} lei`;
+/** Amounts arrive from the API as integer bani. Divide only for display. */
+const formatBani = (bani) => {
+  const amount = Number.isFinite(Number(bani)) ? Number(bani) : 0;
+  return `${amountFormatter.format(amount / 100)} lei`;
 };
 
 const formatDate = (value) => {
@@ -32,23 +43,6 @@ const formatDate = (value) => {
     return '';
   }
   return parsed.toLocaleDateString();
-};
-
-/** payoutDate vine ca YYYY-MM-DD, deci îl citim ca zi în UTC. */
-const formatPayoutDate = (value) => {
-  if (!value) {
-    return '';
-  }
-  const parsed = new Date(`${value}T00:00:00Z`);
-  if (Number.isNaN(parsed.getTime())) {
-    return '';
-  }
-  return parsed.toLocaleDateString(undefined, {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-    timeZone: 'UTC',
-  });
 };
 
 const formatQuantity = (value) => {
@@ -72,30 +66,31 @@ const compactAmount = (value) => {
 };
 
 const EarningsChart = ({ months, currentMonth }) => {
-  const maxTotal = months.reduce((max, entry) => Math.max(max, Number(entry.total) || 0), 0);
+  const maxTotal = months.reduce((max, entry) => Math.max(max, Number(entry.totalBani) || 0), 0);
 
   return (
-    <ol className="earnings-chart" aria-label="Earnings over the last months">
+    <ol className="earnings-chart" aria-label="Câștiguri în ultimele luni">
       {months.map((entry) => {
-        const total = Number(entry.total) || 0;
+        const total = Number(entry.totalBani) || 0;
         const fill = maxTotal > 0 ? Math.max(total > 0 ? 6 : 2, (total / maxTotal) * 100) : 2;
-        const clearedShare = total > 0 ? (Number(entry.cleared) / total) * 100 : 0;
+        // The filled part is money already in the farmer's Stripe account.
+        const transferredShare = total > 0 ? (Number(entry.transferredBani) / total) * 100 : 0;
 
         return (
           <li
             className={`earnings-chart-col ${entry.month === currentMonth ? 'is-current' : ''}`}
             key={entry.month}
           >
-            <span className="earnings-chart-value">{compactAmount(total)}</span>
+            <span className="earnings-chart-value">{compactAmount(total / 100)}</span>
             <span className="earnings-chart-track">
               <span
                 className="earnings-chart-bar"
                 style={{ height: `${fill}%` }}
-                title={`${entry.label}: ${formatMoney(total)}`}
+                title={`${entry.label}: ${formatBani(total)}`}
               >
                 <span
                   className="earnings-chart-bar-cleared"
-                  style={{ height: `${clearedShare}%` }}
+                  style={{ height: `${transferredShare}%` }}
                 />
               </span>
             </span>
@@ -169,31 +164,41 @@ export default function EarningsPage() {
     };
   }, [authStatus, isVendor, user?.id, loadEarnings]);
 
-  const payout = data?.payout;
-  const hasEarnings = Boolean(payout && payout.orderCount > 0);
+  const summary = data?.summary;
+  const payouts = data?.payouts;
+  const hasEarnings = Boolean(summary && summary.orderCount > 0);
 
-  const daysUntilPayout = useMemo(() => {
-    if (!payout?.payoutDate) {
-      return null;
+  /** One-time link into the farmer's hosted Stripe dashboard. */
+  const [dashboardState, setDashboardState] = useState({ state: 'idle', message: '' });
+
+  const openStripeDashboard = async () => {
+    setDashboardState({ state: 'loading', message: '' });
+    try {
+      const response = await apiFetch('/api/connect/dashboard', {
+        method: 'POST',
+        body: JSON.stringify({}),
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.error || 'Stripe nu a răspuns.');
+      }
+      window.location.href = payload.url;
+    } catch (error) {
+      setDashboardState({ state: 'error', message: error.message || 'Stripe nu a răspuns.' });
     }
-    const target = new Date(`${payout.payoutDate}T23:59:59Z`);
-    if (Number.isNaN(target.getTime())) {
-      return null;
-    }
-    return Math.max(0, Math.ceil((target.getTime() - Date.now()) / 86400000));
-  }, [payout?.payoutDate]);
+  };
 
   if (authStatus === 'loading') {
-    return <div className="notice">Loading earnings...</div>;
+    return <div className="notice">Se încarcă...</div>;
   }
 
   if (!user) {
     return (
       <div className="page-section">
-        <h1>Earnings</h1>
-        <p className="muted">Log in with your farm account to see what you are owed.</p>
+        <h1>Câștiguri</h1>
+        <p className="muted">Autentifică-te cu contul de fermă ca să vezi ce ai încasat.</p>
         <Link className="button primary" to="/auth/login">
-          Log in
+          Autentificare
         </Link>
       </div>
     );
@@ -202,8 +207,8 @@ export default function EarningsPage() {
   if (!isVendor) {
     return (
       <div className="page-section">
-        <h1>Earnings unavailable</h1>
-        <p className="muted">Earnings are available for farm accounts only.</p>
+        <h1>Câștiguri indisponibile</h1>
+        <p className="muted">Pagina e disponibilă doar pentru conturile de fermă.</p>
       </div>
     );
   }
@@ -212,118 +217,137 @@ export default function EarningsPage() {
     <div className="page-section">
       <div className="section-header">
         <div>
-          <h1>Earnings</h1>
+          <h1>Câștiguri</h1>
           <p className="muted">
-            Everything your customers paid you this month, and the day it lands in your account.
+            Banii ajung în contul tău Stripe imediat după fiecare comandă plătită. De acolo,
+            Stripe îi trimite mai departe în banca ta.
           </p>
         </div>
         <div className="button-group">
+          {payouts?.connected && payouts?.detailsSubmitted && (
+            <button
+              type="button"
+              className="button primary"
+              onClick={openStripeDashboard}
+              disabled={dashboardState.state === 'loading'}
+            >
+              {dashboardState.state === 'loading' ? 'Se deschide...' : 'Panoul meu Stripe'}
+            </button>
+          )}
           <Link className="button ghost" to="/orders">
-            View orders
+            Vezi comenzile
           </Link>
         </div>
       </div>
 
-      {loadStatus.state === 'loading' && <p className="notice">Loading earnings...</p>}
+      {loadStatus.state === 'loading' && <p className="notice">Se încarcă...</p>}
       {loadStatus.state === 'error' && (
         <p className="notice error" role="alert">
           {loadStatus.message}
         </p>
       )}
-
-      {data && !data.iban?.present && (
+      {dashboardState.state === 'error' && (
         <p className="notice error" role="alert">
-          No IBAN on your farm profile yet — we have nowhere to send the money.{' '}
+          {dashboardState.message}
+        </p>
+      )}
+
+      {data && payouts && !payouts.canSell && (
+        <p className="notice error" role="alert">
+          Contul tău de plată nu e încă activ, deci produsele tale nu apar în magazin.{' '}
           <Link className="earnings-inline-link" to="/profile">
-            Add your IBAN
+            Configurează plățile
           </Link>
         </p>
       )}
 
       {data && !data.profileApproved && (
         <p className="orders-hint">
-          Your farm is not approved yet. Earnings start counting as soon as customers pay for your
-          products.
+          Ferma ta nu e încă aprobată. Câștigurile încep să se adune imediat ce clienții plătesc.
         </p>
       )}
 
-      {data && (
+      {data && summary && (
         <>
           <section className="earnings-hero">
             <div className="earnings-hero-main">
-              <p className="earnings-hero-label">To be paid on {formatPayoutDate(payout.payoutDate)}</p>
-              <p className="earnings-hero-amount">{formatMoney(payout.total)}</p>
+              <p className="earnings-hero-label">Încasat în {summary.label}</p>
+              <p className="earnings-hero-amount">{formatBani(summary.totalBani)}</p>
               <p className="earnings-hero-note">
-                {payout.orderCount > 0
-                  ? `${payout.orderCount} paid order${payout.orderCount === 1 ? '' : 's'} in ${payout.label}`
-                  : `No paid orders in ${payout.label} yet`}
-                {data.iban?.present ? ` · ${data.iban.masked}` : ''}
-                {daysUntilPayout !== null
-                  ? ` · ${daysUntilPayout === 0 ? 'today' : `in ${daysUntilPayout} day${daysUntilPayout === 1 ? '' : 's'}`}`
-                  : ''}
+                {summary.orderCount > 0
+                  ? `${summary.orderCount} ${summary.orderCount === 1 ? 'comandă plătită' : 'comenzi plătite'}`
+                  : 'Nicio comandă plătită încă'}
+                {payouts?.accountId ? ` · cont ${payouts.accountId.slice(-6)}` : ''}
               </p>
             </div>
             <ul className="earnings-hero-split">
               <li>
-                <span className="earnings-split-label">Delivered</span>
-                <span className="earnings-split-value">{formatMoney(payout.cleared)}</span>
-                <span className="earnings-split-note">confirmed by the customer</span>
+                <span className="earnings-split-label">Transferat</span>
+                <span className="earnings-split-value">{formatBani(summary.transferredBani)}</span>
+                <span className="earnings-split-note">deja în contul tău Stripe</span>
               </li>
               <li>
-                <span className="earnings-split-label">In progress</span>
-                <span className="earnings-split-value">{formatMoney(payout.pending)}</span>
-                <span className="earnings-split-note">paid, not delivered yet</span>
+                <span className="earnings-split-label">În tranzit</span>
+                <span className="earnings-split-value">{formatBani(summary.inTransitBani)}</span>
+                <span className="earnings-split-note">se transferă în câteva momente</span>
               </li>
             </ul>
           </section>
 
+          {summary.failedBani > 0 && (
+            <p className="notice error" role="alert">
+              {formatBani(summary.failedBani)} nu au putut fi transferate automat. Echipa a fost
+              notificată și rezolvă manual — banii îți rămân datorați integral.
+            </p>
+          )}
+
           <div className="earnings-stats">
             <div className="earnings-stat">
-              <p className="earnings-stat-label">Paid orders</p>
-              <p className="earnings-stat-value">{payout.orderCount}</p>
-              <p className="earnings-stat-note">this month</p>
+              <p className="earnings-stat-label">Comenzi plătite</p>
+              <p className="earnings-stat-value">{summary.orderCount}</p>
+              <p className="earnings-stat-note">luna aceasta</p>
             </div>
             <div className="earnings-stat">
-              <p className="earnings-stat-label">Customers</p>
-              <p className="earnings-stat-value">{payout.customerCount}</p>
-              <p className="earnings-stat-note">bought from you</p>
+              <p className="earnings-stat-label">Clienți</p>
+              <p className="earnings-stat-value">{summary.customerCount}</p>
+              <p className="earnings-stat-note">au cumpărat de la tine</p>
             </div>
             <div className="earnings-stat">
-              <p className="earnings-stat-label">Average order</p>
-              <p className="earnings-stat-value">{formatMoney(payout.averageOrder)}</p>
-              <p className="earnings-stat-note">per basket</p>
+              <p className="earnings-stat-label">Comandă medie</p>
+              <p className="earnings-stat-value">{formatBani(summary.averageOrderBani)}</p>
+              <p className="earnings-stat-note">per coș</p>
             </div>
             <div className="earnings-stat">
-              <p className="earnings-stat-label">Last 12 months</p>
-              <p className="earnings-stat-value">{formatMoney(data.window?.total)}</p>
-              <p className="earnings-stat-note">{data.window?.orderCount || 0} orders</p>
+              <p className="earnings-stat-label">Ultimele 12 luni</p>
+              <p className="earnings-stat-value">{formatBani(data.window?.totalBani)}</p>
+              <p className="earnings-stat-note">{data.window?.orderCount || 0} comenzi</p>
             </div>
           </div>
 
           <div className="earnings-columns">
             <section className="earnings-card">
               <header className="earnings-card-head">
-                <h2>Last {data.months?.length || 0} months</h2>
+                <h2>Ultimele {data.months?.length || 0} luni</h2>
                 <span className="earnings-legend">
                   <span className="earnings-legend-item">
                     <span className="earnings-legend-swatch is-cleared" aria-hidden="true" />
-                    Delivered
+                    Transferat
                   </span>
                   <span className="earnings-legend-item">
                     <span className="earnings-legend-swatch is-pending" aria-hidden="true" />
-                    In progress
+                    În tranzit
                   </span>
                 </span>
               </header>
               <div className="earnings-card-body">
-                <EarningsChart months={data.months || []} currentMonth={payout.month} />
+                <EarningsChart months={data.months || []} currentMonth={summary.month} />
               </div>
             </section>
 
             <section className="earnings-card">
               <header className="earnings-card-head">
-                <h2>Best sellers</h2>
-                <span className="earnings-card-sub">{payout.label}</span>
+                <h2>Cele mai vândute</h2>
+                <span className="earnings-card-sub">{summary.label}</span>
               </header>
               <div className="earnings-card-body">
                 {data.topProducts?.length > 0 ? (
@@ -334,12 +358,14 @@ export default function EarningsPage() {
                         <span className="earnings-product-qty">
                           {formatQuantity(product.quantity)} {product.unit}
                         </span>
-                        <span className="earnings-product-total">{formatMoney(product.total)}</span>
+                        <span className="earnings-product-total">
+                          {formatBani(product.totalBani)}
+                        </span>
                       </li>
                     ))}
                   </ol>
                 ) : (
-                  <p className="muted">Nothing sold this month yet.</p>
+                  <p className="muted">Nimic vândut luna asta încă.</p>
                 )}
               </div>
             </section>
@@ -347,8 +373,8 @@ export default function EarningsPage() {
 
           <section className="earnings-card">
             <header className="earnings-card-head">
-              <h2>Paid orders</h2>
-              <span className="earnings-card-sub">{payout.label}</span>
+              <h2>Comenzi plătite</h2>
+              <span className="earnings-card-sub">{summary.label}</span>
             </header>
             <div className="earnings-card-body">
               {hasEarnings ? (
@@ -358,8 +384,14 @@ export default function EarningsPage() {
                       <div className="earnings-order-identity">
                         <p className="earnings-order-customer">{order.customerName}</p>
                         <p className="earnings-order-ref">
-                          Order #{order.reference}
+                          Comanda #{order.reference}
                           {order.customerLocation ? ` · ${order.customerLocation}` : ''}
+                        </p>
+                        {/* Where this money actually is, with the Stripe
+                            reference the farmer can match in their dashboard. */}
+                        <p className="earnings-order-transfer">
+                          {TRANSFER_LABELS[order.transferState] || order.transferState}
+                          {order.stripeTransferId ? ` · ${order.stripeTransferId}` : ''}
                         </p>
                       </div>
                       <div className="earnings-order-meta">
@@ -367,14 +399,22 @@ export default function EarningsPage() {
                           {STATE_LABELS[order.orderState] || order.orderState}
                         </span>
                         <span className="earnings-order-date">
-                          {formatDate(order.paidAt)} · {order.itemCount} item
-                          {order.itemCount === 1 ? '' : 's'}
+                          {formatDate(order.paidAt)} · {order.itemCount}{' '}
+                          {order.itemCount === 1 ? 'produs' : 'produse'}
+                        </span>
+                        <span className="earnings-order-split">
+                          Produse {formatBani(order.productsSubtotalBani)}
+                          {order.deliveryFeeBani > 0
+                            ? ` · livrare ${formatBani(order.deliveryFeeBani)}`
+                            : ''}
                         </span>
                       </div>
                       <span
-                        className={`earnings-order-total ${order.cleared ? 'is-cleared' : ''}`}
+                        className={`earnings-order-total ${
+                          order.transferState === 'sent' ? 'is-cleared' : ''
+                        }`}
                       >
-                        {formatMoney(order.total)}
+                        {formatBani(order.amountBani)}
                       </span>
                     </li>
                   ))}
@@ -382,11 +422,11 @@ export default function EarningsPage() {
               ) : (
                 <div className="earnings-empty">
                   <p className="muted">
-                    Nothing to show yet. As soon as a customer pays for an order, it lands here
-                    with the amount you earned.
+                    Nimic de arătat încă. Imediat ce un client plătește o comandă, apare aici cu
+                    suma pe care o primești.
                   </p>
                   <Link className="button primary" to="/vendor/products_uploaded">
-                    My products
+                    Produsele mele
                   </Link>
                 </div>
               )}
@@ -394,8 +434,9 @@ export default function EarningsPage() {
           </section>
 
           <p className="earnings-foot muted">
-            Payouts are sent at the end of each month to the IBAN on your farm profile. Orders that
-            are still on their way are included once the customer confirms delivery.
+            Nu mai există plată lunară. Din fiecare comandă primești produsele plus taxa ta de
+            livrare, transferate în contul tău Stripe în câteva secunde de la plată. Comisionul
+            platformei e plătit separat de client, peste prețurile tale.
           </p>
         </>
       )}

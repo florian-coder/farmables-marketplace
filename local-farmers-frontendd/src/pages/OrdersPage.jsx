@@ -55,6 +55,12 @@ const formatMoney = (value) => {
   return `${amount.toFixed(2).replace('.', ',')} lei`;
 };
 
+/** Amounts arrive from the API as integer bani. Never divide before here. */
+const formatBani = (bani) => {
+  const amount = Number.isFinite(Number(bani)) ? Number(bani) : 0;
+  return `${(amount / 100).toFixed(2).replace('.', ',')} lei`;
+};
+
 const formatQuantity = (value) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) {
@@ -97,6 +103,11 @@ export default function OrdersPage() {
   const [replyStatus, setReplyStatus] = useState({});
   const [openThreads, setOpenThreads] = useState({});
   const [stripeNotice, setStripeNotice] = useState(null);
+  // The price breakdown for the whole cart, from the server. The cart must
+  // never compute its own totals: the number shown here has to be the number
+  // the card is charged.
+  const [quote, setQuote] = useState(null);
+  const [payStatus, setPayStatus] = useState({ state: 'idle', message: '' });
 
   const isAllowedRole = user?.role === 'customer' || user?.role === 'vendor';
   const currentTab = tabs.find((tab) => tab.id === activeTab) || tabs[0];
@@ -145,6 +156,24 @@ export default function OrdersPage() {
     }
   }, []);
 
+  /** Refresh the price breakdown. Customers only — vendors have no cart. */
+  const loadQuote = useCallback(async () => {
+    if (user?.role !== 'customer') {
+      return;
+    }
+    try {
+      const response = await apiFetch('/api/checkout/summary', { method: 'GET' });
+      const data = await response.json();
+      if (response.ok) {
+        setQuote(data);
+      }
+    } catch (error) {
+      // A failed quote leaves the previous breakdown on screen rather than
+      // showing a total we are no longer sure of.
+      console.error('Nu am putut încărca defalcarea costurilor:', error);
+    }
+  }, [user?.role]);
+
   useEffect(() => {
     if (authStatus !== 'authenticated' || !user || !isAllowedRole) {
       return undefined;
@@ -156,6 +185,7 @@ export default function OrdersPage() {
 
     const subscribeRealtime = async () => {
       await loadOrders(bucket);
+      await loadQuote();
       if (!active) return;
 
       const ordersFilter =
@@ -168,6 +198,7 @@ export default function OrdersPage() {
           { event: '*', schema: 'public', table: 'orders', filter: ordersFilter },
           () => {
             loadOrders(bucket).catch(() => {});
+            loadQuote().catch(() => {});
           },
         )
         .subscribe();
@@ -191,30 +222,41 @@ export default function OrdersPage() {
       if (ordersChannel) supabase.removeChannel(ordersChannel);
       if (repliesChannel) supabase.removeChannel(repliesChannel);
     };
-  }, [authStatus, user, isAllowedRole, bucket, loadOrders]);
+  }, [authStatus, user, isAllowedRole, bucket, loadOrders, loadQuote]);
+
+  /**
+   * One payment for the whole cart, however many farms it contains.
+   *
+   * There is no order id to send any more: the server takes the cart to be
+   * whatever `placed_order` rows belong to the authenticated customer.
+   */
+  const handlePayCart = async () => {
+    setPayStatus({ state: 'loading', message: 'Deschidem plata securizată...' });
+    try {
+      const response = await apiFetch('/api/checkout/create-checkout-session', {
+        method: 'POST',
+        body: JSON.stringify({}),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        if (data.quote) {
+          setQuote(data.quote);
+        }
+        throw new Error(data.error || 'Plata nu a putut fi pornită.');
+      }
+      if (data.url) {
+        window.location.href = data.url;
+        return;
+      }
+      throw new Error('Stripe nu a returnat o adresă de plată.');
+    } catch (error) {
+      setPayStatus({ state: 'error', message: error.message || 'Plata nu a putut fi pornită.' });
+      await loadQuote();
+    }
+  };
 
   const handleOrderAction = async (orderId, nextState) => {
     if (!orderId || !nextState) return;
-
-    if (user?.role === 'customer' && nextState === 'pending_order') {
-      setActionStatusForOrder(orderId, 'loading', 'Opening secure checkout...');
-      try {
-        const response = await apiFetch('/api/checkout/create-checkout-session', {
-          method: 'POST',
-          body: JSON.stringify({ orderId }),
-        });
-        const data = await response.json();
-        if (!response.ok) {
-          throw new Error(data.error || 'Unable to start checkout.');
-        }
-        if (data.url) {
-          window.location.href = data.url;
-        }
-      } catch (error) {
-        setActionStatusForOrder(orderId, 'error', error.message || 'Unable to start checkout.');
-      }
-      return;
-    }
 
     setActionStatusForOrder(orderId, 'loading', 'Updating order...');
     try {
@@ -228,24 +270,38 @@ export default function OrdersPage() {
       }
       setActionStatusForOrder(orderId, 'success', 'Order updated.');
       await loadOrders(bucket);
+      await loadQuote();
     } catch (error) {
       setActionStatusForOrder(orderId, 'error', error.message || 'Unable to update order.');
     }
   };
 
-  const verifyPaymentStatus = async (orderId) => {
-    setActionStatusForOrder(orderId, 'loading', 'Checking payment...');
+  /**
+   * Payment status is checked per checkout now, not per order — the webhook
+   * is the authority, this only covers the seconds between the redirect back
+   * from Stripe and the webhook arriving.
+   */
+  const verifyPaymentStatus = async (order) => {
+    const orderId = order.id;
+    const checkoutId = order.checkoutId;
+    if (!checkoutId) {
+      setActionStatusForOrder(orderId, 'error', 'Comanda nu are o plată asociată.');
+      return;
+    }
+
+    setActionStatusForOrder(orderId, 'loading', 'Verificăm plata...');
     try {
-      const response = await apiFetch(`/api/checkout/verify-status/${orderId}`, { method: 'GET' });
+      const response = await apiFetch(`/api/checkout/${checkoutId}/status`, { method: 'GET' });
       const data = await response.json();
       if (!response.ok) {
-        throw new Error(data.error || 'Verification failed.');
+        throw new Error(data.error || 'Verificarea a eșuat.');
       }
-      if (data.status === 'paid') {
-        setActionStatusForOrder(orderId, 'success', 'Payment confirmed.');
+      if (data.state === 'paid') {
+        setActionStatusForOrder(orderId, 'success', 'Plata confirmată.');
         setActiveTab('active');
+        await loadOrders('active');
       } else {
-        setActionStatusForOrder(orderId, 'error', 'No payment found yet. Try again in a moment.');
+        setActionStatusForOrder(orderId, 'error', 'Nicio plată găsită încă. Reîncearcă în câteva momente.');
       }
     } catch (error) {
       setActionStatusForOrder(orderId, 'error', error.message);
@@ -289,6 +345,8 @@ export default function OrdersPage() {
       }
       setActionStatusForOrder(orderId, 'idle', '');
       await loadOrders(bucket);
+      // Quantities changed, so the fee breakdown did too.
+      await loadQuote();
     } catch (error) {
       setActionStatusForOrder(orderId, 'error', error.message || 'Unable to update quantity.');
     }
@@ -304,13 +362,14 @@ export default function OrdersPage() {
     return orders;
   }, [orders, activeTab]);
 
-  const cartTotal = useMemo(
-    () =>
-      activeTab === 'cart'
-        ? visibleOrders.reduce((sum, order) => sum + Number(order.totalPrice || 0), 0)
-        : 0,
-    [visibleOrders, activeTab],
-  );
+  /** Per-farm breakdown, keyed by the cart order it belongs to. */
+  const quoteByOrderId = useMemo(() => {
+    const map = new Map();
+    for (const group of quote?.groups || []) {
+      map.set(group.orderId, group);
+    }
+    return map;
+  }, [quote]);
 
   const emptyLabel = {
     cart: 'Your cart is empty. Browse the markets to add something fresh.',
@@ -419,6 +478,7 @@ export default function OrdersPage() {
           const isBusy = orderActionStatus[order.id]?.state === 'loading';
           const threadOpen = Boolean(openThreads[order.id]);
           const replyCount = order.replies?.length || 0;
+          const groupQuote = quoteByOrderId.get(order.id) || null;
 
           return (
             <article className={`order-card ${isCart ? 'is-cart' : ''}`} key={order.id}>
@@ -436,7 +496,21 @@ export default function OrdersPage() {
                   <span className={`order-state order-state-${order.orderState}`}>
                     {STATE_LABELS[order.orderState] || order.orderState}
                   </span>
-                  <span className="order-card-total">{formatMoney(order.totalPrice)}</span>
+                  <span className="order-card-total">
+                    {/* Once placed, the frozen per-farm total is what the
+                        customer actually paid for this farm; before that it
+                        is the live quote. `totalPrice` (products only) is the
+                        fallback for orders from before the migration. */}
+                    {isCart && groupQuote
+                      ? formatBani(groupQuote.customerTotalBani)
+                      : order.productsSubtotalBani > 0
+                        ? formatBani(
+                            order.productsSubtotalBani +
+                              order.deliveryFeeBani +
+                              order.commissionBani,
+                          )
+                        : formatMoney(order.totalPrice)}
+                  </span>
                 </div>
               </header>
 
@@ -517,12 +591,51 @@ export default function OrdersPage() {
                 )}
               </ul>
 
+              {/* What this farm costs on its own, so the totals below are
+                  traceable back to a farm rather than being one lump sum. */}
+              {isCart && groupQuote && (
+                <dl className="order-card-breakdown">
+                  <div>
+                    <dt>Produse</dt>
+                    <dd>{formatBani(groupQuote.productsSubtotalBani)}</dd>
+                  </div>
+                  <div>
+                    <dt>Livrare</dt>
+                    <dd>
+                      {groupQuote.deliveryFeeWaived
+                        ? 'Gratuit'
+                        : groupQuote.deliveryFeeBani > 0
+                          ? formatBani(groupQuote.deliveryFeeBani)
+                          : '—'}
+                    </dd>
+                  </div>
+                  {groupQuote.minOrderValueBani > 0 && (
+                    <div>
+                      <dt>Comandă minimă</dt>
+                      <dd>{formatBani(groupQuote.minOrderValueBani)}</dd>
+                    </div>
+                  )}
+                  {groupQuote.freeDeliveryThresholdBani > 0 && !groupQuote.deliveryFeeWaived && (
+                    <div>
+                      <dt>Livrare gratuită peste</dt>
+                      <dd>{formatBani(groupQuote.freeDeliveryThresholdBani)}</dd>
+                    </div>
+                  )}
+                </dl>
+              )}
+
+              {isCart && groupQuote?.blocked && (
+                <p className="notice error" role="alert">
+                  {groupQuote.blocked.message}
+                </p>
+              )}
+
               <div className="order-card-foot">
                 <div className="order-card-meta">
                   {isCart ? (
-                    <span>Quantities can be changed until you pay.</span>
+                    <span>Cantitățile pot fi schimbate până la plată.</span>
                   ) : (
-                    <span>Updated {formatDateTime(order.updatedAt) || 'recently'}</span>
+                    <span>Actualizat {formatDateTime(order.updatedAt) || 'recent'}</span>
                   )}
                 </div>
 
@@ -531,10 +644,10 @@ export default function OrdersPage() {
                     <button
                       className="button ghost small"
                       type="button"
-                      onClick={() => verifyPaymentStatus(order.id)}
+                      onClick={() => verifyPaymentStatus(order)}
                       disabled={isBusy}
                     >
-                      Check payment
+                      Verifică plata
                     </button>
                   )}
                   {order.allowedActions?.map((action) => (
@@ -638,16 +751,85 @@ export default function OrdersPage() {
         })}
       </div>
 
-      {activeTab === 'cart' && visibleOrders.length > 0 && (
-        <aside className="cart-summary">
-          <div>
-            <p className="cart-summary-label">Basket total</p>
-            <p className="cart-summary-note">
-              Across {visibleOrders.length} farm{visibleOrders.length === 1 ? '' : 's'} · paid
-              separately
+      {/*
+        The cart summary is the legally load-bearing part of this page: under
+        OUG 34/2014 every component of the price has to be visible before the
+        customer commits, and the button has to say that pressing it creates
+        an obligation to pay. No cost appears for the first time on Stripe's
+        page.
+      */}
+      {activeTab === 'cart' && visibleOrders.length > 0 && quote && (
+        <aside className="cart-summary cart-summary-detailed">
+          <h2 className="cart-summary-heading">Rezumatul comenzii</h2>
+
+          <dl className="cart-summary-lines">
+            <div className="cart-summary-line">
+              <dt>Produse</dt>
+              <dd>{formatBani(quote.totals.productsSubtotalBani)}</dd>
+            </div>
+
+            {quote.groups
+              .filter((group) => group.deliveryFeeBani > 0 || group.deliveryFeeWaived)
+              .map((group) => (
+                <div className="cart-summary-line is-sub" key={`delivery-${group.orderId}`}>
+                  <dt>Livrare · {group.farmName}</dt>
+                  <dd>
+                    {group.deliveryFeeWaived ? (
+                      <span className="cart-summary-free">Gratuit</span>
+                    ) : (
+                      formatBani(group.deliveryFeeBani)
+                    )}
+                  </dd>
+                </div>
+              ))}
+
+            <div className="cart-summary-line">
+              <dt>
+                Taxă de serviciu platformă ({quote.commissionPercentLabel})
+                <span className="cart-summary-hint">
+                  Comisionul Farmables, aplicat doar produselor.
+                </span>
+              </dt>
+              <dd>{formatBani(quote.totals.commissionBani)}</dd>
+            </div>
+
+            <div className="cart-summary-line is-total">
+              <dt>Total de plată</dt>
+              <dd>{formatBani(quote.totals.customerTotalBani)}</dd>
+            </div>
+          </dl>
+
+          {quote.blockers?.length > 0 && (
+            <ul className="cart-summary-blockers">
+              {quote.blockers.map((blocker, index) => (
+                <li className="notice error" key={`${blocker.code}-${index}`} role="alert">
+                  {blocker.message}
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {payStatus.state === 'error' && (
+            <p className="notice error" role="alert">
+              {payStatus.message}
             </p>
-          </div>
-          <p className="cart-summary-total">{formatMoney(cartTotal)}</p>
+          )}
+
+          <button
+            type="button"
+            className="button primary cart-summary-pay"
+            disabled={!quote.payable || payStatus.state === 'loading'}
+            onClick={handlePayCart}
+          >
+            {payStatus.state === 'loading'
+              ? 'Se deschide plata...'
+              : 'Comandă cu obligație de plată'}
+          </button>
+
+          <p className="cart-summary-note">
+            O singură plată pentru toate cele {visibleOrders.length} ferme din coș. Fiecare fermă
+            își pregătește și livrează partea ei separat.
+          </p>
         </aside>
       )}
     </div>

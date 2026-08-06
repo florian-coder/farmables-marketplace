@@ -6,17 +6,15 @@ const multer = require('multer');
 const { requireVendor } = require('../middleware/auth');
 const { supabase, TABLES, BUCKET_ALIASES } = require('../lib/supabase');
 const {
-  isValidIban,
   mapFarmerToVendor,
   mapProductToApi,
-  maskIban,
-  normalizeIban,
   normalizeText,
   toIntFlag,
   toNumberOrNull,
 } = require('../lib/domain');
 const { ACTIONS, recordAudit } = require('../lib/audit');
 const { recalculateAndPersistProductRatings } = require('../lib/productRating');
+const { mapConnectState } = require('../lib/connect');
 
 const router = express.Router();
 
@@ -96,7 +94,18 @@ const FARMER_COLUMNS = [
   '"organic operator certificate"',
   '"delivery radius"',
   'bio',
-  'IBAN',
+  // Payout state. The IBAN column is deprecated and no longer read: Stripe
+  // Connect holds the bank details now.
+  'stripe_account_id',
+  'charges_enabled',
+  'payouts_enabled',
+  'details_submitted',
+  'requirements_due',
+  'onboarding_completed_at',
+  'delivery_fee_bani',
+  'min_order_value_bani',
+  'free_delivery_threshold_bani',
+  'payout_settings_set_at',
 ].join(', ');
 
 const REQUEST_COLUMNS = [
@@ -113,7 +122,6 @@ const REQUEST_COLUMNS = [
   'organic_certificate',
   'delivery_radius_km',
   'bio',
-  'iban',
   'farm_images',
   'documents',
   'status',
@@ -293,10 +301,14 @@ const uploadToBucket = async ({ bucketNames, uploadPath, file }) => {
 
 const resolveVendorResponse = async (farmer, userEmail) => {
   const farmPhotos = await fetchFarmPhotos(farmer.id);
-  return mapFarmerToVendor(farmer, {
-    email: userEmail,
-    farmPhotos,
-  });
+  return {
+    ...mapFarmerToVendor(farmer, {
+      email: userEmail,
+      farmPhotos,
+    }),
+    // The Stripe state the payouts card renders instead of the old IBAN field.
+    payouts: mapConnectState(farmer),
+  };
 };
 
 const mapRequestToVendorResponse = (request, userEmail = '') => ({
@@ -312,9 +324,11 @@ const mapRequestToVendorResponse = (request, userEmail = '') => ({
   organicCertificate: request?.organic_certificate || '',
   deliveryRadiusKm: toNumberOrNull(request?.delivery_radius_km),
   bio: request?.bio || '',
-  iban: normalizeIban(request?.iban),
   farmImages: normalizePublicUrls(request?.farm_images),
   documents: request?.documents || {},
+  // A farm still awaiting approval has no Stripe account yet; the payouts
+  // card renders the "approval first" state from this.
+  payouts: mapConnectState({}),
 });
 
 const mapRequestMeta = (request) => {
@@ -463,7 +477,6 @@ router.post('/profile', requireVendor, runUpload(documentUpload.any()), async (r
       organicCertificate,
       deliveryRadiusKm,
       bio,
-      iban,
     } = req.body || {};
 
     let farmImages = req.body.farmImages;
@@ -478,15 +491,8 @@ router.post('/profile', requireVendor, runUpload(documentUpload.any()), async (r
       return res.status(400).json({ error: 'farmImages must be an array of URLs.' });
     }
 
-    // Fără IBAN nu avem unde trimite banii la final de lună.
-    const normalizedIban = normalizeIban(iban);
-    if (!normalizedIban) {
-      return res.status(400).json({ error: 'IBAN is required so we can pay you at the end of the month.' });
-    }
-    if (!isValidIban(normalizedIban)) {
-      return res.status(400).json({ error: 'IBAN is not valid. Check the country code and the digits.' });
-    }
-
+    // No IBAN is asked for here any more. Bank details are collected by
+    // Stripe during Connect onboarding — see routes/connect.js.
     const deliveryRadius = toNumberOrNull(deliveryRadiusKm);
     if (
       deliveryRadiusKm !== undefined &&
@@ -545,7 +551,6 @@ router.post('/profile', requireVendor, runUpload(documentUpload.any()), async (r
       organic_certificate: normalizeText(organicCertificate, 200),
       delivery_radius_km: deliveryRadius,
       bio: normalizeText(bio, 1000),
-      iban: normalizedIban,
       farm_images: normalizedFarmImages,
       documents: documents,
       status: 'pending',
@@ -562,33 +567,6 @@ router.post('/profile', requireVendor, runUpload(documentUpload.any()), async (r
 
     if (upsertError || !requestRow) {
       return res.status(500).json({ error: upsertError?.message || 'Unable to save request.' });
-    }
-
-    // Restul profilului așteaptă aprobarea adminului, dar contul bancar nu:
-    // dacă ferma e deja aprobată, plata următoare merge pe IBAN-ul nou.
-    const existingFarmer = await fetchFarmerByUserId(req.user.id);
-    if (existingFarmer) {
-      const previousIban = normalizeIban(existingFarmer.IBAN);
-      const { error: ibanError } = await supabase
-        .from(TABLES.farmers)
-        .update({ IBAN: normalizedIban })
-        .eq('id', existingFarmer.id);
-      if (ibanError) {
-        console.error('[vendor] Unable to update farmer IBAN:', ibanError);
-      } else if (previousIban !== normalizedIban) {
-        // SEC-11: schimbarea contului de plată e cea mai valoroasă acțiune
-        // pentru un atacator, deci lasă urmă. Se scriu doar valorile mascate.
-        await recordAudit({
-          req,
-          actorType: 'user',
-          actorId: req.user.id,
-          action: ACTIONS.IBAN_CHANGED,
-          entityType: 'farmer',
-          entityId: existingFarmer.id,
-          oldValue: maskIban(previousIban),
-          newValue: maskIban(normalizedIban),
-        });
-      }
     }
 
     const userRow = await fetchUserRow(req.user.id);

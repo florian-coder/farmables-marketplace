@@ -1,7 +1,7 @@
 const express = require('express');
 
 const { supabase, TABLES } = require('../lib/supabase');
-const { mapProductToApi, normalizeIban } = require('../lib/domain');
+const { mapProductToApi } = require('../lib/domain');
 const { ACTIONS, recordAudit } = require('../lib/audit');
 const { authLimiter, usernameLimiter } = require('../middleware/rateLimit');
 
@@ -44,7 +44,6 @@ const REQUEST_COLUMNS = [
   'organic_certificate',
   'delivery_radius_km',
   'bio',
-  'iban',
   'farm_images',
   'documents',
   'status',
@@ -312,7 +311,9 @@ router.post('/farmer-requests/:requestId/approve', requireAdmin, async (req, res
       'organic operator certificate': request.organic_certificate || '',
       'delivery radius': request.delivery_radius_km,
       bio: request.bio || '',
-      IBAN: normalizeIban(request.iban),
+      // No IBAN is carried over: bank details live at Stripe now. Approving a
+      // farm only unlocks the Connect onboarding button on their dashboard —
+      // the farm still cannot sell until `charges_enabled` comes back true.
     };
 
     const { error: farmerError } = await supabase

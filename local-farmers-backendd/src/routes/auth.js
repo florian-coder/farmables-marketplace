@@ -256,7 +256,15 @@ router.post('/login', authLimiter, usernameLimiter, async (req, res, next) => {
       .eq('username', normalized)
       .maybeSingle();
 
-    if (error || !user) {
+    // O bază de date căzută sau o migrare nerulată nu au voie să arate ca o
+    // parolă greșită: utilizatorul ar căuta la nesfârșit vina în parola lui.
+    if (error) {
+      console.error('[auth] Login query failed:', error.message);
+      return res.status(500).json({
+        error: 'Sign-in is temporarily unavailable. The team has been notified.',
+      });
+    }
+    if (!user) {
       return res.status(401).json({ error: 'Invalid credentials.' });
     }
 

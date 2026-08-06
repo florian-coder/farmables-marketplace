@@ -2,6 +2,7 @@ const express = require('express');
 
 const { supabase, TABLES } = require('../lib/supabase');
 const { mapProductToApi } = require('../lib/domain');
+const { fetchSellableFarmerIds } = require('../lib/connect');
 
 const router = express.Router();
 
@@ -56,10 +57,20 @@ router.get('/', async (_req, res, next) => {
       ]),
     );
 
-    const products = (productsResult.data || []).map((product) => {
-      const vendor = farmersById.get(String(product.farmer_id)) || null;
-      return mapProductToApi(product, vendor);
-    });
+    // A farmer without `charges_enabled` has no way to receive money, so
+    // their products cannot be bought — and a catalog entry that cannot be
+    // bought is worse than no entry. The products stay in the farmer's own
+    // account, they simply do not surface here.
+    const sellableFarmerIds = await fetchSellableFarmerIds(
+      (productsResult.data || []).map((product) => product.farmer_id),
+    );
+
+    const products = (productsResult.data || [])
+      .filter((product) => sellableFarmerIds.has(String(product.farmer_id)))
+      .map((product) => {
+        const vendor = farmersById.get(String(product.farmer_id)) || null;
+        return mapProductToApi(product, vendor);
+      });
 
     return res.json({ products });
   } catch (error) {

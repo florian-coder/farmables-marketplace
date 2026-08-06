@@ -36,6 +36,13 @@ const entries = [
   readRequired('ADMIN_SESSION_SECRET', { minLength: MIN_SECRET_LENGTH }),
   readRequired('ADMIN_USERNAME'),
   readRequired('ADMIN_PASSWORD', { minLength: MIN_PASSWORD_LENGTH }),
+  // Stripe: without the secret key nothing can be charged, and without the
+  // webhook secret anyone can POST a fake "payment succeeded". Both are
+  // required in every environment, exactly like the session secrets — a
+  // process that boots without them looks healthy while being unable to take
+  // money safely, which is worse than not booting.
+  readRequired('STRIPE_SECRET_KEY'),
+  readRequired('STRIPE_WEBHOOK_SECRET'),
 ];
 
 const problems = entries.filter((entry) => entry.problem);
@@ -66,11 +73,25 @@ const ALLOWED_ORIGINS = (process.env.CORS_ORIGINS || 'http://localhost:5173')
   .map((origin) => origin.trim().replace(/\/$/, ''))
   .filter(Boolean);
 
+/** Where Stripe sends the farmer back after onboarding, and the customer after paying. */
+const FRONTEND_URL = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
+
+/**
+ * Express by default: Stripe runs KYC and collects the IBAN, and the farmer
+ * gets a hosted dashboard. Overridable so a future move to Custom accounts is
+ * a variable change, not a code change.
+ */
+const STRIPE_CONNECT_ACCOUNT_TYPE = process.env.STRIPE_CONNECT_ACCOUNT_TYPE || 'express';
+
 module.exports = {
   SESSION_SECRET: byName.get('SESSION_SECRET'),
   ADMIN_SESSION_SECRET: byName.get('ADMIN_SESSION_SECRET'),
   ADMIN_USERNAME: byName.get('ADMIN_USERNAME'),
   ADMIN_PASSWORD: byName.get('ADMIN_PASSWORD'),
+  STRIPE_SECRET_KEY: byName.get('STRIPE_SECRET_KEY'),
+  STRIPE_WEBHOOK_SECRET: byName.get('STRIPE_WEBHOOK_SECRET'),
+  STRIPE_CONNECT_ACCOUNT_TYPE,
+  FRONTEND_URL,
   ALLOWED_ORIGINS,
   IS_PRODUCTION: process.env.NODE_ENV === 'production',
 };

@@ -21,6 +21,15 @@ const matchesFilters = (row, filters) =>
     if (filter.type === 'in') return filter.value.map(String).includes(String(actual));
     if (filter.type === 'gte') return String(actual) >= String(filter.value);
     if (filter.type === 'is') return actual === filter.value;
+    // `or('a.eq.1,b.eq.2')` — PostgREST syntax, only the eq form is used.
+    if (filter.type === 'or') {
+      return filter.value
+        .split(',')
+        .some((clause) => {
+          const [column, op, value] = clause.split('.');
+          return op === 'eq' && String(row[column]) === String(value);
+        });
+    }
     return true;
   });
 
@@ -179,6 +188,10 @@ const createFakeSupabase = (initial = {}) => {
       },
       is(column, value) {
         state.filters.push({ type: 'is', column, value });
+        return builder;
+      },
+      or(expression) {
+        state.filters.push({ type: 'or', value: String(expression) });
         return builder;
       },
       order(column, options = {}) {

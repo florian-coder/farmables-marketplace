@@ -191,8 +191,29 @@ describe('SEC-03 — documentele nu mai au adrese publice', () => {
   });
 });
 
-describe('SEC-11 — jurnal la schimbarea IBAN-ului', () => {
-  it('înregistrează schimbarea, cu valorile mascate', async () => {
+// LEG-01 — the platform no longer collects bank details at all.
+//
+// This replaces the old "audit the IBAN change" suite. Auditing the field was
+// the right answer while we stored it; not storing it is a better one. Stripe
+// Connect collects the IBAN during Express onboarding, under its own KYC
+// obligations, and the platform never sees it.
+describe('LEG-01 — colectarea IBAN-ului a dispărut din platformă', () => {
+  it('salvează profilul fără să ceară IBAN', async () => {
+    const { app } = buildApp(seed());
+    const cookie = await sessionCookieFor(VENDOR);
+
+    const response = await request(app)
+      .post('/api/vendor/profile')
+      .set('Cookie', cookie)
+      .set(browserHeaders)
+      .field('farmName', baseProfile.farmName)
+      .field('bio', baseProfile.bio);
+
+    expect(response.status).toBe(200);
+    expect(response.body.vendor).toBeTruthy();
+  });
+
+  it('ignoră un IBAN trimis de un client vechi și nu îl salvează nicăieri', async () => {
     const { app, fake } = buildApp(seed());
     const cookie = await sessionCookieFor(VENDOR);
 
@@ -203,41 +224,34 @@ describe('SEC-11 — jurnal la schimbarea IBAN-ului', () => {
       .field('farmName', baseProfile.farmName)
       .field('iban', 'DE89 3704 0044 0532 0130 00');
 
-    const entry = fake._db.audit_log.find((row) => row.action === 'iban.changed');
-    expect(entry).toBeTruthy();
-    expect(entry.actor_id).toBe('77');
-    // Niciodată IBAN-ul complet în jurnal.
-    expect(entry.old_value).toBe('RO49 •••• 0000');
-    expect(entry.new_value).toBe('DE89 •••• 3000');
-    expect(entry.new_value).not.toContain('37040044');
+    // Nici pe cererea de aprobare, nici pe fermă.
+    const savedRequest = fake._db.farmer_requests.find((row) => row.user_id === '77');
+    expect(savedRequest.iban).not.toBe('DE89370400440532013000');
+    const farmer = fake._db.farmers.find((row) => row.id === '77');
+    expect(farmer.IBAN).not.toBe('DE89370400440532013000');
   });
 
-  it('nu scrie nimic dacă IBAN-ul rămâne același', async () => {
-    const { app, fake } = buildApp(seed());
-    const cookie = await sessionCookieFor(VENDOR);
-
-    await request(app)
-      .post('/api/vendor/profile')
-      .set('Cookie', cookie)
-      .set(browserHeaders)
-      .field('farmName', 'Alt nume de fermă')
-      .field('iban', 'RO49AAAA1B31007593840000');
-
-    expect(fake._db.audit_log.filter((row) => row.action === 'iban.changed')).toHaveLength(0);
-  });
-
-  it('respinge un IBAN cu cifra de control greșită', async () => {
+  it('nu răspunde niciodată cu un IBAN către frontend', async () => {
     const { app } = buildApp(seed());
     const cookie = await sessionCookieFor(VENDOR);
 
-    const response = await request(app)
-      .post('/api/vendor/profile')
-      .set('Cookie', cookie)
-      .set(browserHeaders)
-      .field('farmName', baseProfile.farmName)
-      .field('iban', 'RO49AAAA1B31007593840001');
+    const response = await request(app).get('/api/vendor/profile').set('Cookie', cookie);
 
-    expect(response.status).toBe(400);
-    expect(response.body.error).toMatch(/IBAN/i);
+    expect(response.status).toBe(200);
+    expect(response.body.vendor.iban).toBeUndefined();
+    expect(JSON.stringify(response.body)).not.toContain('RO49AAAA1B31007593840000');
+  });
+
+  it('expune în locul lui starea contului Stripe', async () => {
+    const { app } = buildApp(seed());
+    const cookie = await sessionCookieFor(VENDOR);
+
+    const response = await request(app).get('/api/vendor/profile').set('Cookie', cookie);
+
+    expect(response.body.vendor.payouts).toMatchObject({
+      connected: false,
+      chargesEnabled: false,
+      canSell: false,
+    });
   });
 });

@@ -18,7 +18,17 @@ const FARMER_COLUMNS = [
   '"organic operator certificate"',
   '"delivery radius"',
   'bio',
+  'charges_enabled',
+  'delivery_fee_bani',
+  'min_order_value_bani',
+  'free_delivery_threshold_bani',
 ].join(', ');
+
+/** Only farms that can actually receive money are shown to buyers. */
+const canSell = (farmer) =>
+  farmer?.charges_enabled === true ||
+  farmer?.charges_enabled === 1 ||
+  farmer?.charges_enabled === '1';
 
 const PRODUCT_COLUMNS = [
   'id',
@@ -92,6 +102,7 @@ router.get('/', async (_req, res, next) => {
   try {
     const rows = await fetchFarmersWithRelations();
     const vendors = rows
+      .filter((entry) => canSell(entry.farmer))
       .map((entry) => {
         const vendor = mapFarmerToVendor(entry.farmer, {
           email: entry.user?.email || '',
@@ -141,6 +152,11 @@ router.get('/:vendorId', async (req, res, next) => {
     const rows = await fetchFarmersWithRelations();
     const match = rows.find((entry) => String(entry.farmer.id) === String(vendorId));
     if (!match) {
+      return res.status(404).json({ error: 'Vendor profile not found.' });
+    }
+    // A farm that cannot receive money is not published, and its public page
+    // answers the same way a nonexistent one does.
+    if (!canSell(match.farmer)) {
       return res.status(404).json({ error: 'Vendor profile not found.' });
     }
 
