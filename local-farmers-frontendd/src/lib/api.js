@@ -31,6 +31,10 @@ export const apiFetch = (path, options = {}) => {
     ...restOptions,
     headers: {
       'Content-Type': 'application/json',
+      // Antetul obligă browserul să ceară preflight, iar preflight-ul e respins
+      // pentru originile străine. Fără el, un formular ascuns de pe alt site ar
+      // putea trimite cereri cu cookie-ul utilizatorului atașat.
+      'X-Requested-With': 'XMLHttpRequest',
       ...(restOptions.headers || {}),
     },
     signal: controller.signal,

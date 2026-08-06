@@ -15,7 +15,7 @@ const getUserFromRequest = async (req) => {
 
   const { data: user, error } = await supabase
     .from(TABLES.users)
-    .select('id, username, email, user_type')
+    .select('id, username, email, user_type, token_version')
     .eq('id', session.userId)
     .maybeSingle();
 
@@ -23,10 +23,18 @@ const getUserFromRequest = async (req) => {
     return null;
   }
 
+  // SEC-08: un token emis înainte de ultima revocare nu mai e valabil, chiar
+  // dacă semnătura lui e corectă și nu a expirat.
+  const currentVersion = Number(user.token_version || 0);
+  if (Number(session.tokenVersion || 0) !== currentVersion) {
+    return null;
+  }
+
   const mapped = mapDbUserToApi(user);
   return {
     ...mapped,
     email: user.email || '',
+    tokenVersion: currentVersion,
   };
 };
 

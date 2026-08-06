@@ -33,6 +33,9 @@ const TABLES = {
   orderItems: 'order_items',
   orderReplies: 'order_replies',
   permissions: 'permission',
+  authTokens: 'auth_tokens',
+  auditLog: 'audit_log',
+  stripeEvents: 'stripe_events',
 };
 
 const dedupe = (values) => {

@@ -24,9 +24,9 @@ const app = express();
 
 app.set('trust proxy', true);
 
-const allowedOrigins = process.env.CORS_ORIGINS
-  ? process.env.CORS_ORIGINS.split(',').map((origin) => origin.trim())
-  : ['http://localhost:5173'];
+const { ALLOWED_ORIGINS: allowedOrigins } = require('./lib/config');
+const { requireSameOrigin } = require('./middleware/csrf');
+const { writeLimiter } = require('./middleware/rateLimit');
 
 app.use(
   helmet({
@@ -48,6 +48,14 @@ app.use('/api/webhook', webhookRouter);
 
 app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
+
+// SEC-04 — orice cerere care schimbă starea și poartă un cookie de sesiune
+// trebuie să vină de la o origine cunoscută și să aibă antetul propriu.
+// Se montează după cookieParser, ca middleware-ul să vadă cookie-urile.
+app.use(requireSameOrigin);
+// SEC-07 — plafon general pe scrieri; autentificarea are limite proprii,
+// mult mai strânse, montate pe rutele ei.
+app.use('/api', writeLimiter);
 const uploadsPath = path.join(__dirname, '../public/uploads');
 app.use(
   '/uploads',

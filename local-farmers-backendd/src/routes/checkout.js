@@ -5,18 +5,61 @@ const { supabase, TABLES } = require('../lib/supabase');
 
 const router = express.Router();
 
+/**
+ * SEC-05 — Nicio operațiune pe o comandă înainte de a ști că e a celui care cere.
+ *
+ * Fără verificarea asta, orice utilizator logat putea trimite identificatorul
+ * comenzii altcuiva și declanșa `process_checkout`, care scade stocul. Repetat
+ * în buclă, golea stocul fermierilor fără să plătească nimic.
+ *
+ * Întoarce { order } sau { error, status } — niciodată detalii despre comenzile
+ * altora, ca ruta să nu devină oracol pentru identificatori valizi.
+ */
+const loadOwnedOrder = async (orderId, user) => {
+  const id = typeof orderId === 'string' ? orderId.trim() : '';
+  if (!id) {
+    return { error: 'Order ID is required', status: 400 };
+  }
+
+  const { data: order, error } = await supabase
+    .from(TABLES.orders)
+    .select('id, client_id, farmer_id, order_state, paid_at')
+    .eq('id', id)
+    .maybeSingle();
+
+  if (error) {
+    return { error: 'Unable to load order.', status: 500 };
+  }
+  // Comandă inexistentă și comandă a altcuiva primesc același răspuns.
+  if (!order || String(order.client_id) !== String(user.id)) {
+    return { error: 'Order not found.', status: 404 };
+  }
+
+  return { order };
+};
+
 router.post('/create-checkout-session', requireAuth, async (req, res) => {
   const { orderId } = req.body;
 
-  if (!orderId) {
-    return res.status(400).json({ error: 'Order ID is required' });
+  const owned = await loadOwnedOrder(orderId, req.user);
+  if (owned.error) {
+    return res.status(owned.status).json({ error: owned.error });
   }
+  const { order } = owned;
+
+  // Idempotență: stocul se rezervă o singură dată per comandă. O comandă deja
+  // trecută în pending_order și-a consumat rezervarea, iar una plătită nu mai
+  // are ce căuta la casă.
+  if (order.paid_at || !['placed_order', 'pending_order'].includes(order.order_state)) {
+    return res.status(400).json({ error: 'This order can no longer be paid.' });
+  }
+  const alreadyReserved = order.order_state === 'pending_order';
 
   // 1. Ia produsele din order_items pentru aceasta comanda
   const { data: items, error: itemsError } = await supabase
     .from(TABLES.orderItems)
     .select('*')
-    .eq('order_id', orderId);
+    .eq('order_id', order.id);
 
   if (itemsError) {
     console.error('Supabase items query error:', itemsError);
@@ -32,7 +75,7 @@ router.post('/create-checkout-session', requireAuth, async (req, res) => {
     // Math.round to avoid float precision issues, convert to cents
     const unitPriceCents = Math.round(Number(item.unit_price) * 100);
     const quantityMultiplier = Number(item.quantity);
-    
+
     const totalAmountInCents = Math.round(unitPriceCents * quantityMultiplier);
     totalSessionAmountCents += totalAmountInCents;
 
@@ -56,11 +99,17 @@ router.post('/create-checkout-session', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'Comanda minimă pentru plata cu cardul (Stripe) este de 2.00 RON.' });
   }
 
-  // 3. Apelează funcția atomică pentru a tăia stocul (rezervare)
-  const { data: rpcData, error: rpcError } = await supabase.rpc('process_checkout', { p_order_id: orderId });
-  
-  if (rpcError || !rpcData?.success) {
-     return res.status(400).json({ error: rpcData?.error || rpcError?.message || 'Stoc insuficient, tranzacție anulată.' });
+  // 3. Apelează funcția atomică pentru a tăia stocul (rezervare), o singură dată
+  if (!alreadyReserved) {
+    const { data: rpcData, error: rpcError } = await supabase.rpc('process_checkout', {
+      p_order_id: order.id,
+    });
+
+    if (rpcError || !rpcData?.success) {
+      return res.status(400).json({
+        error: rpcData?.error || rpcError?.message || 'Stoc insuficient, tranzacție anulată.',
+      });
+    }
   }
 
   try {
@@ -70,7 +119,7 @@ router.post('/create-checkout-session', requireAuth, async (req, res) => {
       payment_method_types: ['card'],
       line_items: lineItems,
       mode: 'payment',
-      metadata: { orderId: orderId }, 
+      metadata: { orderId: order.id },
       success_url: `${frontendUrl}/orders?success=true`,
       cancel_url: `${frontendUrl}/orders?canceled=true`,
     });
@@ -79,13 +128,19 @@ router.post('/create-checkout-session', requireAuth, async (req, res) => {
   } catch (err) {
     // 5. Dacă Stripe aruncă o eroare, dăm ROLLBACK ca să nu lăsăm comanda blocată
     console.error('Stripe error, rolling back checkout:', err.message);
-    await supabase.rpc('rollback_checkout', { p_order_id: orderId });
+    if (!alreadyReserved) {
+      await supabase.rpc('rollback_checkout', { p_order_id: order.id });
+    }
     res.status(500).json({ error: err.message });
   }
 });
 
 router.get('/verify-status/:orderId', requireAuth, async (req, res) => {
-  const { orderId } = req.params;
+  const owned = await loadOwnedOrder(req.params.orderId, req.user);
+  if (owned.error) {
+    return res.status(owned.status).json({ error: owned.error });
+  }
+  const { order } = owned;
 
   try {
     // 1. Fetch recent sessions from Stripe
@@ -95,18 +150,12 @@ router.get('/verify-status/:orderId', requireAuth, async (req, res) => {
 
     // 2. Find if any session matches our orderId and is paid
     const matchingSession = sessions.data.find(
-      (s) => s.metadata.orderId === orderId && s.payment_status === 'paid'
+      (s) => s.metadata.orderId === order.id && s.payment_status === 'paid'
     );
 
     if (matchingSession) {
       // 3. Update the order state to received_by_farmer if it's still pending
-      const { data: order, error: fetchError } = await supabase
-        .from(TABLES.orders)
-        .select('order_state, paid_at')
-        .eq('id', orderId)
-        .single();
-
-      if (!fetchError && order.order_state === 'pending_order') {
+      if (order.order_state === 'pending_order') {
         await supabase
           .from(TABLES.orders)
           .update({
@@ -114,7 +163,7 @@ router.get('/verify-status/:orderId', requireAuth, async (req, res) => {
             // Nu suprascriem momentul plății dacă webhook-ul a ajuns primul.
             paid_at: order.paid_at || new Date().toISOString(),
           })
-          .eq('id', orderId);
+          .eq('id', order.id);
 
         return res.json({ status: 'paid', updated: true });
       }

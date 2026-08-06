@@ -77,6 +77,32 @@ export default function AdminPage() {
   const [rejectionNotes, setRejectionNotes] = useState({});
   const [pendingAction, setPendingAction] = useState(null);
   const [expandedRequests, setExpandedRequests] = useState({});
+  const [documentStatus, setDocumentStatus] = useState({});
+
+  /**
+   * Actele stau într-un bucket privat. Adresa se cere la click, e semnată de
+   * backend, expiră în două minute și lasă urmă în jurnalul de audit — deci nu
+   * se pune niciodată în HTML.
+   */
+  const openDocument = async (requestId, docKey) => {
+    const key = `${requestId}:${docKey}`;
+    setDocumentStatus((prev) => ({ ...prev, [key]: 'loading' }));
+    try {
+      const response = await apiFetch(
+        `/api/admin/farmer-requests/${requestId}/documents/${docKey}`,
+        { method: 'GET' },
+      );
+      const data = await response.json();
+      if (!response.ok || !data.url) {
+        throw new Error(data.error || 'Unable to open document.');
+      }
+      window.open(data.url, '_blank', 'noopener,noreferrer');
+      setDocumentStatus((prev) => ({ ...prev, [key]: 'idle' }));
+    } catch (error) {
+      setDocumentStatus((prev) => ({ ...prev, [key]: 'idle' }));
+      window.alert(error.message || 'Unable to open document.');
+    }
+  };
   const adminPath = location.pathname.startsWith('/manage-portal')
     ? location.pathname.slice('/manage-portal'.length).replace(/^\/+/, '')
     : '';
@@ -430,12 +456,19 @@ export default function AdminPage() {
               <div className="admin-request-field">
                 <p className="admin-request-label">Legal Details & Documents</p>
                 <div style={{ display: 'grid', gap: '0.5rem', marginTop: '0.5rem' }}>
-                  {Object.entries(request.payload.documents).map(([docKey, docUrl]) => (
+                  {Object.keys(request.payload.documents).map((docKey) => (
                     <div key={docKey} style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.5rem', background: 'var(--surface-color)', border: '1px solid var(--border-color)', borderRadius: '4px' }}>
                       <strong style={{ minWidth: '200px' }}>{docKey}:</strong>
-                      <a href={docUrl} target="_blank" rel="noreferrer" className="button ghost small">
-                        View Document
-                      </a>
+                      <button
+                        type="button"
+                        className="button ghost small"
+                        disabled={documentStatus[`${request.id}:${docKey}`] === 'loading'}
+                        onClick={() => openDocument(request.id, docKey)}
+                      >
+                        {documentStatus[`${request.id}:${docKey}`] === 'loading'
+                          ? 'Opening...'
+                          : 'View Document'}
+                      </button>
                     </div>
                   ))}
                 </div>

@@ -14,6 +14,8 @@ import FarmersPage from './pages/FarmersPage.jsx';
 import MarketsPage from './pages/MarketsPage.jsx';
 import SignupPage from './pages/SignupPage.jsx';
 import LoginPage from './pages/LoginPage.jsx';
+import ForgotPasswordPage from './pages/ForgotPasswordPage.jsx';
+import ResetPasswordPage from './pages/ResetPasswordPage.jsx';
 import ChatPage from './pages/ChatPage.jsx';
 import ProfilePage from './pages/ProfilePage.jsx';
 import VendorPublicProfilePage from './pages/VendorPublicProfilePage.jsx';
@@ -295,6 +297,8 @@ function AppShell() {
           <Route path="/markets/:category" element={<MarketsPage />} />
           <Route path="/auth/signup" element={<SignupPage />} />
           <Route path="/auth/login" element={<LoginPage />} />
+          <Route path="/auth/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/auth/reset-password" element={<ResetPasswordPage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/manage-portal/*" element={<AdminPage />} />
           <Route path="/farms/:vendorId" element={<VendorPublicProfilePage />} />

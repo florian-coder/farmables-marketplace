@@ -57,9 +57,20 @@ if (problems.length > 0) {
 
 const byName = new Map(entries.map((entry) => [entry.name, entry.value]));
 
+/**
+ * Originile de la care acceptăm cereri cu cookie. Aceeași listă e folosită și
+ * de CORS, și de verificarea anti-CSRF, ca să nu poată devia una de alta.
+ */
+const ALLOWED_ORIGINS = (process.env.CORS_ORIGINS || 'http://localhost:5173')
+  .split(',')
+  .map((origin) => origin.trim().replace(/\/$/, ''))
+  .filter(Boolean);
+
 module.exports = {
   SESSION_SECRET: byName.get('SESSION_SECRET'),
   ADMIN_SESSION_SECRET: byName.get('ADMIN_SESSION_SECRET'),
   ADMIN_USERNAME: byName.get('ADMIN_USERNAME'),
   ADMIN_PASSWORD: byName.get('ADMIN_PASSWORD'),
+  ALLOWED_ORIGINS,
+  IS_PRODUCTION: process.env.NODE_ENV === 'production',
 };

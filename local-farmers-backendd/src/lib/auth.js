@@ -44,6 +44,9 @@ const createSession = async (user) => {
   const payload = {
     userId: String(user.id),
     role: user.role,
+    // SEC-08: versiunea sesiunii. Incrementarea coloanei token_version din
+    // users invalidează instantaneu toate tokenurile emise anterior.
+    tv: Number.isFinite(Number(user.tokenVersion)) ? Number(user.tokenVersion) : 0,
     exp: now + SESSION_TTL_MS,
   };
 
@@ -88,6 +91,7 @@ const getSession = async (token) => {
     return {
       userId: String(payload.userId),
       role: payload.role || null,
+      tokenVersion: Number.isFinite(Number(payload.tv)) ? Number(payload.tv) : 0,
       expiresAt: new Date(Number(payload.exp)).toISOString(),
     };
   } catch (_error) {
@@ -95,7 +99,39 @@ const getSession = async (token) => {
   }
 };
 
-const revokeSession = async () => null;
+/**
+ * SEC-08 — Revocarea tuturor sesiunilor unui utilizator.
+ *
+ * Tokenurile sunt fără stare, deci nu există o listă din care să ștergem. În
+ * schimb incrementăm token_version: orice token deja emis poartă versiunea
+ * veche și pică la următoarea cerere. Se apelează la schimbarea parolei, la
+ * resetare și la delogare.
+ */
+const revokeUserSessions = async (userId) => {
+  const id = String(userId || '').trim();
+  if (!id) {
+    return false;
+  }
+
+  const { supabase, TABLES } = require('./supabase');
+
+  const { data: user, error: readError } = await supabase
+    .from(TABLES.users)
+    .select('token_version')
+    .eq('id', id)
+    .maybeSingle();
+  if (readError || !user) {
+    return false;
+  }
+
+  const next = Number(user.token_version || 0) + 1;
+  const { error: updateError } = await supabase
+    .from(TABLES.users)
+    .update({ token_version: next })
+    .eq('id', id);
+
+  return !updateError;
+};
 
 module.exports = {
   SESSION_TTL_MS,
@@ -104,5 +140,5 @@ module.exports = {
   verifyPassword,
   createSession,
   getSession,
-  revokeSession,
+  revokeUserSessions,
 };

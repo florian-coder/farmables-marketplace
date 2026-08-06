@@ -9,29 +9,79 @@ const {
   isValidIban,
   mapFarmerToVendor,
   mapProductToApi,
+  maskIban,
   normalizeIban,
   normalizeText,
   toIntFlag,
   toNumberOrNull,
 } = require('../lib/domain');
+const { ACTIONS, recordAudit } = require('../lib/audit');
 const { recalculateAndPersistProductRatings } = require('../lib/productRating');
 
 const router = express.Router();
 
 const MAX_PROFILE_IMAGES = 10;
 
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 },
-  fileFilter: (_req, file, cb) => {
-    const allowed = ['image/jpeg', 'image/png', 'image/webp'];
-    if (allowed.includes(file.mimetype)) {
-      cb(null, true);
-      return;
+const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+/** SEC-10: actele sunt scanate sau exportate ca PDF, nu doar fotografiate. */
+const DOCUMENT_TYPES = [...IMAGE_TYPES, 'application/pdf'];
+
+const makeUploader = (allowed, label) =>
+  multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 5 * 1024 * 1024 },
+    fileFilter: (_req, file, cb) => {
+      if (allowed.includes(file.mimetype)) {
+        cb(null, true);
+        return;
+      }
+      cb(new Error(`Invalid file type for ${label}. Allowed: ${allowed.join(', ')}.`));
+    },
+  });
+
+const upload = makeUploader(IMAGE_TYPES, 'images');
+const documentUpload = makeUploader(DOCUMENT_TYPES, 'documents');
+
+/**
+ * Rulează un middleware de multer și transformă erorile lui în răspunsuri
+ * lizibile. Fără asta, un PDF prea mare sau de tip greșit ajungea la handlerul
+ * global și fermierul primea „Internal Server Error", fără nicio indicație.
+ */
+const runUpload = (middleware) => (req, res, next) => {
+  middleware(req, res, (err) => {
+    if (!err) {
+      return next();
     }
-    cb(new Error('Invalid file type. Only JPEG, PNG, and WebP are allowed.'));
-  },
-});
+    if (err instanceof multer.MulterError) {
+      const message =
+        err.code === 'LIMIT_FILE_SIZE'
+          ? 'File is too large. The limit is 5 MB per file.'
+          : `Upload error: ${err.message}`;
+      return res.status(400).json({ error: message });
+    }
+    return res.status(400).json({ error: err.message || 'Upload failed.' });
+  });
+};
+
+const DOCS_BUCKET = 'docs';
+
+/**
+ * SEC-03 — În baza de date păstrăm calea din bucket, nu o adresă publică.
+ * Bucket-ul e privat, deci adresele se semnează la cerere, pentru admin.
+ * Acceptă și adresele publice salvate înainte de migrare.
+ */
+const toStoragePath = (value) => {
+  const raw = typeof value === 'string' ? value.trim() : '';
+  if (!raw) {
+    return '';
+  }
+  const marker = `/${DOCS_BUCKET}/`;
+  const index = raw.indexOf(marker);
+  if (index !== -1) {
+    return decodeURIComponent(raw.slice(index + marker.length));
+  }
+  return raw;
+};
 
 const FARMER_COLUMNS = [
   'id',
@@ -399,7 +449,7 @@ router.post('/upload-farm-images', requireVendor, (req, res) => {
   });
 });
 
-router.post('/profile', requireVendor, upload.any(), async (req, res, next) => {
+router.post('/profile', requireVendor, runUpload(documentUpload.any()), async (req, res, next) => {
   try {
     const {
       farmName,
@@ -465,7 +515,7 @@ router.post('/profile', requireVendor, upload.any(), async (req, res, next) => {
         const pathStr = `folder_${folderId}/${fieldName}${ext}`;
 
         const { error: uploadError } = await supabase.storage
-          .from('docs')
+          .from(DOCS_BUCKET)
           .upload(pathStr, file.buffer, {
             contentType: file.mimetype,
             upsert: true,
@@ -475,8 +525,9 @@ router.post('/profile', requireVendor, upload.any(), async (req, res, next) => {
           return res.status(500).json({ error: 'File upload failed: ' + uploadError.message });
         }
 
-        const { data: urlData } = supabase.storage.from('docs').getPublicUrl(pathStr);
-        documents[fieldName] = urlData.publicUrl;
+        // Calea, nu adresa publică: bucket-ul e privat, iar adresa se semnează
+        // la cerere, doar pentru adminul autentificat.
+        documents[fieldName] = pathStr;
       }
     }
 
@@ -517,12 +568,26 @@ router.post('/profile', requireVendor, upload.any(), async (req, res, next) => {
     // dacă ferma e deja aprobată, plata următoare merge pe IBAN-ul nou.
     const existingFarmer = await fetchFarmerByUserId(req.user.id);
     if (existingFarmer) {
+      const previousIban = normalizeIban(existingFarmer.IBAN);
       const { error: ibanError } = await supabase
         .from(TABLES.farmers)
         .update({ IBAN: normalizedIban })
         .eq('id', existingFarmer.id);
       if (ibanError) {
         console.error('[vendor] Unable to update farmer IBAN:', ibanError);
+      } else if (previousIban !== normalizedIban) {
+        // SEC-11: schimbarea contului de plată e cea mai valoroasă acțiune
+        // pentru un atacator, deci lasă urmă. Se scriu doar valorile mascate.
+        await recordAudit({
+          req,
+          actorType: 'user',
+          actorId: req.user.id,
+          action: ACTIONS.IBAN_CHANGED,
+          entityType: 'farmer',
+          entityId: existingFarmer.id,
+          oldValue: maskIban(previousIban),
+          newValue: maskIban(normalizedIban),
+        });
       }
     }
 

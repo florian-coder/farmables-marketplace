@@ -95,6 +95,9 @@ export default function LoginPage() {
         <p className="muted">
           New here? <Link to="/auth/signup">Create an account</Link>.
         </p>
+        <p className="muted">
+          <Link to="/auth/forgot-password">Forgot your password?</Link>
+        </p>
       </form>
     </div>
   );

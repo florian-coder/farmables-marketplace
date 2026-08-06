@@ -2,6 +2,22 @@ const express = require('express');
 
 const { supabase, TABLES } = require('../lib/supabase');
 const { mapProductToApi, normalizeIban } = require('../lib/domain');
+const { ACTIONS, recordAudit } = require('../lib/audit');
+const { authLimiter, usernameLimiter } = require('../middleware/rateLimit');
+
+const DOCS_BUCKET = 'docs';
+const SIGNED_URL_TTL_SECONDS = 120;
+
+/** Acceptă și adresele publice salvate înainte de migrarea la bucket privat. */
+const toStoragePath = (value) => {
+  const raw = typeof value === 'string' ? value.trim() : '';
+  if (!raw) {
+    return '';
+  }
+  const marker = `/${DOCS_BUCKET}/`;
+  const index = raw.indexOf(marker);
+  return index !== -1 ? decodeURIComponent(raw.slice(index + marker.length)) : raw;
+};
 const { recalculateAndPersistProductRatings } = require('../lib/productRating');
 const {
   ADMIN_COOKIE_NAME,
@@ -164,13 +180,28 @@ const syncFarmPhotos = async (farmerId, imageUrls) => {
   }
 };
 
-router.post('/login', async (req, res) => {
+router.post('/login', authLimiter, usernameLimiter, async (req, res) => {
   const username = typeof req.body?.username === 'string' ? req.body.username.trim() : '';
   const password = typeof req.body?.password === 'string' ? req.body.password : '';
 
   if (!verifyAdminCredentials(username, password)) {
+    await recordAudit({
+      req,
+      actorType: 'admin',
+      actorId: username.slice(0, 60),
+      action: ACTIONS.ADMIN_LOGIN_FAILED,
+      entityType: 'admin',
+    });
     return res.status(401).json({ error: 'Invalid admin credentials.' });
   }
+
+  await recordAudit({
+    req,
+    actorType: 'admin',
+    actorId: ADMIN_USERNAME,
+    action: ACTIONS.ADMIN_LOGIN,
+    entityType: 'admin',
+  });
 
   const token = createAdminSessionToken();
   const isProduction = process.env.NODE_ENV === 'production';
@@ -377,6 +408,56 @@ router.post('/farmer-requests/:requestId/approve', requireAdmin, async (req, res
     return res.json({
       request: mapRequestMeta(updatedRequest, usersById),
     });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+/**
+ * SEC-03 — Adresă semnată pentru un act al fermierului.
+ *
+ * Bucket-ul `docs` e privat. Adresa se generează la cerere, expiră în două
+ * minute și e legată de o sesiune de admin. Fiecare vizualizare lasă urmă în
+ * jurnalul de audit: actele de identitate nu se consultă anonim.
+ */
+router.get('/farmer-requests/:requestId/documents/:docKey', requireAdmin, async (req, res, next) => {
+  try {
+    const requestId = typeof req.params?.requestId === 'string' ? req.params.requestId.trim() : '';
+    const docKey = typeof req.params?.docKey === 'string' ? req.params.docKey.trim() : '';
+    if (!requestId || !docKey) {
+      return res.status(400).json({ error: 'requestId and docKey are required.' });
+    }
+
+    const request = await fetchRequestById(requestId);
+    if (!request) {
+      return res.status(404).json({ error: 'Request not found.' });
+    }
+
+    const stored = request.documents?.[docKey];
+    const path = toStoragePath(stored);
+    if (!path) {
+      return res.status(404).json({ error: 'Document not found.' });
+    }
+
+    const { data, error } = await supabase.storage
+      .from(DOCS_BUCKET)
+      .createSignedUrl(path, SIGNED_URL_TTL_SECONDS);
+
+    if (error || !data?.signedUrl) {
+      return res.status(500).json({ error: error?.message || 'Unable to sign document URL.' });
+    }
+
+    await recordAudit({
+      req,
+      actorType: 'admin',
+      actorId: req.admin.username,
+      action: ACTIONS.DOCUMENT_VIEWED,
+      entityType: 'farmer_request',
+      entityId: requestId,
+      newValue: docKey,
+    });
+
+    return res.json({ url: data.signedUrl, expiresIn: SIGNED_URL_TTL_SECONDS });
   } catch (error) {
     return next(error);
   }

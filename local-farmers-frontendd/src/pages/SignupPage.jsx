@@ -5,6 +5,7 @@ import { apiFetch } from '../lib/api.js';
 
 const initialForm = {
   username: '',
+  email: '',
   password: '',
   role: 'customer',
 };
@@ -80,6 +81,20 @@ export default function SignupPage() {
           />
         </label>
         <label className="field">
+          Email
+          <input
+            type="email"
+            name="email"
+            autoComplete="email"
+            value={form.email}
+            onChange={handleChange}
+            required
+          />
+          <p className="muted upload-hint">
+            Used to confirm your account and to recover the password if you lose it.
+          </p>
+        </label>
+        <label className="field">
           Password
           <input
             type="password"
@@ -88,8 +103,9 @@ export default function SignupPage() {
             value={form.password}
             onChange={handleChange}
             required
-            minLength={6}
+            minLength={10}
           />
+          <p className="muted upload-hint">At least 10 characters.</p>
         </label>
         <label className="field">
           Role
