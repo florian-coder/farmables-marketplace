@@ -155,6 +155,71 @@ const assertTotalsBalance = (totals) => {
   return true;
 };
 
+/**
+ * A share of `amount`, in the ratio numerator/denominator, rounded half-up.
+ *
+ * Used for the commission on a partial refund. Half-up again, and for the same
+ * reason as `commissionBani`: a customer who works out "they refunded 60% of
+ * my order so they owe me 60% of the fee" must land on our number.
+ */
+const proportionBani = (amount, numerator, denominator) => {
+  const total = toBani(amount);
+  const part = toBani(numerator);
+  const whole = toBani(denominator);
+  if (whole <= 0 || part <= 0 || total <= 0) {
+    return 0;
+  }
+  if (part >= whole) {
+    return total;
+  }
+  // floor((2·total·part + whole) / (2·whole)) is half-up without a float step.
+  return Math.floor((2 * total * part + whole) / (2 * whole));
+};
+
+/**
+ * What a refund owes, split three ways.
+ *
+ * OPS-01b:
+ *   full    = products + delivery + commission
+ *   partial = the missing products + a proportional share of the commission;
+ *             delivery is kept, because something was still driven to the door
+ *
+ * `reversalAmountBani` is what we claw back from the farmer — products plus
+ * delivery, never the commission. The commission was never theirs, so giving
+ * it up costs the platform, not them.
+ */
+const refundBreakdown = ({
+  productsSubtotalBani,
+  deliveryFeeBani: delivery,
+  commissionBani: commission,
+  refundProductsBani = null,
+}) => {
+  const products = toBani(productsSubtotalBani);
+  const deliveryFee = toBani(delivery);
+  const commissionFee = toBani(commission);
+
+  // No explicit amount means "everything": a full refund.
+  const requested = refundProductsBani === null ? products : toBani(refundProductsBani);
+  const productsRefund = Math.min(requested, products);
+
+  // Refunding every product means nothing was delivered, so the delivery fee
+  // goes back too — at that point it is a full refund by another name.
+  const isFull = productsRefund >= products && products > 0;
+  const deliveryRefund = isFull ? deliveryFee : 0;
+  const commissionRefund = isFull
+    ? commissionFee
+    : proportionBani(commissionFee, productsRefund, products);
+
+  return {
+    kind: isFull ? 'full' : 'partial',
+    productsBani: productsRefund,
+    deliveryBani: deliveryRefund,
+    commissionBani: commissionRefund,
+    amountBani: productsRefund + deliveryRefund + commissionRefund,
+    reversalAmountBani: productsRefund + deliveryRefund,
+  };
+};
+
 module.exports = {
   leiToBani,
   baniToLei,
@@ -165,4 +230,6 @@ module.exports = {
   groupTotals,
   sumGroups,
   assertTotalsBalance,
+  proportionBani,
+  refundBreakdown,
 };

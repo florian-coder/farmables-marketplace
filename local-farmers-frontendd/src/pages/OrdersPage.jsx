@@ -69,6 +69,65 @@ const formatQuantity = (value) => {
   return Number.isInteger(parsed) ? String(parsed) : parsed.toFixed(2).replace(/\.?0+$/, '');
 };
 
+/**
+ * OPS-01b — what happened to the money after a cancellation.
+ *
+ * A cancelled order with no word about the refund is the single most alarming
+ * thing a customer can be shown, so every cancelled-and-paid order says where
+ * their money is, including the case where it needs a human.
+ */
+const RefundNotice = ({ order, isVendor }) => {
+  const state = order.refundState || 'none';
+  if (state === 'none' || !order.paidAt) {
+    return null;
+  }
+
+  const amount = formatBani(order.refundedBani);
+  const messages = {
+    pending: {
+      tone: 'info',
+      text: isVendor
+        ? 'The refund to the customer is being processed.'
+        : 'Your refund is on its way. Card refunds usually appear within 5–10 business days.',
+    },
+    refunded: {
+      tone: 'ok',
+      text: isVendor
+        ? `${amount} was refunded to the customer and taken back from your payout.`
+        : `${amount} has been refunded to the card you paid with. It usually appears within 5–10 business days.`,
+    },
+    partial: {
+      tone: 'ok',
+      text: isVendor
+        ? `${amount} was refunded to the customer for the missing items.`
+        : `${amount} has been refunded for the missing items. It usually appears within 5–10 business days.`,
+    },
+    failed: {
+      tone: 'warn',
+      text: isVendor
+        ? 'The refund to the customer could not be completed. Our team has been alerted.'
+        : 'We could not complete your refund automatically. Our team has been alerted and will contact you.',
+    },
+    refund_pending_manual: {
+      tone: 'ok',
+      text: isVendor
+        ? `${amount} was refunded to the customer. We could not take it back from your Stripe balance, so we will be in touch about recovering it.`
+        : `${amount} has been refunded to the card you paid with. It usually appears within 5–10 business days.`,
+    },
+  };
+
+  const notice = messages[state];
+  if (!notice) {
+    return null;
+  }
+
+  return (
+    <p className={`order-refund-notice is-${notice.tone}`} role="status">
+      {notice.text}
+    </p>
+  );
+};
+
 const OrderTimeline = ({ orderState }) => {
   if (orderState === 'cancelled' || orderState === 'placed_order') {
     return null;
@@ -266,9 +325,31 @@ export default function OrdersPage() {
       });
       const data = await response.json();
       if (!response.ok) {
+        // 409 means the order moved under us — someone else acted first, or
+        // this tab has been open a while. Reloading is the fix, so we say so
+        // and do it, rather than leaving a stale set of buttons on screen.
+        if (response.status === 409) {
+          setActionStatusForOrder(
+            orderId,
+            'error',
+            `${data.error || 'This order has already changed.'} Refreshing...`,
+          );
+          await loadOrders(bucket);
+          await loadQuote();
+          return;
+        }
         throw new Error(data.error || 'Unable to update order.');
       }
-      setActionStatusForOrder(orderId, 'success', 'Order updated.');
+
+      // A cancellation that owed money says what happened to it.
+      const refund = data.refund;
+      const message = refund?.refunded
+        ? `Order cancelled. ${formatBani(refund.breakdown?.amountBani || 0)} is on its way back to the customer.`
+        : refund && refund.refunded === false && refund.reason !== 'already_claimed'
+          ? 'Order cancelled, but the refund needs attention. Our team has been alerted.'
+          : 'Order updated.';
+
+      setActionStatusForOrder(orderId, refund && refund.refunded === false && refund.reason !== 'already_claimed' ? 'error' : 'success', message);
       await loadOrders(bucket);
       await loadQuote();
     } catch (error) {
@@ -515,6 +596,14 @@ export default function OrdersPage() {
               </header>
 
               <OrderTimeline orderState={order.orderState} />
+
+              {order.orderState === 'cancelled' && order.cancelReason && (
+                <p className="order-cancel-reason">
+                  Cancelled by the {order.cancelledBy === 'farmer' ? 'farm' : order.cancelledBy || 'platform'}:{' '}
+                  {order.cancelReason}
+                </p>
+              )}
+              <RefundNotice order={order} isVendor={isVendor} />
 
               <ul className="order-items">
                 {order.items?.length > 0 ? (

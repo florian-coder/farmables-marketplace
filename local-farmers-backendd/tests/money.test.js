@@ -182,3 +182,101 @@ describe('formatBani', () => {
     expect(formatBani(100)).toBe('1.00 RON');
   });
 });
+
+// OPS-01b — the refund split.
+//
+// A refund has to be reconstructable months later, so the three components are
+// computed separately rather than as one number. The rule that matters: the
+// commission comes back in proportion to the products, and the delivery fee
+// only comes back when nothing was delivered at all.
+
+const { proportionBani, refundBreakdown } = require('../src/lib/money');
+
+describe('proportionBani', () => {
+  it('rounds half-up, the same rule as the commission', () => {
+    // 100 × 1/2 = 50 exactly.
+    expect(proportionBani(100, 1, 2)).toBe(50);
+    // 101 × 1/2 = 50.5 → 51, not 50.
+    expect(proportionBani(101, 1, 2)).toBe(51);
+    // 5 × 1/3 = 1.666… → 2.
+    expect(proportionBani(5, 1, 3)).toBe(2);
+    // 5 × 1/10 = 0.5 → 1.
+    expect(proportionBani(5, 1, 10)).toBe(1);
+  });
+
+  it('never invents money out of a zero or oversized ratio', () => {
+    expect(proportionBani(100, 1, 0)).toBe(0);
+    expect(proportionBani(100, 0, 10)).toBe(0);
+    expect(proportionBani(0, 5, 10)).toBe(0);
+    // A share of more than the whole is still just the whole.
+    expect(proportionBani(100, 20, 10)).toBe(100);
+  });
+});
+
+describe('refundBreakdown', () => {
+  // 100.00 lei of products, 15.00 delivery, 10.00 commission (10%).
+  const order = {
+    productsSubtotalBani: 10000,
+    deliveryFeeBani: 1500,
+    commissionBani: 1000,
+  };
+
+  it('a full refund gives back products, delivery and commission', () => {
+    const refund = refundBreakdown(order);
+
+    expect(refund.kind).toBe('full');
+    expect(refund.productsBani).toBe(10000);
+    expect(refund.deliveryBani).toBe(1500);
+    expect(refund.commissionBani).toBe(1000);
+    expect(refund.amountBani).toBe(12500);
+    // The farmer only ever gives back what they received: products + delivery.
+    // The commission was ours, so we are the ones out of pocket for it.
+    expect(refund.reversalAmountBani).toBe(11500);
+  });
+
+  it('a partial refund keeps the delivery fee — something was still driven out', () => {
+    const refund = refundBreakdown({ ...order, refundProductsBani: 4000 });
+
+    expect(refund.kind).toBe('partial');
+    expect(refund.productsBani).toBe(4000);
+    expect(refund.deliveryBani).toBe(0);
+    // 40% of the products means 40% of the commission: 1000 × 0.4 = 400.
+    expect(refund.commissionBani).toBe(400);
+    expect(refund.amountBani).toBe(4400);
+    expect(refund.reversalAmountBani).toBe(4000);
+  });
+
+  it('refunding every product is a full refund, however it was asked for', () => {
+    const refund = refundBreakdown({ ...order, refundProductsBani: 10000 });
+    expect(refund.kind).toBe('full');
+    expect(refund.deliveryBani).toBe(1500);
+    expect(refund.amountBani).toBe(12500);
+  });
+
+  it('cannot refund more products than were bought', () => {
+    const refund = refundBreakdown({ ...order, refundProductsBani: 99999 });
+    expect(refund.productsBani).toBe(10000);
+    expect(refund.amountBani).toBe(12500);
+  });
+
+  it('the commission share never exceeds the commission charged', () => {
+    for (let refunded = 0; refunded <= 10000; refunded += 137) {
+      const refund = refundBreakdown({ ...order, refundProductsBani: refunded });
+      expect(refund.commissionBani).toBeLessThanOrEqual(order.commissionBani);
+      expect(refund.amountBani).toBeLessThanOrEqual(12500);
+      expect(refund.amountBani).toBe(
+        refund.productsBani + refund.deliveryBani + refund.commissionBani,
+      );
+    }
+  });
+
+  it('an order with no delivery fee refunds cleanly', () => {
+    const refund = refundBreakdown({
+      productsSubtotalBani: 555,
+      deliveryFeeBani: 0,
+      commissionBani: 56,
+    });
+    expect(refund.amountBani).toBe(611);
+    expect(refund.reversalAmountBani).toBe(555);
+  });
+});

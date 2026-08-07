@@ -42,6 +42,9 @@ const TABLES = {
   checkouts: 'checkouts',
   orderTransfers: 'order_transfers',
   platformSettings: 'platform_settings',
+  // OPS-01b — the refund ledger. One row per money-back event, with the
+  // Stripe reversal and refund ids that prove it happened.
+  refunds: 'refunds',
   // LEG-02/LEG-03 — consent to the legal documents: which version, when, from
   // where. Append-only.
   legalAcceptances: 'legal_acceptances',

@@ -90,6 +90,62 @@ const handlePaymentSucceeded = async ({ checkoutId, paymentIntentId, eventId }) 
   }
 };
 
+/**
+ * A refund we did not issue — someone used the Stripe dashboard.
+ *
+ * We cannot tell which farmer group it belongs to (one PaymentIntent covers
+ * the whole basket), so this does not try to guess. It records the fact
+ * loudly, so a reconciliation run has something to start from, rather than
+ * leaving an order that reads "paid" while the money has gone back.
+ */
+const reconcileRefundFromStripe = async (charge) => {
+  const paymentIntentId = String(charge?.payment_intent || '');
+  if (!paymentIntentId) {
+    return;
+  }
+
+  const { data: checkout } = await supabase
+    .from(TABLES.checkouts)
+    .select('id, client_id')
+    .eq('stripe_payment_intent_id', paymentIntentId)
+    .maybeSingle();
+
+  if (!checkout) {
+    return;
+  }
+
+  const refundedBani = Number(charge?.amount_refunded || 0);
+
+  // Did we already record refunds covering this? If so there is nothing to say.
+  const { data: known } = await supabase
+    .from(TABLES.refunds)
+    .select('amount_bani, state')
+    .eq('checkout_id', String(checkout.id));
+
+  const accountedBani = (known || [])
+    .filter((row) => row.state !== 'failed')
+    .reduce((sum, row) => sum + Number(row.amount_bani || 0), 0);
+
+  if (accountedBani >= refundedBani) {
+    return;
+  }
+
+  await recordAudit({
+    actorType: 'system',
+    actorId: 'stripe',
+    action: ACTIONS.REFUND_COMPLETED,
+    entityType: 'checkout',
+    entityId: String(checkout.id),
+    oldValue: `accounted:${accountedBani}`,
+    newValue: `stripe_refunded:${refundedBani}`,
+  });
+
+  console.error(
+    `[webhook] Checkout ${checkout.id}: Stripe reports ${refundedBani} bani refunded but our ledger ` +
+      `accounts for ${accountedBani}. A refund was issued outside the app — reconcile by hand.`,
+  );
+};
+
 router.post('/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
   const sig = req.headers['stripe-signature'];
 
@@ -174,6 +230,16 @@ router.post('/stripe', express.raw({ type: 'application/json' }), async (req, re
             newValue: `charges_enabled=${result.chargesEnabled}`,
           });
         }
+        break;
+      }
+
+      case 'charge.refunded': {
+        // Reconciliation only. We issue every refund ourselves in
+        // `lib/refunds.js` and write the ledger there, so this event normally
+        // describes something we already know. It matters when a refund was
+        // issued from the Stripe dashboard by hand: without this, the order
+        // would still read as fully paid.
+        await reconcileRefundFromStripe(event.data.object);
         break;
       }
 

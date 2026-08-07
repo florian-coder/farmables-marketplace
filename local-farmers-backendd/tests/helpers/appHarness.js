@@ -13,16 +13,25 @@ const ORIGIN = 'http://localhost:5173';
  * Construiește o aplicație izolată. Fiecare apel primește module proaspete,
  * ca starea limitatoarelor de rată să nu se scurgă între teste.
  */
-const buildApp = (seed = {}) => {
+const buildApp = (seed = {}, options = {}) => {
   // Registru curat la fiecare apel: altfel starea limitatoarelor de rată și
   // clientul Supabase deja capturat de rute s-ar scurge între teste.
   jest.resetModules();
-  const fake = createFakeSupabase(seed);
+  const fake = createFakeSupabase(seed, { rpc: options.rpc });
 
   jest.doMock('../../src/lib/supabase.js', () => {
     const actual = jest.requireActual('../../src/lib/supabase.js');
     return { ...actual, supabase: fake };
   });
+
+  // Stripe e înlocuit doar când testul cere: rutele care nu ating plăți
+  // trebuie să treacă în continuare prin clientul real, neapelat.
+  if (options.stripe) {
+    jest.doMock('../../src/lib/stripeClient.js', () => {
+      const actual = jest.requireActual('../../src/lib/stripeClient.js');
+      return { ...actual, stripe: options.stripe };
+    });
+  }
 
   // eslint-disable-next-line global-require
   const app = require(path.join(BACKEND_ROOT, 'src/app.js'));

@@ -25,6 +25,31 @@ const ACTIONS = Object.freeze({
   CONNECT_ONBOARDING_STARTED: 'connect.onboarding_started',
   PAYOUT_SETTINGS_CHANGED: 'payout.settings_changed',
   TRANSFER_SENT: 'transfer.sent',
+  // SEC-11 — the actions that move money, change who can sell, or expose a
+  // private conversation. These are the ones someone will need to reconstruct
+  // months later, so they leave a trace even though nothing in the request
+  // path depends on them.
+  ORDER_CANCELLED: 'order.cancelled',
+  TRANSFER_REVERSED: 'transfer.reversed',
+  REFUND_INITIATED: 'refund.initiated',
+  REFUND_COMPLETED: 'refund.completed',
+  REFUND_FAILED: 'refund.failed',
+  REFUND_MANUAL_REQUIRED: 'refund.manual_required',
+  FARM_REJECTED: 'farm.rejected',
+  FARM_DELETED: 'farm.deleted',
+  FARM_SUSPENDED: 'farm.suspended',
+  FARM_UNSUSPENDED: 'farm.unsuspended',
+  PERMISSION_CHANGED: 'permission.changed',
+  CONVERSATION_VIEWED: 'conversation.viewed',
+  MESSAGE_REPORTED: 'message.reported',
+  USER_BLOCKED: 'user.blocked',
+  USER_UNBLOCKED: 'user.unblocked',
+  DISPUTE_OPENED: 'dispute.opened',
+  DISPUTE_RESOLVED: 'dispute.resolved',
+  ACCOUNT_DELETED: 'account.deleted',
+  DATA_EXPORTED: 'data.exported',
+  ADMIN_2FA_ENROLLED: 'admin.2fa_enrolled',
+  ADMIN_2FA_FAILED: 'admin.2fa_failed',
 });
 
 /** Adresa clientului, cu încredere în proxy doar prin `trust proxy` din app. */

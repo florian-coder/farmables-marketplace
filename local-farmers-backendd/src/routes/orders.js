@@ -6,6 +6,14 @@ const {
   RATING_ORDER_STATES,
   recalculateAndPersistProductRatings,
 } = require('../lib/productRating');
+const {
+  ORDER_STATES,
+  actorForRole,
+  allowedTransitions,
+  evaluateTransition,
+} = require('../lib/orderState');
+const { ACTIONS, recordAudit } = require('../lib/audit');
+const { cancelPaidOrder } = require('../lib/refunds');
 
 const router = express.Router();
 
@@ -31,6 +39,12 @@ const ORDER_COLUMNS = [
   'transfer_amount_bani',
   'transfer_state',
   'paid_at',
+  // OPS-01b — what has gone back, so the card can say so without a join.
+  'refund_state',
+  'refunded_bani',
+  'cancelled_at',
+  'cancelled_by',
+  'cancel_reason',
 ].join(', ');
 
 const ORDER_ITEM_COLUMNS = [
@@ -64,17 +78,6 @@ const PRODUCT_COLUMNS = [
   'instant_buy',
 ].join(', ');
 
-const ORDER_STATES = [
-  'placed_order',
-  'pending_order',
-  'received_by_farmer',
-  'preparing_order',
-  'in_transit',
-  'arrived',
-  'received',
-  'cancelled',
-];
-
 const PENDING_STATES = ['placed_order', 'pending_order'];
 const ACTIVE_STATES = ['received_by_farmer', 'preparing_order', 'in_transit', 'arrived'];
 const HISTORY_STATES = ['received', 'cancelled'];
@@ -87,23 +90,8 @@ const ORDER_BUCKETS = {
 
 // Payment is no longer a per-order action: the whole cart is paid once, from
 // the cart summary, so "Pay & Place order" is gone from here. What remains
-// per order is what a single farmer group can still do on its own.
-const ALLOWED_TRANSITIONS = {
-  customer: {
-    placed_order: [{ nextState: 'cancelled', label: 'Empty basket' }],
-    pending_order: [{ nextState: 'cancelled', label: 'Cancel order' }],
-    arrived: [{ nextState: 'received', label: 'Confirm received' }],
-  },
-  vendor: {
-    pending_order: [{ nextState: 'cancelled', label: 'Decline order' }],
-    received_by_farmer: [
-      { nextState: 'preparing_order', label: 'Preparing order' },
-      { nextState: 'cancelled', label: 'Decline order' },
-    ],
-    preparing_order: [{ nextState: 'in_transit', label: 'In transit' }],
-    in_transit: [{ nextState: 'arrived', label: 'Arrived' }],
-  },
-};
+// per order is what a single farmer group can still do on its own — and which
+// of those moves are legal is decided by `lib/orderState.js`, not here.
 
 const resolveArray = (value) => (Array.isArray(value) ? value : []);
 
@@ -186,6 +174,11 @@ const mapOrderRow = (row) => ({
   transferAmountBani: toBaniValue(row.transfer_amount_bani),
   transferState: row.transfer_state || 'none',
   paidAt: row.paid_at || null,
+  refundState: row.refund_state || 'none',
+  refundedBani: toBaniValue(row.refunded_bani),
+  cancelledAt: row.cancelled_at || null,
+  cancelledBy: row.cancelled_by || null,
+  cancelReason: row.cancel_reason || '',
 });
 
 const mapOrderItemRow = (row) => ({
@@ -259,13 +252,8 @@ const canAccessOrder = (user, vendorRecord, order) => {
   return false;
 };
 
-const resolveAllowedActions = (role, orderState) => {
-  const roleActions = ALLOWED_TRANSITIONS[role] || {};
-  return resolveArray(roleActions[orderState]).map((entry) => ({
-    nextState: entry.nextState,
-    label: entry.label,
-  }));
-};
+const resolveAllowedActions = (role, orderState) =>
+  allowedTransitions(actorForRole(role), orderState);
 
 const fetchOrdersByStates = async ({ user, vendorRecord, states }) => {
   const safeStates = resolveArray(states).filter((state) => ORDER_STATES.includes(state));
@@ -477,6 +465,11 @@ const fetchOrderDetails = async ({ orders, user }) => {
       transferAmountBani: order.transferAmountBani,
       transferState: order.transferState,
       paidAt: order.paidAt,
+      refundState: order.refundState,
+      refundedBani: order.refundedBani,
+      cancelledAt: order.cancelledAt,
+      cancelledBy: order.cancelledBy,
+      cancelReason: order.cancelReason,
       partner,
       items,
       replies,
@@ -696,12 +689,10 @@ router.patch('/:orderId/state', requireAuth, async (req, res, next) => {
   try {
     const orderId = normalizeIdentifier(req.params.orderId);
     const nextState = normalizeIdentifier(req.body?.nextState);
+    const reason = String(req.body?.reason || '').trim().slice(0, 500);
 
     if (!orderId) {
       return res.status(400).json({ error: 'orderId is required.' });
-    }
-    if (!ORDER_STATES.includes(nextState)) {
-      return res.status(400).json({ error: 'Invalid nextState.' });
     }
 
     const vendorRecord =
@@ -714,43 +705,17 @@ router.patch('/:orderId/state', requireAuth, async (req, res, next) => {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
-    const allowedActions = resolveAllowedActions(req.user.role, order.orderState);
-    const canTransition = allowedActions.some((entry) => entry.nextState === nextState);
-    if (!canTransition) {
-      return res.status(400).json({
-        error: `Transition from ${order.orderState} to ${nextState} is not allowed.`,
-      });
+    // One decision, one place. The route no longer knows the rules — it only
+    // knows how to carry out whichever verdict comes back.
+    const actor = actorForRole(req.user.role);
+    const verdict = evaluateTransition({ actor, from: order.orderState, to: nextState });
+    if (!verdict.ok) {
+      return res.status(verdict.status).json({ error: verdict.error, code: verdict.code });
     }
 
-    if (nextState === 'cancelled') {
-      // OPS-01 — a paid order is never deleted. Only an untouched cart, which
-      // has no payment and no accounting trace, is removed outright; anything
-      // that reached Stripe becomes a `cancelled` row so the money, the stock
-      // and the traceability record all survive. The refund side of this
-      // lands in the next delivery.
-      if (order.orderState !== 'placed_order') {
-        const { error: cancelError } = await supabase
-          .from(TABLES.orders)
-          .update({
-            order_state: 'cancelled',
-            cancelled_at: new Date().toISOString(),
-            cancelled_by: req.user.role === 'vendor' ? 'farmer' : 'customer',
-            cancel_reason: String(req.body?.reason || '').trim().slice(0, 500),
-          })
-          .eq('id', orderId);
-
-        if (cancelError) {
-          return res.status(500).json({ error: cancelError.message || 'Unable to cancel order.' });
-        }
-
-        const cancelledOrder = await fetchDetailedOrder({
-          orderId,
-          user: req.user,
-          vendorRecord,
-        });
-        return res.json({ order: cancelledOrder });
-      }
-
+    if (verdict.deletesRow) {
+      // An untouched cart has no payment, no reserved stock and no accounting
+      // trace, so it is removed outright rather than kept as a cancelled row.
       const { error: deleteError } = await supabase
         .from(TABLES.orders)
         .delete()
@@ -761,9 +726,35 @@ router.patch('/:orderId/state', requireAuth, async (req, res, next) => {
         return res.status(500).json({ error: deleteError.message || 'Unable to delete cart.' });
       }
 
-      return res.json({
-        order: { id: orderId, deleted: true }
+      return res.json({ order: { id: orderId, deleted: true } });
+    }
+
+    if (nextState === 'cancelled') {
+      // OPS-01b — cancelling is never just a status write. The stock goes back
+      // on the shelf and the money starts its way back to the customer, both
+      // driven from one place so the two cannot diverge.
+      const outcome = await cancelPaidOrder({
+        req,
+        orderId,
+        actor,
+        actorId: req.user.id,
+        reason,
+        refundRequired: verdict.refundRequired,
       });
+
+      if (!outcome.ok) {
+        return res.status(outcome.status || 500).json({
+          error: outcome.error || 'Unable to cancel order.',
+          code: outcome.code,
+        });
+      }
+
+      const cancelledOrder = await fetchDetailedOrder({
+        orderId,
+        user: req.user,
+        vendorRecord,
+      });
+      return res.json({ order: cancelledOrder, refund: outcome.refund || null });
     }
 
     const { error: updateError } = await supabase
@@ -773,6 +764,17 @@ router.patch('/:orderId/state', requireAuth, async (req, res, next) => {
     if (updateError) {
       return res.status(500).json({ error: updateError.message || 'Unable to update order.' });
     }
+
+    await recordAudit({
+      req,
+      actorType: actor,
+      actorId: req.user.id,
+      action: ACTIONS.ORDER_STATE_CHANGED,
+      entityType: 'order',
+      entityId: orderId,
+      oldValue: order.orderState,
+      newValue: nextState,
+    });
 
     const includedBefore = RATING_ORDER_STATES.includes(order.orderState);
     const includedAfter = RATING_ORDER_STATES.includes(nextState);

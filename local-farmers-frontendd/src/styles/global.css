@@ -2463,6 +2463,39 @@ a {
   color: var(--bad);
 }
 
+/* --- OPS-01b: unde sunt banii după o anulare ---
+   O comandă anulată fără niciun cuvânt despre rambursare e cel mai alarmant
+   lucru pe care i-l poți arăta unui client, așa că are întotdeauna un rând. */
+.order-cancel-reason {
+  margin: 0;
+  padding: var(--s-3) var(--s-4) 0;
+  font-size: 0.86rem;
+  color: var(--ink-muted);
+}
+
+.order-refund-notice {
+  margin: var(--s-3) var(--s-4) 0;
+  padding: var(--s-3);
+  border-radius: var(--r-md);
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.order-refund-notice.is-ok {
+  background: var(--ok-lo);
+  color: var(--ok);
+}
+
+.order-refund-notice.is-info {
+  background: var(--sky-lo);
+  color: var(--sky);
+}
+
+.order-refund-notice.is-warn {
+  background: var(--warn-lo);
+  color: var(--warn);
+}
+
 /* --- traseul comenzii: șase pași, nu un singur badge --- */
 .order-timeline {
   display: flex;

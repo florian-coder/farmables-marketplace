@@ -11,6 +11,22 @@ const UNIQUE_KEYS = {
   stripe_events: ['id'],
   auth_tokens: ['token_hash'],
   users: ['username'],
+  // Cheia unică pe `order_id` E mecanismul de idempotență al transferurilor.
+  order_transfers: ['order_id'],
+};
+
+/**
+ * Indexuri unice parțiale: perechea (coloane, predicat). `refunds` are unul
+ * singur — o comandă se rambursează integral cel mult o dată — și fără el
+ * testul de idempotență ar trece degeaba.
+ */
+const PARTIAL_UNIQUE_KEYS = {
+  refunds: [
+    {
+      columns: ['order_id'],
+      where: (row) => row.kind === 'full' && row.state !== 'failed',
+    },
+  ],
 };
 
 const matchesFilters = (row, filters) =>
@@ -20,7 +36,15 @@ const matchesFilters = (row, filters) =>
     if (filter.type === 'neq') return String(actual) !== String(filter.value);
     if (filter.type === 'in') return filter.value.map(String).includes(String(actual));
     if (filter.type === 'gte') return String(actual) >= String(filter.value);
+    if (filter.type === 'gt') return String(actual) > String(filter.value);
+    if (filter.type === 'lte') return String(actual) <= String(filter.value);
+    if (filter.type === 'lt') return String(actual) < String(filter.value);
     if (filter.type === 'is') return actual === filter.value;
+    if (filter.type === 'not') {
+      // Doar forma `not(column, 'is', null)`, singura folosită de rute.
+      if (filter.operator === 'is') return actual !== filter.value;
+      return String(actual) !== String(filter.value);
+    }
     // `or('a.eq.1,b.eq.2')` — PostgREST syntax, only the eq form is used.
     if (filter.type === 'or') {
       return filter.value
@@ -33,7 +57,13 @@ const matchesFilters = (row, filters) =>
     return true;
   });
 
-const createFakeSupabase = (initial = {}) => {
+/**
+ * @param initial  rânduri de pornire, per tabelă
+ * @param options.rpc  handlere pentru funcțiile SQL, `name -> (args, db) => data`.
+ *                     Fără handler, `rpc` întoarce `{ success: true }` ca înainte.
+ */
+const createFakeSupabase = (initial = {}, options = {}) => {
+  const rpcHandlers = options.rpc || {};
   const db = {};
   for (const [table, rows] of Object.entries(initial)) {
     db[table] = clone(rows);
@@ -52,10 +82,28 @@ const createFakeSupabase = (initial = {}) => {
 
   const violatesUnique = (table, row) => {
     const keys = UNIQUE_KEYS[table];
-    if (!keys) return false;
-    return tableOf(table).some((existing) =>
-      keys.every((key) => existing[key] !== undefined && existing[key] === row[key]),
-    );
+    if (
+      keys &&
+      tableOf(table).some((existing) =>
+        keys.every((key) => existing[key] !== undefined && existing[key] === row[key]),
+      )
+    ) {
+      return true;
+    }
+
+    for (const index of PARTIAL_UNIQUE_KEYS[table] || []) {
+      if (!index.where(row)) continue;
+      const clash = tableOf(table).some(
+        (existing) =>
+          index.where(existing) &&
+          index.columns.every(
+            (key) => existing[key] !== undefined && String(existing[key]) === String(row[key]),
+          ),
+      );
+      if (clash) return true;
+    }
+
+    return false;
   };
 
   const makeBuilder = (table) => {
@@ -186,8 +234,24 @@ const createFakeSupabase = (initial = {}) => {
         state.filters.push({ type: 'gte', column, value });
         return builder;
       },
+      gt(column, value) {
+        state.filters.push({ type: 'gt', column, value });
+        return builder;
+      },
+      lte(column, value) {
+        state.filters.push({ type: 'lte', column, value });
+        return builder;
+      },
+      lt(column, value) {
+        state.filters.push({ type: 'lt', column, value });
+        return builder;
+      },
       is(column, value) {
         state.filters.push({ type: 'is', column, value });
+        return builder;
+      },
+      not(column, operator, value) {
+        state.filters.push({ type: 'not', column, operator, value });
         return builder;
       },
       or(expression) {
@@ -245,6 +309,15 @@ const createFakeSupabase = (initial = {}) => {
     from: (table) => makeBuilder(table),
     rpc: async (name, args) => {
       calls.rpc.push({ name, args });
+      const handler = rpcHandlers[name];
+      if (typeof handler === 'function') {
+        const result = await handler(args, db);
+        // Un handler poate întoarce direct datele sau perechea {data,error}.
+        if (result && typeof result === 'object' && ('data' in result || 'error' in result)) {
+          return { data: result.data ?? null, error: result.error ?? null };
+        }
+        return { data: result ?? null, error: null };
+      }
       return { data: { success: true }, error: null };
     },
     storage: { from: storageBucket },

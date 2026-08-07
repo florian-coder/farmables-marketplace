@@ -19,6 +19,8 @@ const toStoragePath = (value) => {
   return index !== -1 ? decodeURIComponent(raw.slice(index + marker.length)) : raw;
 };
 const { recalculateAndPersistProductRatings } = require('../lib/productRating');
+const { issueRefund, cancelPaidOrder, loadOrderForRefund } = require('../lib/refunds');
+const { evaluateTransition } = require('../lib/orderState');
 const {
   ADMIN_COOKIE_NAME,
   ADMIN_SESSION_TTL_MS,
@@ -626,6 +628,143 @@ router.delete('/products/:productId', requireAdmin, async (req, res, next) => {
     return res.json({
       product: mapProductToApi(deletedProduct),
     });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+/**
+ * OPS-01b — refunding from the admin panel.
+ *
+ * The only route that can issue a *partial* refund. A customer or farmer
+ * cancelling gets an all-or-nothing decision; deciding that two of five kilos
+ * were missing is a judgement call, and judgement calls are made by a person
+ * looking at the evidence.
+ *
+ * `productsBani` is what to give back of the product subtotal. The delivery
+ * fee and the proportional commission follow from it — see `refundBreakdown`.
+ */
+router.post('/orders/:orderId/refund', requireAdmin, async (req, res, next) => {
+  try {
+    const orderId = String(req.params?.orderId || '').trim();
+    if (!orderId) {
+      return res.status(400).json({ error: 'orderId is required.' });
+    }
+
+    const order = await loadOrderForRefund(orderId);
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found.' });
+    }
+    if (!order.paid_at) {
+      return res.status(409).json({
+        error: 'This order was never paid for, so there is nothing to refund.',
+        code: 'not_paid',
+      });
+    }
+
+    const rawProducts = req.body?.productsBani;
+    const refundProductsBani =
+      rawProducts === undefined || rawProducts === null || rawProducts === ''
+        ? null
+        : Number(rawProducts);
+
+    if (refundProductsBani !== null && (!Number.isFinite(refundProductsBani) || refundProductsBani <= 0)) {
+      return res.status(400).json({
+        error: 'productsBani must be a positive number of bani, or omitted for a full refund.',
+      });
+    }
+
+    const reason = String(req.body?.reason || '').trim().slice(0, 500);
+    if (!reason) {
+      return res.status(400).json({ error: 'A reason is required for every refund.' });
+    }
+
+    const result = await issueRefund({
+      req,
+      order,
+      reason,
+      actorType: 'admin',
+      actorId: req.admin.username,
+      refundProductsBani,
+    });
+
+    if (!result.refunded) {
+      // `already_claimed` and `over_refund` are conflicts, not server errors:
+      // the request was fine, the order simply is not in a state to accept it.
+      const status =
+        result.reason === 'already_claimed' || result.reason === 'over_refund' || result.reason === 'nothing_to_refund'
+          ? 409
+          : 502;
+      return res.status(status).json({
+        error: result.error || 'The refund could not be completed.',
+        code: result.reason,
+        detail: result.detail || null,
+        breakdown: result.breakdown,
+      });
+    }
+
+    return res.json({
+      refund: {
+        id: result.refundId,
+        kind: result.breakdown.kind,
+        amountBani: result.breakdown.amountBani,
+        breakdown: result.breakdown,
+        stripeRefundId: result.stripeRefundId,
+        reversalId: result.reversalId,
+        manualRecoveryNeeded: result.manualRecoveryNeeded,
+      },
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+/**
+ * OPS-01b / OPS-03 — cancel an order from the panel, refund included.
+ *
+ * Goes through the same state machine as everyone else. An admin has more
+ * edges available (they can reverse a `received` order after a dispute), but
+ * they are edges in the same table, not a bypass around it.
+ */
+router.post('/orders/:orderId/cancel', requireAdmin, async (req, res, next) => {
+  try {
+    const orderId = String(req.params?.orderId || '').trim();
+    const reason = String(req.body?.reason || '').trim().slice(0, 500);
+    if (!orderId) {
+      return res.status(400).json({ error: 'orderId is required.' });
+    }
+    if (!reason) {
+      return res.status(400).json({ error: 'A reason is required when an admin cancels an order.' });
+    }
+
+    const order = await loadOrderForRefund(orderId);
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found.' });
+    }
+
+    const verdict = evaluateTransition({
+      actor: 'admin',
+      from: order.order_state,
+      to: 'cancelled',
+    });
+    if (!verdict.ok) {
+      return res.status(verdict.status).json({ error: verdict.error, code: verdict.code });
+    }
+
+    const outcome = await cancelPaidOrder({
+      req,
+      orderId,
+      actor: 'admin',
+      actorId: req.admin.username,
+      reason,
+      refundRequired: verdict.refundRequired,
+    });
+
+    if (!outcome.ok) {
+      return res.status(outcome.status || 500).json({ error: outcome.error, code: outcome.code });
+    }
+
+    return res.json({ cancelled: true, orderId, refund: outcome.refund || null });
   } catch (error) {
     return next(error);
   }
