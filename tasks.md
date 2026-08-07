@@ -1,189 +1,179 @@
 # Open work
 
-Tracked against the August 2026 audit (38 findings). Architecture and conventions
-are in [`CODEBASE_SUMMARY.md`](./CODEBASE_SUMMARY.md).
+The August 2026 audit (38 findings) is closed in code. What is left is work
+only you can do: run the migrations, fill the legal placeholders, and make five
+business decisions.
 
-Status key: **OPEN** · **PARTIAL** (started, not finished) · **DEFERRED** (decided, later)
-
----
-
-## Blocking the first real customer
-
-### OPS-01b — Refunds do not exist ⚠ the biggest hole
-**PARTIAL.** Half of OPS-01 is done: a paid order becomes `cancelled` instead of
-being deleted, with `cancelled_by` / `cancel_reason` / `cancelled_at`. The other
-half was never built.
-
-What is missing, verified in code:
-- **No refund code anywhere.** `grep -ri refund src/` returns only a comment.
-  A customer whose paid order is declined by the farmer gets no money back.
-- **Stock is not restored on cancellation.** `rollback_checkout` only handles
-  unpaid checkouts. Cancelling a paid order silently loses the stock.
-- **No `Transfer Reversal`.** The farmer has already been paid by the time a
-  cancellation happens, so the money must be clawed back before refunding.
-- **No `refunds` table.**
-- **No state machine.** Transitions are validated by a lookup table in
-  `orders.js`; invalid ones return 400, and the spec asks for 409 plus a single
-  transition function.
-
-Build:
-- `refunds` table: order, group, amount, reason, author, `stripe_refund_id`,
-  `stripe_transfer_reversal_id`, state, timestamps.
-- Full and partial refund. Full = products + delivery + commission. Partial =
-  missing products + proportional commission, delivery kept if anything shipped.
-- Reversal before refund. Handle insufficient balance (farmer already withdrew):
-  log, alert admin, mark the group `refund_pending_manual`.
-- Restore stock **in the same transaction** as the cancellation.
-- One transition function with an explicit state machine; invalid → 409.
-
-### OPS-02 — No notifications at all
-**DEFERRED by decision, but this is the largest operational gap.** No email, no
-SMS, no push. Realtime only works while a tab is open. A farmer can miss an
-order for days; for perishable goods that is fatal. It is also the only reason a
-farmer would prefer a free Facebook group.
-
-`src/lib/mailer.js` exists (Resend, single `sendMail`). Missing: `email_outbox`
-table with retry/backoff (max 5) and `event_key` uniqueness, `src/emails/`
-templates with a shared layout and plain-text fallback, and sending that does not
-block the HTTP request or break the transaction.
-
-Events: new order → farmer · payment confirmation + summary → customer (durable
-medium, required by GEO 34/2014) · state changes → customer · cancellation +
-refund initiated → customer · refund completed → customer · new chat message
-(debounced, max 1 per 15 min per conversation) · email verification · password
-reset · Stripe onboarding incomplete → farmer · transfer sent → farmer ·
-account approved/rejected → farmer.
-
-**Blocks:** the order confirmation email in LEG-02, and the refund notifications
-in OPS-01b.
-
-### LEG-02 — Distance selling obligations, partially done
-**PARTIAL.** Done: customer + producer terms (English, versioned Markdown,
-draft status banner), consent at signup with version + timestamp + IP,
-"Order with obligation to pay" button, full price breakdown before payment.
-
-Missing:
-- Privacy policy, return policy, cookies page, contact page — the renderer and
-  routing already exist, they need content files and registry entries.
-- Footer: ANPC + SAL links, and operator identification (name, CUI, registered
-  office, email, phone) as config variables.
-- **Consent at order placement**, not only at signup. The registry already
-  supports it (`requiredAtOrder: true` on the customer terms) — it just is not
-  wired into checkout.
-- Order confirmation on a durable medium → depends on OPS-02.
-
-### LEG-03 — GDPR
-**DEFERRED.** No privacy policy, no documented legal bases, no Art. 30 register,
-no processor agreements (Supabase, Stripe, Vercel, Resend), no retention policy.
-
-- **Account deletion (Art. 17):** anonymise personal data, keep orders
-  pseudonymised for accounting and food traceability. Document exactly what is
-  erased and what is kept.
-- **Data export (Art. 20):** downloadable JSON. `acceptancesFor()` in
-  `legalAcceptance.js` is already written for this.
+Architecture and conventions are in [`CODEBASE_SUMMARY.md`](./CODEBASE_SUMMARY.md).
 
 ---
 
-## Security
+## ⚠ 1. Run the migrations, in this order
 
-### SEC-01 — RLS ⚠ verify before anything else
-**UNVERIFIED — the only remaining *Critical*.** New tables (`checkouts`,
-`order_transfers`, `platform_settings`, `legal_acceptances`) have RLS on with no
-policies. The seven original tables were never covered by any migration here.
+**Nothing in `sql/` runs automatically.** Each file is pasted into the Supabase
+SQL Editor. They are idempotent — a second run changes nothing — but the order
+matters, and two of them have a deploy-order constraint.
 
-```sql
-select tablename, rowsecurity from pg_tables
-where schemaname = 'public'
-  and tablename in ('orders','order_items','order_replies','messages',
-                    'conversations','farmer_requests','products');
+| # | File | Notes |
+|---|---|---|
+| 03 | `03_refunds.sql` | **Before** deploying. The backend calls `cancel_order_with_stock`. |
+| 04 | `04_email_outbox.sql` | Either side of the deploy. |
+| 05 | `05_order_maintenance.sql` | Either side. |
+| 06 | `06_privacy.sql` | Either side. |
+| 07 | `07_email_status.sql` | Run PART 1 alone first to see the scale. |
+| 08 | `08_admin_users.sql` | **Before** deploying. The login route reads `admin_users`. |
+| 09 | `09_rls_hardening.sql` | ⚠ **Last, and only after both apps are deployed.** See below. |
+| 10 | `10_moderation_disputes.sql` | Before deploying. |
+| 11 | `11_fulfilment.sql` | Before deploying. |
+| 12 | `12_food_labelling.sql` | Before deploying. |
+| 13 | `13_trader_details.sql` | Before deploying. |
+| 14 | `14_seasonality_subscriptions.sql` | Before deploying. |
+
+### The one with a real ordering constraint — 09
+
+Enabling RLS breaks the browser's old Supabase Realtime subscription. The
+replacement (a backend SSE channel) ships with the code, so:
+
+1. deploy the **backend** (SSE endpoint + server-side subscription)
+2. deploy the **frontend** (no Supabase client at all any more)
+3. **then** run `09_rls_hardening.sql`
+
+Between 2 and 3 nothing is broken — you are simply still exposed. Doing 3 first
+freezes live updates for anyone mid-session.
+
+### Environment variables to set before deploying
+
 ```
-Any `rowsecurity = false` means the publishable key in the JS bundle can still
-read and write it. **Enabling RLS on `orders`/`messages` breaks browser
-Realtime** (sessions are not Supabase Auth) — move Realtime to a backend SSE/WS
-channel, or migrate to Supabase Auth, before flipping it.
+SUPABASE_SERVICE_ROLE_KEY   # the backend now REFUSES TO BOOT without it
+OPERATOR_LEGAL_NAME         # these render in the footer and every email
+OPERATOR_CUI
+OPERATOR_TRADE_REGISTER
+OPERATOR_ADDRESS
+OPERATOR_EMAIL
+OPERATOR_PHONE
+VITE_OPERATOR_*             # the same values, for the frontend footer
+RESEND_API_KEY              # without it, email is logged to the console
+```
 
-### SEC-03 — Private docs bucket
-**UNVERIFIED.** `sql/security_hardening.sql` sets it. Confirm:
-`select id, public from storage.buckets;` Already-public URLs may be cached.
+The backend warns at boot for every `OPERATOR_*` still on a placeholder.
 
-### SEC-09b — Legacy auto-generated emails
-**PARTIAL.** Verification and reset work; `email_verified` is written but
-**never enforced**. Accounts created before this with generated
-`user@localfarmers.app` addresses were never migrated to a "missing email" state
-that blocks checkout until corrected.
+### After deploying
 
-### SEC-11 — Audit log coverage
-**PARTIAL.** Table, indexes and `recordAudit()` exist. Coverage is thin —
-`recordAudit` appears **zero times in `orders.js`**, so order state transitions
-are unaudited. Add: state transitions, refunds, admin approvals/rejections,
-permission grants, suspensions, admin access to private conversations.
-Make it append-only (revoke UPDATE/DELETE) like `legal_acceptances`.
-
-### SEC-12 — Admin hardening
-**OPEN.** One shared credential from env, no 2FA, no per-admin identity, no IP
-allowlist. Need `admin_users` with TOTP (`otplib`), hashed backup codes, max 8h
-sessions, separate rate limiting. **The current password is in git history —
-treat it as compromised.**
-
-### OPS-07 — Chat moderation
-**OPEN.** No reporting, blocking, admin visibility or filtering.
+- Sign in to `/manage-portal` once with the existing `ADMIN_USERNAME` /
+  `ADMIN_PASSWORD`. It bootstraps one `admin_users` row and immediately demands
+  TOTP enrolment. **Save the backup codes — they are shown once.**
+- Then set `ADMIN_BOOTSTRAP_DISABLED=1` and redeploy. **The old admin password
+  is in git history; treat it as public.** This is what makes it inert.
+- Check `/api/health/diagnostics` — it lists stuck emails, refunds needing
+  manual recovery, failed transfers and placeholder operator data.
 
 ---
 
-## Before scaling
+## 2. Fill the legal placeholders, then get sign-off
 
-- **OPS-03 disputes** — `disputes` table, evidence upload to a **private** bucket
-  served via short-lived `createSignedUrl`, 48h farmer response then auto-escalation,
-  opening window after `arrived`. Admin tools: search orders, view history, refund
-  from the panel, suspend a farm with reason and notice, view a conversation in
-  dispute context (with access logged).
-- **OPS-04** — auto-confirm orders stuck in `arrived` after N days, with prior email.
-- **OPS-05** — phone/email still render as `tel:`/`mailto:` on the public farm page
-  before any order. Reveal only after a first paid order. **DEFERRED.**
-- **OPS-06** — no working hours, holidays, daily capacity or partial fulfilment.
-  A farmer with 3 of 5 kg can only decline the whole order.
-- **LEG-04 food labelling** — allergens, net quantity, storage, durability, batch,
-  producer details, origin. Eggs (Reg. 589/2008), honey (HG 1050/2003). "Bio" only
-  with an admin-validated certificate that auto-expires. Block publishing without
-  the mandatory fields for the category.
-- **LEG-05 P2B** — producer terms now cover 30-day notice, internal complaints and
-  mediators (mediator names still `[TO BE COMPLETED]`). Missing: a **public page
-  explaining ranking parameters**; §5.1 is still a placeholder.
-  Also `farmerRanking.js` uses `meat` / `fruits_and_vegetables` / `dairy_products`
-  while the site sells fruit & veg, eggs and honey — two categories are always empty.
-- **LEG-07 DSA** — producer CUI and registered office are not shown publicly
-  (Art. 30), although customer terms §7.2 promises it. **DEFERRED.**
-- **LOG-01** — no courier, tracking or delivery slots. Explicitly out of scope so far.
-- **LOG-04** — variable weight vs prepaid card. Either authorise + capture at the
-  real weight, or a declared tolerance. Customer terms §10.4 has a `±[10]%`
-  placeholder that matches no implementation.
-- **LOG-06** — no seasonality, pre-orders or recurring baskets. The subscription
-  box is the model that actually produces predictable revenue.
+Seven documents in `local-farmers-frontendd/src/content/legal/`, all still
+`status: draft`. Every `[SQUARE BRACKET]` is a decision or a fact only you have.
+
+- `terms-customers.md` · `terms-producers.md` — company details, mediator names
+  (§ P2B), the guarantee decision (§14)
+- `privacy.md` — processor regions, DPO, retention confirmations
+- `returns.md` · `cookies.md` · `contact.md` · `ranking.md` — company details
+
+`ranking.md` fills the LEG-05 gap: it publishes the ranking parameters and the
+50/30/20 weighting the code actually uses, as P2B art. 5 requires.
+
+When a lawyer has signed off:
+
+1. flip `status: draft` → `final` in the frontmatter
+2. bump `version` in **both** the `.md` frontmatter and
+   `src/lib/legalDocuments.js` — they are cross-checked at runtime and a
+   mismatch stops signup
 
 ---
 
-## Product / business decisions (not code)
+## 3. Business decisions (not code)
+
+These are unchanged from the audit. Each one changes text that is already
+written, so they are cheap to act on once decided.
 
 1. **Do we verify producer documents, or not?** Rewrites customer terms §7.4,
    Section 4, and all site marketing. "Partly" is not available — badges plus a
-   disclaimer is the worst legal position (Art. 6(3) DSA + Law 363/2007).
-2. **Do we offer the commercial guarantee?** (producer §14 / customer §14.4) The
-   only thing that commercially justifies 10% against a free Facebook group.
-3. **Platform minimum order.** Break-even is ~11.80 RON of products; with a 15 RON
-   delivery fee it rises to ~14.30. Below that each order loses money.
-   `platform_settings.min_charge_bani` already exists to raise it without a deploy.
-4. **One city, saturated** — delivery radius means growth does not transfer between cities.
-5. Fill the `[PLACEHOLDER]` fields in both legal documents, then flip
-   `status: draft` → `final` **after** a lawyer signs off, bumping `version` in
-   both `legalDocuments.js` and the `.md` frontmatter.
+   disclaimer is the worst legal position (DSA art. 6(3) + Law 363/2007).
+   *The code currently assumes yes: approval checks documents per category.*
+2. **Do we offer the commercial guarantee?** (producer §14 / customer §14.4)
+   The only thing that commercially justifies 10% against a free Facebook group.
+3. **Platform minimum order.** Break-even is ~11.80 RON of products; with a
+   15 RON delivery fee it rises to ~14.30. `platform_settings.min_charge_bani`
+   raises it without a deploy.
+4. **One city, saturated** — delivery radius means growth does not transfer
+   between cities.
+5. **Set `weight_tolerance_bps`** if ±10% is wrong for your produce. It is in
+   `platform_settings`, and customer terms §10.4 states the same number —
+   change both together.
 
 ---
 
-## Done (do not redo)
+## 4. Explicitly out of scope
 
-SEC-02 secrets · SEC-04 CSRF · SEC-05 checkout ownership · SEC-06 webhook signature
-+ idempotency · SEC-07 rate limiting · SEC-08 `token_version` · SEC-10 PDF uploads ·
-SEC-13 request-id error handling · LEG-01 Stripe Connect · LEG-06 sales score no
-longer shown as a star · BIZ-01 commission · BIZ-02 monthly payout removed ·
-BIZ-03 `|| true` permission bug · LOG-02 delivery fee + minimum · LOG-03 single
-payment per basket · LOG-05 stock leak on abandoned checkout
+- **LOG-01 — courier, tracking, delivery slots.** Farms deliver themselves.
+  `lead_time_hours` and `expected_delivery_date` exist as the hooks for the day
+  this changes.
+
+---
+
+## 5. Worth doing next, none of it blocking
+
+- **Backfill the trader details.** `farmers.legal_name`, `trade_register_number`,
+  `cui` and `trader_type` are collected going forward but blank for existing
+  farms. The public page shows an explicit "not supplied yet" until they are —
+  see the verification query in `13_trader_details.sql`.
+- **Complete the catalogue's labelling.** Migration 12 grandfathers existing
+  products (`{"needsAttention": true}`); they keep selling and the next edit
+  completes them. Set yourself a deadline — the query is at the bottom of the file.
+- **Move the outbox and the maintenance sweep to their own process** if volume
+  grows. Both already use `for update skip locked`, so running several
+  instances is safe today; splitting them out is a deployment change, not a
+  code change.
+- **Rate limiting is in-memory.** Correct for one instance. More than one needs
+  Redis, or each instance counts separately.
+
+---
+
+## Done
+
+Every finding below is implemented and covered by tests (333 backend, 3
+frontend). The commit for each explains the reasoning.
+
+**Blocking the first customer**
+OPS-01b refunds (reversal before refund, full + partial, manual-recovery path) ·
+OPS-02 notifications (outbox, 13 templates, retry/backoff) · LEG-02 distance
+selling (5 new documents, footer identification, ANPC/SAL, consent at order) ·
+LEG-03 GDPR (export + anonymising deletion)
+
+**Security**
+SEC-01 RLS on all 23 tables, Realtime moved to a backend SSE channel, Supabase
+removed from the frontend bundle entirely · SEC-03 private docs bucket ·
+SEC-09b email enforcement at checkout · SEC-11 audit coverage + append-only ·
+SEC-12 admin hardening (per-admin identity, TOTP with replay protection, backup
+codes, 8h sessions)
+
+**Operations**
+OPS-03 disputes (48h then auto-escalation, private evidence bucket, admin
+tools) · OPS-04 auto-confirm with prior warning · OPS-05 contact revealed after
+a paid order · OPS-06 availability + partial fulfilment · OPS-07 chat
+moderation (flag-not-block, reporting, blocking)
+
+**Legal / logistics**
+LEG-04 food labelling (1169/2011, eggs 589/2008, honey HG 1050/2003, organic
+certificates that expire) · LEG-05 ranking transparency + category fix ·
+LEG-07 DSA art. 30 trader details · LOG-04 weight tolerance · LOG-06
+seasonality, pre-orders, recurring baskets
+
+**Earlier deliveries**
+SEC-02 secrets · SEC-04 CSRF · SEC-05 checkout ownership · SEC-06 webhook
+signature + idempotency · SEC-07 rate limiting · SEC-08 `token_version` ·
+SEC-10 PDF uploads · SEC-13 request-id errors · LEG-01 Stripe Connect ·
+LEG-06 sales score not shown as a star · BIZ-01 commission · BIZ-02 monthly
+payout removed · BIZ-03 `|| true` permission bug · LOG-02 delivery fee +
+minimum · LOG-03 single payment per basket · LOG-05 stock leak on abandoned
+checkout
