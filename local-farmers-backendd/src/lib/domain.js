@@ -1,3 +1,4 @@
+const { seasonStatus } = require('./seasonality');
 const DEFAULT_MARKETS = [
   {
     id: 'm1',
@@ -178,6 +179,16 @@ const mapProductToApi = (product, vendor = null) => ({
   // purchase is concluded, so they travel with every product, everywhere.
   labelling: product.labelling && typeof product.labelling === 'object' ? product.labelling : {},
   batchCode: product.batch_code || '',
+  // LOG-06 — "back in June" keeps the customer; "out of stock" loses them.
+  season: seasonStatus(product),
+  preorder: {
+    enabled: Boolean(product.preorder_enabled),
+    availableFrom: product.preorder_available_from || null,
+    remaining: Math.max(
+      0,
+      Number(product.preorder_capacity || 0) - Number(product.preorder_committed || 0),
+    ),
+  },
   vendor,
 });
 

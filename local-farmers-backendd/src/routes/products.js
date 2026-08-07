@@ -23,6 +23,13 @@ const PRODUCT_COLUMNS = [
   // LEG-04 — the mandatory particulars travel with the product everywhere.
   'labelling',
   'batch_code',
+  // LOG-06 — the season window and the pre-order slot.
+  'season_start_month',
+  'season_end_month',
+  'preorder_enabled',
+  'preorder_available_from',
+  'preorder_capacity',
+  'preorder_committed',
 ].join(', ');
 
 const FARMER_COLUMNS = [

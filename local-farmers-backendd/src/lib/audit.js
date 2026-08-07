@@ -54,6 +54,9 @@ const ACTIONS = Object.freeze({
   ORDER_FULFILMENT_RECORDED: 'order.fulfilment_recorded',
   FARM_AVAILABILITY_CHANGED: 'farm.availability_changed',
   ORGANIC_CERTIFICATE_REVIEWED: 'organic_certificate.reviewed',
+  SUBSCRIPTION_CREATED: 'subscription.created',
+  SUBSCRIPTION_CANCELLED: 'subscription.cancelled',
+  SUBSCRIPTION_BASKET_BUILT: 'subscription.basket_built',
 });
 
 /**

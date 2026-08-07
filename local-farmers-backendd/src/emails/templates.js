@@ -23,6 +23,11 @@ const STATE_SENTENCES = {
   in_transit: 'Your order is on its way.',
   arrived: 'Your order has arrived. Please confirm you received it.',
   received: 'Thank you — your order is complete.',
+  // LOG-06 — a recurring basket has been built and is waiting to be paid for.
+  // Nothing is charged automatically: the amount is different every week, and
+  // a stored card billed for a number nobody has seen is how chargebacks
+  // happen.
+  basket_ready: 'Your recurring basket is ready to review and pay for.',
 };
 
 const TEMPLATES = {

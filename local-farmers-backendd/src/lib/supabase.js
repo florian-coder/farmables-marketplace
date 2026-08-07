@@ -81,6 +81,9 @@ const TABLES = {
   disputeEvidence: 'dispute_evidence',
   // LEG-04 — "bio" is a claim, and a claim needs a certificate with an expiry.
   organicCertificates: 'organic_certificates',
+  // LOG-06 — the basket that repeats. The schedule lives here; each delivery
+  // becomes an ordinary checkout, so there is no second money path.
+  subscriptions: 'subscriptions',
 };
 
 const dedupe = (values) => {

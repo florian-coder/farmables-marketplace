@@ -16,6 +16,7 @@ const { ACTIONS, recordAudit } = require('./audit');
 const { evaluateTransition } = require('./orderState');
 const { notifyAutoConfirmWarning } = require('./notifications');
 const { hasActiveDispute, escalateOverdueDisputes } = require('./disputes');
+const { generateDueBaskets } = require('./subscriptionRuns');
 const {
   RATING_ORDER_STATES,
   recalculateAndPersistProductRatings,
@@ -145,7 +146,7 @@ const autoConfirmStaleArrivedOrders = async () => {
 };
 
 const runOrderMaintenance = async () => {
-  const summary = { warned: 0, confirmed: 0, escalated: 0, organicClaimsCleared: 0 };
+  const summary = { warned: 0, confirmed: 0, escalated: 0, organicClaimsCleared: 0, baskets: 0 };
   try {
     // OPS-03 first: a case that escalates in this pass must be visible to the
     // auto-confirm sweep that follows it.
@@ -157,6 +158,9 @@ const runOrderMaintenance = async () => {
     summary.organicClaimsCleared = Number(cleared) || 0;
     summary.warned = await warnStaleArrivedOrders();
     summary.confirmed = await autoConfirmStaleArrivedOrders();
+    // LOG-06 — build the baskets that are due. Last, because it creates carts
+    // and nothing above should have to reason about half-built ones.
+    summary.baskets = (await generateDueBaskets()).built;
   } catch (error) {
     console.error('[maintenance] Run failed:', error?.message || error);
   }

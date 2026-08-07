@@ -134,6 +134,19 @@ export default function ProductCard({
             concluded (Reg. 1169/2011 art. 14), not behind a link elsewhere. */}
         <FoodLabel product={product} batchCode={product.batchCode} />
 
+        {/* LOG-06 — "back in June" keeps the customer; "out of stock" loses
+            them, and they do not come back to find out. */}
+        {product.season?.inSeason === false && (
+          <p className={`season-badge ${product.season.canPreorder ? 'is-preorder' : ''}`}>
+            {product.season.label}
+            {product.season.canPreorder && product.preorder?.remaining > 0 && (
+              <span className="season-badge-remaining">
+                {' '}· {product.preorder.remaining} left
+              </span>
+            )}
+          </p>
+        )}
+
         <p className="product-card-meta">
           <span className={`stock-badge ${stockClass}`}>{stockLabel}</span>
           {popularityLabel(product.rating) && (

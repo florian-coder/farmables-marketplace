@@ -4966,3 +4966,26 @@ a {
   font-size: var(--t-1);
   color: var(--warn);
 }
+
+/* LOG-06 — sezon și precomandă.
+   „Revine în octombrie" păstrează clientul; „stoc epuizat" îl pierde, și nu
+   se mai întoarce să verifice. */
+.season-badge {
+  display: inline-block;
+  margin: var(--s-2) 0 0;
+  padding: var(--s-1) var(--s-3);
+  border-radius: var(--r-pill);
+  background: var(--sun-lo);
+  color: var(--sun-dk);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.season-badge.is-preorder {
+  background: var(--sky-lo);
+  color: var(--sky);
+}
+
+.season-badge-remaining {
+  font-weight: 400;
+}

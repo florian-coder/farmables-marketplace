@@ -22,6 +22,7 @@ const connectRouter = require('./routes/connect');
 const legalRouter = require('./routes/legal');
 const eventsRouter = require('./routes/events');
 const disputesRouter = require('./routes/disputes');
+const subscriptionsRouter = require('./routes/subscriptions');
 const { purgeLegacyState } = require('./lib/legacyCleanup');
 
 const app = express();
@@ -99,6 +100,7 @@ app.use('/api/legal', legalRouter);
 // in the browser holding a database key.
 app.use('/api/events', eventsRouter);
 app.use('/api/disputes', disputesRouter);
+app.use('/api/subscriptions', subscriptionsRouter);
 
 app.use((req, res) => {
   res.status(404).json({ error: 'Not Found' });
