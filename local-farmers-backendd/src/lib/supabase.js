@@ -11,14 +11,31 @@ const SUPABASE_PUBLISHABLE_KEY =
   process.env.SUPABASE_PUBLISHABLE_KEY ||
   process.env.SUPABASE_ANON_KEY ||
   'sb_publishable_SrXQmteKotnJKVZbgLZJUQ_3BNl6B4A';
-const BACKEND_SUPABASE_KEY =
-  SUPABASE_SERVICE_ROLE_KEY || SUPABASE_PUBLISHABLE_KEY;
-
+// SEC-01 — the backend needs the service role key, and there is no longer a
+// useful fallback.
+//
+// This used to fall back to the publishable key with a console warning. That
+// was survivable while most tables had RLS switched off; now that every table
+// has RLS on with no policies, the publishable key can read and write exactly
+// nothing. A process that boots on it looks healthy and fails every single
+// query — the same reasoning as `config.js`: not starting beats starting
+// broken.
 if (!SUPABASE_SERVICE_ROLE_KEY && process.env.NODE_ENV !== 'test') {
-  console.warn(
-    '[supabase] SUPABASE_SERVICE_ROLE_KEY is not set. Write operations may fail under RLS policies.',
+  throw new Error(
+    [
+      'SUPABASE_SERVICE_ROLE_KEY is not set.',
+      '',
+      'Every table now has row-level security enabled with no policies, so the',
+      'publishable key can read and write nothing at all. Booting without the',
+      'service role key would produce a process that answers health checks and',
+      'fails every query.',
+      '',
+      'Find it in the Supabase dashboard under Project Settings → API.',
+    ].join('\n'),
   );
 }
+
+const BACKEND_SUPABASE_KEY = SUPABASE_SERVICE_ROLE_KEY || SUPABASE_PUBLISHABLE_KEY;
 
 const TABLES = {
   users: 'users',

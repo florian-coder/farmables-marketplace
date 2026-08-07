@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 
 import { apiFetch } from '../lib/api.js';
 import { useAuth } from '../lib/auth.jsx';
-import { supabase } from '../lib/supabase.js';
+import { useLiveUpdates, LIVE_TOPICS } from '../lib/liveUpdates.js';
 
 const STATE_LABELS = {
   placed_order: 'In cart',
@@ -278,49 +278,29 @@ export default function OrdersPage() {
     }
 
     let active = true;
-    let ordersChannel = null;
-    let repliesChannel = null;
-
-    const subscribeRealtime = async () => {
+    const load = async () => {
       await loadOrders(bucket);
-      await loadQuote();
       if (!active) return;
-
-      const ordersFilter =
-        user.role === 'customer' ? `client_id=eq.${user.id}` : `farmer_id=eq.${user.id}`;
-
-      ordersChannel = supabase
-        .channel(`orders-${user.role}-${user.id}-${bucket}`)
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'orders', filter: ordersFilter },
-          () => {
-            loadOrders(bucket).catch(() => {});
-            loadQuote().catch(() => {});
-          },
-        )
-        .subscribe();
-
-      repliesChannel = supabase
-        .channel(`order-replies-${user.role}-${user.id}-${bucket}`)
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'order_replies' },
-          () => {
-            loadOrders(bucket).catch(() => {});
-          },
-        )
-        .subscribe();
+      await loadQuote();
     };
-
-    subscribeRealtime().catch(() => {});
+    load().catch(() => {});
 
     return () => {
       active = false;
-      if (ordersChannel) supabase.removeChannel(ordersChannel);
-      if (repliesChannel) supabase.removeChannel(repliesChannel);
     };
   }, [authStatus, user, isAllowedRole, bucket, loadOrders, loadQuote]);
+
+  // SEC-01 — one server-sent stream instead of two Supabase subscriptions.
+  // The old `order_replies` channel had no filter at all, so every browser was
+  // told about every reply on the platform.
+  useLiveUpdates(
+    [LIVE_TOPICS.ORDERS],
+    () => {
+      loadOrders(bucket).catch(() => {});
+      loadQuote().catch(() => {});
+    },
+    authStatus === 'authenticated' && isAllowedRole,
+  );
 
   /**
    * One payment for the whole cart, however many farms it contains.

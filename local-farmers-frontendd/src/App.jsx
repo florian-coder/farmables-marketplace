@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useState } from 'react';
 import {
   BrowserRouter,
   Link,
@@ -32,8 +32,8 @@ import EarningsPage from './pages/EarningsPage.jsx';
 const LegalPage = lazy(() => import('./pages/LegalPage.jsx'));
 import { apiFetch } from './lib/api.js';
 import { AuthProvider, useAuth } from './lib/auth.jsx';
-import { supabase } from './lib/supabase.js';
 import { OPERATOR } from './lib/operator.js';
+import { useLiveUpdates, LIVE_TOPICS } from './lib/liveUpdates.js';
 import EmailStatusBanner from './components/EmailStatusBanner.jsx';
 
 function FruitsVegIcon() {
@@ -109,89 +109,49 @@ function Navigation() {
     navigate('/');
   };
 
-  useEffect(() => {
+  const loadUnread = useCallback(async () => {
     if (!isChatEnabled) {
       setChatUnreadCount(0);
-      return undefined;
+      return;
     }
-
-    let active = true;
-    let channel = null;
-    const loadUnread = async () => {
-      try {
-        const response = await apiFetch('/api/chat/conversations', { method: 'GET' });
-        const data = await response.json();
-        if (!active || !response.ok) {
-          return null;
-        }
-        const totalUnread = Number(data.totalUnread);
-        if (Number.isFinite(totalUnread) && totalUnread > 0) {
-          setChatUnreadCount(Math.floor(totalUnread));
-          return data;
-        }
-        const fallbackUnread = Array.isArray(data.conversations)
-          ? data.conversations.reduce((sum, entry) => {
-              const count = Number(entry.unreadCount);
-              return Number.isFinite(count) ? sum + count : sum;
-            }, 0)
-          : 0;
-        setChatUnreadCount(fallbackUnread > 0 ? Math.floor(fallbackUnread) : 0);
-        return data;
-      } catch (error) {
-        if (active) {
-          setChatUnreadCount(0);
-        }
-        return null;
-      }
-    };
-
-    const subscribeToUnread = async () => {
-      const data = await loadUnread();
-      if (!active) {
+    try {
+      const response = await apiFetch('/api/chat/conversations', { method: 'GET' });
+      const data = await response.json();
+      if (!response.ok) {
         return;
       }
-
-      const vendorIdFromApi =
-        typeof data?.vendorId === 'string' && data.vendorId.trim()
-          ? data.vendorId.trim()
-          : '';
-      const participantId =
-        user?.role === 'vendor' && vendorIdFromApi ? vendorIdFromApi : user?.id;
-      if (!participantId) {
+      const totalUnread = Number(data.totalUnread);
+      if (Number.isFinite(totalUnread) && totalUnread > 0) {
+        setChatUnreadCount(Math.floor(totalUnread));
         return;
       }
+      const fallbackUnread = Array.isArray(data.conversations)
+        ? data.conversations.reduce((sum, entry) => {
+            const count = Number(entry.unreadCount);
+            return Number.isFinite(count) ? sum + count : sum;
+          }, 0)
+        : 0;
+      setChatUnreadCount(fallbackUnread > 0 ? Math.floor(fallbackUnread) : 0);
+    } catch (error) {
+      setChatUnreadCount(0);
+    }
+  }, [isChatEnabled]);
 
-      const filter =
-        user?.role === 'customer'
-          ? `customer_id=eq.${participantId}`
-          : `vendor_id=eq.${participantId}`;
+  useEffect(() => {
+    loadUnread().catch(() => {});
+  }, [loadUnread]);
 
-      channel = supabase
-        .channel(`nav-chat-unread-${user?.id}-${participantId}`)
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'conversations',
-            filter,
-          },
-          () => {
-            loadUnread().catch(() => {});
-          },
-        )
-        .subscribe();
-    };
-
-    subscribeToUnread().catch(() => {});
-
-    return () => {
-      active = false;
-      if (channel) {
-        supabase.removeChannel(channel);
-      }
-    };
-  }, [isChatEnabled, user?.id, user?.role]);
+  // SEC-01 — the badge used to come from a Supabase subscription in the
+  // browser, which meant the publishable key could read every conversation on
+  // the platform. The server now decides which changes reach whom, so this no
+  // longer needs to know its own vendor id either.
+  useLiveUpdates(
+    [LIVE_TOPICS.CONVERSATIONS, LIVE_TOPICS.MESSAGES],
+    () => {
+      loadUnread().catch(() => {});
+    },
+    isChatEnabled,
+  );
 
   useEffect(() => {
     setIsMarketsMenuOpen(false);

@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 
 import { apiFetch } from '../lib/api.js';
 import { useAuth } from '../lib/auth.jsx';
-import { supabase } from '../lib/supabase.js';
+import { useLiveUpdates, LIVE_TOPICS } from '../lib/liveUpdates.js';
 
 const STATE_LABELS = {
   received_by_farmer: 'Accepted',
@@ -137,32 +137,23 @@ export default function EarningsPage() {
         return;
       }
 
-      channel = supabase
-        .channel(`earnings-${user.id}`)
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'orders',
-            filter: `farmer_id=eq.${user.id}`,
-          },
-          () => {
-            loadEarnings().catch(() => {});
-          },
-        )
-        .subscribe();
     };
 
     subscribeRealtime().catch(() => {});
 
     return () => {
       active = false;
-      if (channel) {
-        supabase.removeChannel(channel);
-      }
     };
   }, [authStatus, isVendor, user?.id, loadEarnings]);
+
+  // SEC-01 — earnings follow order changes, over the server stream.
+  useLiveUpdates(
+    [LIVE_TOPICS.ORDERS],
+    () => {
+      loadEarnings().catch(() => {});
+    },
+    authStatus === 'authenticated' && isVendor,
+  );
 
   const summary = data?.summary;
   const payouts = data?.payouts;

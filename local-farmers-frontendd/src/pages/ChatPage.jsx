@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 
 import { apiFetch } from '../lib/api.js';
 import { useAuth } from '../lib/auth.jsx';
-import { supabase } from '../lib/supabase.js';
+import { useLiveUpdates, LIVE_TOPICS } from '../lib/liveUpdates.js';
 
 const formatTime = (value) => {
   if (!value) return '';
@@ -125,44 +125,21 @@ export default function ChatPage() {
     if (authStatus !== 'authenticated' || !user || !isAllowedRole) {
       return undefined;
     }
-
-    let active = true;
-    let channel = null;
-
-    const subscribeToConversations = async () => {
-      // The vendor id comes straight from the load, so this effect no longer
-      // depends on a state value it sets itself — which used to tear the
-      // channel down and rebuild it right after the first load.
-      const vendorId = await loadConversations();
-      if (!active) return;
-
-      const participantId = user.role === 'vendor' ? vendorId || user.id : user.id;
-      if (!participantId) return;
-
-      const filter =
-        user.role === 'customer'
-          ? `customer_id=eq.${participantId}`
-          : `vendor_id=eq.${participantId}`;
-
-      channel = supabase
-        .channel(`chat-conversations-${user.id}-${participantId}`)
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'conversations', filter },
-          () => {
-            loadConversations().catch(() => {});
-          },
-        )
-        .subscribe();
-    };
-
-    subscribeToConversations().catch(() => {});
-
-    return () => {
-      active = false;
-      if (channel) supabase.removeChannel(channel);
-    };
+    loadConversations().catch(() => {});
+    return undefined;
   }, [authStatus, user, isAllowedRole, loadConversations]);
+
+  // SEC-01 — the conversation list used to be kept fresh by a Supabase
+  // subscription in the browser. The server now decides who hears about a
+  // conversation, so this no longer needs to resolve its own vendor id just to
+  // build a filter.
+  useLiveUpdates(
+    [LIVE_TOPICS.CONVERSATIONS],
+    () => {
+      loadConversations().catch(() => {});
+    },
+    authStatus === 'authenticated' && Boolean(user) && isAllowedRole,
+  );
 
   useEffect(() => {
     if (
@@ -215,41 +192,35 @@ export default function ChatPage() {
       return undefined;
     }
 
-    let active = true;
     loadConversationDetail(selectedConversationId);
-
-    const channel = supabase
-      .channel(`chat-messages-${selectedConversationId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'messages',
-          filter: `conversation_id=eq.${selectedConversationId}`,
-        },
-        () => {
-          if (!active) return;
-          Promise.all([
-            loadConversationDetail(selectedConversationId),
-            loadConversations(),
-          ]).catch(() => {});
-        },
-      )
-      .subscribe();
-
-    return () => {
-      active = false;
-      supabase.removeChannel(channel);
-    };
+    return undefined;
   }, [
     authStatus,
     user,
     isAllowedRole,
     selectedConversationId,
     loadConversationDetail,
-    loadConversations,
   ]);
+
+  // SEC-01 — new messages arrive over the server stream. The event carries a
+  // conversation id but never the message text: the browser refetches through
+  // the API, which is the only thing that checks whether this user is party to
+  // the conversation at all.
+  useLiveUpdates(
+    [LIVE_TOPICS.MESSAGES],
+    (event) => {
+      if (event.conversationId && event.conversationId !== selectedConversationId) {
+        // Another thread moved — the list badge changes, this pane does not.
+        loadConversations().catch(() => {});
+        return;
+      }
+      Promise.all([
+        loadConversationDetail(selectedConversationId),
+        loadConversations(),
+      ]).catch(() => {});
+    },
+    authStatus === 'authenticated' && Boolean(selectedConversationId) && isAllowedRole,
+  );
 
   /** Jump to the newest message whenever the thread changes. */
   useEffect(() => {

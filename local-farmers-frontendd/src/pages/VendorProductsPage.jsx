@@ -7,8 +7,8 @@ import {
   resolveImageUrl,
   resolveUploadUrl,
 } from '../lib/api.js';
-import { supabase } from '../lib/supabase.js';
 import { useAuth } from '../lib/auth.jsx';
+import { useLiveUpdates, LIVE_TOPICS } from '../lib/liveUpdates.js';
 import ConfirmDialog from '../components/ConfirmDialog.jsx';
 
 export default function VendorProductsPage() {
@@ -63,23 +63,8 @@ export default function VendorProductsPage() {
           return;
         }
 
-        channel = supabase
-          .channel(`vendor-products-${vendorId}`)
-          .on(
-            'postgres_changes',
-            {
-              event: '*',
-              schema: 'public',
-              table: 'products',
-              filter: `farmer_id=eq.${vendorId}`,
-            },
-            () => {
-              loadProducts().catch(() => {});
-            },
-          )
-          .subscribe();
       } catch {
-        // Ignore realtime setup failures and keep manual refresh behavior.
+        // Ignore setup failures and keep manual refresh behavior.
       }
     };
 
@@ -87,11 +72,18 @@ export default function VendorProductsPage() {
 
     return () => {
       active = false;
-      if (channel) {
-        supabase.removeChannel(channel);
-      }
     };
   }, [authStatus, user, loadProducts]);
+
+  // SEC-01 — product changes over the server stream instead of a Supabase
+  // subscription in the browser.
+  useLiveUpdates(
+    [LIVE_TOPICS.PRODUCTS],
+    () => {
+      loadProducts().catch(() => {});
+    },
+    authStatus === 'authenticated',
+  );
 
   const handleDeleteProduct = async () => {
     const productId = pendingDelete?.id;
