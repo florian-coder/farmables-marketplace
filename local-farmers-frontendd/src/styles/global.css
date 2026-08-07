@@ -4579,3 +4579,74 @@ a {
   gap: var(--s-3);
   margin-top: var(--s-4);
 }
+
+/* ============================================================
+   SEC-09b — bannerul pentru adresa de email
+   `is-hard` = contul nu poate comanda deloc (adresă generată, inexistentă).
+   `is-soft` = adresă reală, link neconfirmat; doar un ghiont, se poate
+   amâna. Diferența e vizuală pentru că e și practică.
+   ============================================================ */
+
+.email-banner {
+  padding: var(--s-4);
+  margin: 0;
+  border-bottom: 1px solid var(--line);
+  font-size: var(--t-1);
+  line-height: 1.55;
+}
+
+.email-banner p {
+  margin: 0 auto;
+  max-width: 60rem;
+}
+
+.email-banner.is-soft {
+  background: var(--sun-lo);
+  color: var(--sun-dk);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  align-items: center;
+  justify-content: center;
+}
+
+.email-banner.is-hard {
+  background: var(--bad-lo);
+  color: var(--bad);
+}
+
+.email-banner-actions {
+  display: flex;
+  gap: var(--s-2);
+  justify-content: center;
+  margin-top: var(--s-3);
+}
+
+.email-banner.is-soft .email-banner-actions {
+  margin-top: 0;
+}
+
+.email-banner-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  align-items: flex-end;
+  max-width: 60rem;
+  margin: var(--s-4) auto 0;
+}
+
+.email-banner-form label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  font-weight: 600;
+}
+
+.email-banner-form input {
+  min-width: 15rem;
+}
+
+.email-banner-feedback {
+  margin-top: var(--s-3) !important;
+  font-weight: 600;
+}

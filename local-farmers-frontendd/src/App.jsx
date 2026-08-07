@@ -34,6 +34,7 @@ import { apiFetch } from './lib/api.js';
 import { AuthProvider, useAuth } from './lib/auth.jsx';
 import { supabase } from './lib/supabase.js';
 import { OPERATOR } from './lib/operator.js';
+import EmailStatusBanner from './components/EmailStatusBanner.jsx';
 
 function FruitsVegIcon() {
   return (
@@ -289,6 +290,10 @@ function AppShell() {
   return (
     <div className="page">
       <Navigation />
+      {/* SEC-09b — an account with no reachable address finds out here, not at
+          the payment step. Discovering you cannot pay while trying to pay is
+          the worst possible moment for it. */}
+      <EmailStatusBanner />
       <main className="main">
         <Suspense fallback={<div className="notice">Loading...</div>}>
         <Routes>

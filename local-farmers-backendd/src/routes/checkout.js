@@ -17,6 +17,7 @@ const { buildCartQuote, serializeQuote } = require('../lib/pricing');
 const { formatBani, toBani } = require('../lib/money');
 const { transferCheckoutGroups } = require('../lib/transfers');
 const { validateAcceptances } = require('../lib/legalDocuments');
+const { checkoutBlockerFor } = require('../lib/emailStatus');
 const { recordAcceptances } = require('../lib/legalAcceptance');
 
 const router = express.Router();
@@ -241,7 +242,21 @@ router.post('/create-checkout-session', requireAuth, async (req, res, next) => {
       }
     }
 
-    // 2. LEG-02 — consent at the moment of ordering, not only at signup.
+    // 2. SEC-09b — we have to be able to reach them.
+    //
+    // A paid order produces a confirmation that GEO 34/2014 art. 8 requires to
+    // land on a durable medium. An account still on a legacy
+    // `user@localfarmers.app` address has nowhere for that to go, so the order
+    // is one we should not take. Checked before anything is reserved.
+    const emailBlocker = checkoutBlockerFor({
+      email: req.user.email,
+      email_verified: req.user.emailVerified,
+    });
+    if (emailBlocker) {
+      return res.status(409).json({ error: emailBlocker.error, code: emailBlocker.code });
+    }
+
+    // 3. LEG-02 — consent at the moment of ordering, not only at signup.
     //
     // OUG 34/2014 requires the customer to accept the terms *for this
     // contract*, and to have seen the version that is actually in force. The
@@ -260,7 +275,7 @@ router.post('/create-checkout-session', requireAuth, async (req, res, next) => {
       });
     }
 
-    // 3. Price the cart and refuse early on anything the customer must fix.
+    // 4. Price the cart and refuse early on anything the customer must fix.
     const quote = await buildCartQuote({ clientId: req.user.id });
 
     if (quote.groups.length === 0) {
@@ -274,7 +289,7 @@ router.post('/create-checkout-session', requireAuth, async (req, res, next) => {
       });
     }
 
-    // 4. Create the parent checkout. `transfer_group` ties the charge and all
+    // 5. Create the parent checkout. `transfer_group` ties the charge and all
     //    the farmer transfers together in Stripe's own reporting.
     const transferGroup = `chk_${crypto.randomUUID().replace(/-/g, '')}`;
     const { data: checkoutRow, error: checkoutError } = await supabase
@@ -297,7 +312,7 @@ router.post('/create-checkout-session', requireAuth, async (req, res, next) => {
     }
     checkoutId = checkoutRow.id;
 
-    // 5. Reserve stock and freeze the money, atomically, in one transaction.
+    // 6. Reserve stock and freeze the money, atomically, in one transaction.
     //    The SQL function is the authority: it re-reads the farmer settings
     //    and the commission rate itself, so the numbers it writes cannot
     //    drift from what it validated.
@@ -321,7 +336,7 @@ router.post('/create-checkout-session', requireAuth, async (req, res, next) => {
       });
     }
 
-    // 6. Record the consent, now that the orders it applies to exist.
+    // 7. Record the consent, now that the orders it applies to exist.
     //
     // After the reservation, not before: a consent record pointing at an order
     // that was never created is noise, and `process_checkout` is the step that
@@ -337,7 +352,7 @@ router.post('/create-checkout-session', requireAuth, async (req, res, next) => {
       orderId: reservedOrderIds[0] || null,
     });
 
-    // 7. Build the session from the frozen values.
+    // 8. Build the session from the frozen values.
     const groups = await loadFrozenGroups(checkoutId);
     const { lineItems } = buildLineItems(groups);
     const totalBani = toBani(rpcData.total_bani);

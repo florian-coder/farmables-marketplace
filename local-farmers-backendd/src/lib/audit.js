@@ -50,7 +50,21 @@ const ACTIONS = Object.freeze({
   DATA_EXPORTED: 'data.exported',
   ADMIN_2FA_ENROLLED: 'admin.2fa_enrolled',
   ADMIN_2FA_FAILED: 'admin.2fa_failed',
+  EMAIL_CHANGED: 'email.changed',
 });
+
+/**
+ * `a***@example.com` — enough to recognise your own address in a log, not
+ * enough for a leaked log to become a mailing list.
+ */
+const maskEmail = (value) => {
+  const email = String(value || '').trim();
+  const at = email.indexOf('@');
+  if (at < 1) {
+    return email ? '***' : '';
+  }
+  return `${email[0]}***${email.slice(at)}`;
+};
 
 /** Adresa clientului, cu încredere în proxy doar prin `trust proxy` din app. */
 const clientIp = (req) => {
@@ -99,4 +113,4 @@ const recordAudit = async ({
   }
 };
 
-module.exports = { ACTIONS, recordAudit };
+module.exports = { ACTIONS, recordAudit, maskEmail };

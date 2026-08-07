@@ -14,8 +14,9 @@ const { authLimiter, usernameLimiter } = require('../middleware/rateLimit');
 const { supabase, TABLES } = require('../lib/supabase');
 const { mapDbUserToApi, normalizeText, toDbUserType } = require('../lib/domain');
 const { enqueueEmail } = require('../lib/outbox');
-const { ACTIONS, recordAudit } = require('../lib/audit');
-const { IS_PRODUCTION } = require('../lib/config');
+const { ACTIONS, recordAudit, maskEmail } = require('../lib/audit');
+const { IS_PRODUCTION, FRONTEND_URL } = require('../lib/config');
+const { isGeneratedEmail, looksLikeEmail } = require('../lib/emailStatus');
 const { validateAcceptances } = require('../lib/legalDocuments');
 const { recordAcceptances } = require('../lib/legalAcceptance');
 
@@ -331,7 +332,145 @@ router.get('/me', async (req, res, next) => {
       id: user.id,
       username: user.username,
       role: user.role,
+      // SEC-09b — the frontend needs this to prompt for a real address well
+      // before the customer reaches a checkout that would refuse them.
+      email: user.email,
+      emailStatus: user.emailStatus,
+      emailVerified: user.emailVerified,
     });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+/**
+ * POST /api/auth/email — set or correct the address, and start verification.
+ *
+ * SEC-09b: accounts from before email was collected carry a generated
+ * `<username>@localfarmers.app` address on a domain that accepts no mail.
+ * They are not unverified, they are *absent* — the person never chose one and
+ * cannot receive the link. This is how they supply a real one.
+ *
+ * Requires the current password. Email is the reset channel, so being able to
+ * change it from a live session alone would make a borrowed laptop into a full
+ * account takeover.
+ */
+router.post('/email', requireAuth, authLimiter, async (req, res, next) => {
+  try {
+    const email = normalizeEmail(req.body?.email);
+    const password = typeof req.body?.password === 'string' ? req.body.password : '';
+
+    if (!looksLikeEmail(email)) {
+      return res.status(400).json({ error: 'Enter a valid email address.' });
+    }
+    if (isGeneratedEmail(email)) {
+      return res.status(400).json({
+        error: 'That address belongs to the platform and cannot receive mail. Use your own.',
+      });
+    }
+    if (!password) {
+      return res.status(400).json({ error: 'Enter your password to confirm the change.' });
+    }
+
+    const { data: account, error: accountError } = await supabase
+      .from(TABLES.users)
+      .select('id, password, email')
+      .eq('id', req.user.id)
+      .maybeSingle();
+    if (accountError || !account) {
+      return res.status(404).json({ error: 'Account not found.' });
+    }
+
+    const matches = await verifyPassword(password, account.password);
+    if (!matches) {
+      return res.status(401).json({ error: 'That password is not correct.' });
+    }
+
+    // Someone else's address is not free to claim: it would redirect their
+    // password reset. The generic message avoids confirming who is registered.
+    const { data: taken } = await supabase
+      .from(TABLES.users)
+      .select('id')
+      .eq('email', email)
+      .maybeSingle();
+    if (taken && String(taken.id) !== String(req.user.id)) {
+      return res.status(409).json({ error: 'That address cannot be used for this account.' });
+    }
+
+    const { error: updateError } = await supabase
+      .from(TABLES.users)
+      // A new address starts unverified, always — including when the old one
+      // was verified. Otherwise changing it would launder an unverified
+      // address into a verified one.
+      .update({ email, email_verified: false })
+      .eq('id', req.user.id);
+    if (updateError) {
+      return res.status(500).json({ error: 'Unable to save the address.' });
+    }
+
+    await recordAudit({
+      req,
+      actorType: 'user',
+      actorId: req.user.id,
+      action: ACTIONS.EMAIL_CHANGED,
+      entityType: 'user',
+      entityId: String(req.user.id),
+      oldValue: maskEmail(account.email),
+      newValue: maskEmail(email),
+    });
+
+    try {
+      const token = await issueAuthToken({
+        userId: req.user.id,
+        purpose: 'email_verification',
+        ttlMs: 24 * 60 * 60 * 1000,
+      });
+      const link = `${FRONTEND_URL}/auth/verify-email?token=${token}`;
+      await enqueueEmail({
+        eventKey: `verify-email:${req.user.id}:${token.slice(0, 16)}`,
+        template: 'auth.verify_email',
+        to: email,
+        userId: String(req.user.id),
+        payload: { verifyUrl: link },
+      });
+    } catch (tokenError) {
+      console.error('[auth] Unable to send verification email:', tokenError?.message);
+    }
+
+    return res.json({ email, emailStatus: 'unverified', verificationSent: true });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+/** POST /api/auth/resend-verification — the link expired, or never arrived. */
+router.post('/resend-verification', requireAuth, authLimiter, async (req, res, next) => {
+  try {
+    if (req.user.emailStatus === 'verified') {
+      return res.json({ alreadyVerified: true });
+    }
+    if (req.user.emailStatus === 'missing') {
+      return res.status(409).json({
+        error: 'This account has no usable email address yet. Add one first.',
+        code: 'email_missing',
+      });
+    }
+
+    const token = await issueAuthToken({
+      userId: req.user.id,
+      purpose: 'email_verification',
+      ttlMs: 24 * 60 * 60 * 1000,
+    });
+    const link = `${FRONTEND_URL}/auth/verify-email?token=${token}`;
+    await enqueueEmail({
+      eventKey: `verify-email:${req.user.id}:${token.slice(0, 16)}`,
+      template: 'auth.verify_email',
+      to: req.user.email,
+      userId: String(req.user.id),
+      payload: { verifyUrl: link },
+    });
+
+    return res.json({ sent: true });
   } catch (error) {
     return next(error);
   }
