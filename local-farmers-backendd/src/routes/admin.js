@@ -95,6 +95,9 @@ const PRODUCT_COLUMNS = [
   '"bio check"',
   'available',
   'instant_buy',
+  // LEG-04 — the mandatory particulars travel with the product everywhere.
+  'labelling',
+  'batch_code',
 ].join(', ');
 
 const normalizePublicUrls = (images) => {
@@ -1403,6 +1406,85 @@ router.post('/farmer-requests/:requestId/reject', requireAdmin, async (req, res,
     return res.json({
       request: mapRequestMeta(updatedRequest, usersById),
     });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+/**
+ * LEG-04 — reviewing an organic certificate.
+ *
+ * The whole point of the claim needing approval is that somebody actually
+ * looks at the document. Approving records who did, and the expiry is what
+ * makes the claim end by itself later.
+ */
+router.get('/organic-certificates', requireAdmin, async (req, res, next) => {
+  try {
+    const state = String(req.query?.state || 'pending').trim();
+    const { data, error } = await supabase
+      .from(TABLES.organicCertificates)
+      .select('id, farmer_id, control_body, control_body_code, certificate_number, document_path, valid_from, valid_until, state, review_note, created_at')
+      .eq('state', state)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      return res.status(500).json({ error: 'Unable to load certificates.' });
+    }
+    return res.json({ certificates: data || [] });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.post('/organic-certificates/:certificateId/review', requireAdmin, async (req, res, next) => {
+  try {
+    const approve = req.body?.approve === true;
+    const note = String(req.body?.note || '').trim().slice(0, 1000);
+
+    if (!approve && !note) {
+      return res.status(400).json({ error: 'A reason is required when rejecting a certificate.' });
+    }
+
+    const { data: certificate } = await supabase
+      .from(TABLES.organicCertificates)
+      .select('id, farmer_id, valid_until')
+      .eq('id', String(req.params?.certificateId || ''))
+      .maybeSingle();
+
+    if (!certificate) {
+      return res.status(404).json({ error: 'Certificate not found.' });
+    }
+    if (approve && (!certificate.valid_until || Date.parse(certificate.valid_until) <= Date.now())) {
+      return res.status(400).json({
+        error: 'This certificate has no future expiry date, so approving it would claim nothing.',
+      });
+    }
+
+    const { error } = await supabase
+      .from(TABLES.organicCertificates)
+      .update({
+        state: approve ? 'approved' : 'rejected',
+        review_note: note,
+        reviewed_by: req.admin.username,
+        reviewed_at: new Date().toISOString(),
+      })
+      .eq('id', String(certificate.id));
+
+    if (error) {
+      return res.status(500).json({ error: 'Unable to record the review.' });
+    }
+
+    await recordAudit({
+      req,
+      actorType: 'admin',
+      actorId: req.admin.username,
+      action: ACTIONS.ORGANIC_CERTIFICATE_REVIEWED,
+      entityType: 'organic_certificate',
+      entityId: String(certificate.id),
+      newValue: approve ? `approved_until:${certificate.valid_until}` : `rejected:${note.slice(0, 100)}`,
+    });
+
+    return res.json({ reviewed: true, approved: approve });
   } catch (error) {
     return next(error);
   }

@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 
 import { isUploadImage, resolveImageUrl, resolveUploadUrl } from '../lib/api.js';
+import FoodLabel from './FoodLabel.jsx';
 
 const formatQuantity = (value) => {
   const parsed = Number(value);
@@ -128,6 +129,10 @@ export default function ProductCard({
           <span className="product-card-price">{formatPrice(product.price)} RON</span>
           <span className="product-card-unit">/ {product.unit || 'unit'}</span>
         </p>
+
+        {/* LEG-04 — the mandatory particulars, before the purchase is
+            concluded (Reg. 1169/2011 art. 14), not behind a link elsewhere. */}
+        <FoodLabel product={product} batchCode={product.batchCode} />
 
         <p className="product-card-meta">
           <span className={`stock-badge ${stockClass}`}>{stockLabel}</span>

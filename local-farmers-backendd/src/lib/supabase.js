@@ -79,6 +79,8 @@ const TABLES = {
   // OPS-03 — disputes, and the private bucket their evidence lives in.
   disputes: 'disputes',
   disputeEvidence: 'dispute_evidence',
+  // LEG-04 — "bio" is a claim, and a claim needs a certificate with an expiry.
+  organicCertificates: 'organic_certificates',
 };
 
 const dedupe = (values) => {

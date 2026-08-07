@@ -53,6 +53,7 @@ const ACTIONS = Object.freeze({
   EMAIL_CHANGED: 'email.changed',
   ORDER_FULFILMENT_RECORDED: 'order.fulfilment_recorded',
   FARM_AVAILABILITY_CHANGED: 'farm.availability_changed',
+  ORGANIC_CERTIFICATE_REVIEWED: 'organic_certificate.reviewed',
 });
 
 /**

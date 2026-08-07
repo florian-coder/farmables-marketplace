@@ -145,11 +145,16 @@ const autoConfirmStaleArrivedOrders = async () => {
 };
 
 const runOrderMaintenance = async () => {
-  const summary = { warned: 0, confirmed: 0, escalated: 0 };
+  const summary = { warned: 0, confirmed: 0, escalated: 0, organicClaimsCleared: 0 };
   try {
     // OPS-03 first: a case that escalates in this pass must be visible to the
     // auto-confirm sweep that follows it.
     summary.escalated = await escalateOverdueDisputes();
+    // LEG-04 — a certificate that lapsed on Friday must not still be selling
+    // "bio" on Monday. The database function does the whole sweep in one
+    // statement, so this costs one round trip an hour.
+    const { data: cleared } = await supabase.rpc('expire_organic_claims', {});
+    summary.organicClaimsCleared = Number(cleared) || 0;
     summary.warned = await warnStaleArrivedOrders();
     summary.confirmed = await autoConfirmStaleArrivedOrders();
   } catch (error) {

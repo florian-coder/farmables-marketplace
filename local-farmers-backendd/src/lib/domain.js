@@ -174,6 +174,10 @@ const mapProductToApi = (product, vendor = null) => ({
   isBio: toBooleanAvailability(product['bio check']),
   instantBuy: Boolean(product.instant_buy),
   image: mapProductImage(product['product name'], product['photo url']),
+  // LEG-04 — the mandatory particulars have to reach the customer BEFORE the
+  // purchase is concluded, so they travel with every product, everywhere.
+  labelling: product.labelling && typeof product.labelling === 'object' ? product.labelling : {},
+  batchCode: product.batch_code || '',
   vendor,
 });
 

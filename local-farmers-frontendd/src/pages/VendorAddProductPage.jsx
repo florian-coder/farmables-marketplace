@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 
 import { apiFetch, getApiBase } from '../lib/api.js';
 import { useAuth } from '../lib/auth.jsx';
+import LabellingFields from '../components/LabellingFields.jsx';
 
 const initialProduct = {
   name: '',
@@ -14,6 +15,10 @@ const initialProduct = {
   available: true,
   instantBuy: true,
   photo: null,
+  batchCode: '',
+  // LEG-04 — the mandatory particulars. The server refuses to publish without
+  // them, so they are part of the form rather than an afterthought.
+  labelling: {},
 };
 
 export default function VendorAddProductPage() {
@@ -124,6 +129,15 @@ export default function VendorAddProductPage() {
       });
       const data = await response.json();
       if (!response.ok) {
+        // LEG-04 — name the missing fields rather than saying "invalid".
+        if (data.code === 'labelling_incomplete') {
+          const missing = (data.missing || []).map((entry) => entry.label).join(', ');
+          throw new Error(
+            [data.error, missing && `Still needed: ${missing}.`, ...(data.problems || [])]
+              .filter(Boolean)
+              .join(' '),
+          );
+        }
         throw new Error(data.error || 'Unable to add product.');
       }
       setProductForm(initialProduct);
@@ -283,6 +297,28 @@ export default function VendorAddProductPage() {
               )}
             </div>
           </div>
+          <LabellingFields
+            category={productForm.category}
+            labelling={productForm.labelling}
+            onChange={(labelling) => setProductForm((prev) => ({ ...prev, labelling }))}
+          />
+
+          <label className="field">
+            Batch code
+            <input
+              type="text"
+              name="batchCode"
+              value={productForm.batchCode}
+              onChange={handleProductChange}
+              placeholder="Your own reference for this batch"
+            />
+            {/* Reg. 178/2002 art. 18: a recall has to be able to find the
+                batch. What you call it is up to you. */}
+            <span className="muted field-hint">
+              Optional, but it is how a recall would find this batch.
+            </span>
+          </label>
+
           <label className="field checkbox">
             <input
               type="checkbox"

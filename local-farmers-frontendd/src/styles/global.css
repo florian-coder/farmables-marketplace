@@ -4828,3 +4828,107 @@ a {
   font-weight: 600;
   color: var(--warn);
 }
+
+/* ============================================================
+   LEG-04 — informația despre produs
+   Reg. (UE) 1169/2011 art. 14: particularitățile obligatorii trebuie să fie
+   disponibile ÎNAINTE de încheierea cumpărării. Deci pe card, la un click de
+   preț — nu într-o pagină pe care n-o deschide nimeni.
+   ============================================================ */
+
+.food-label {
+  margin: var(--s-2) 0;
+}
+
+.food-label-toggle {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: var(--t-1);
+  color: var(--leaf);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* Niciodată pliat: e singurul șir de aici care poate face rău. */
+.food-label-warning {
+  margin: 0 0 var(--s-2);
+  padding: var(--s-2) var(--s-3);
+  border-left: 3px solid var(--bad);
+  border-radius: var(--r-sm);
+  background: var(--bad-lo);
+  color: var(--bad);
+  font-size: var(--t-1);
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.food-label-pending {
+  margin: var(--s-2) 0;
+  font-size: var(--t-1);
+  color: var(--ink-muted);
+  font-style: italic;
+}
+
+.food-label-list {
+  display: grid;
+  gap: var(--s-2);
+  margin: var(--s-3) 0 0;
+  padding: var(--s-3);
+  border-radius: var(--r-md);
+  background: var(--paper-1);
+  font-size: var(--t-1);
+}
+
+.food-label-list > div {
+  display: flex;
+  gap: var(--s-3);
+  justify-content: space-between;
+}
+
+.food-label-list dt {
+  color: var(--ink-muted);
+}
+
+.food-label-list dd {
+  margin: 0;
+  font-weight: 600;
+  text-align: right;
+}
+
+.labelling-fields,
+.labelling-allergens {
+  margin: var(--s-4) 0;
+  padding: var(--s-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+}
+
+.labelling-fields > legend,
+.labelling-allergens > legend {
+  padding: 0 var(--s-2);
+  font-weight: 700;
+}
+
+.labelling-intro {
+  margin: 0 0 var(--s-4);
+  font-size: var(--t-1);
+  line-height: 1.55;
+}
+
+.labelling-warning {
+  margin-top: var(--s-3);
+}
+
+.labelling-allergen-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+  gap: var(--s-2);
+  margin-top: var(--s-3);
+}
+
+.field-hint {
+  display: block;
+  margin-top: var(--s-1);
+  font-size: 0.78rem;
+}

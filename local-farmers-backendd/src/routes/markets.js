@@ -31,6 +31,9 @@ const PRODUCT_COLUMNS = [
   '"bio check"',
   'available',
   'instant_buy',
+  // LEG-04 — the mandatory particulars travel with the product everywhere.
+  'labelling',
+  'batch_code',
 ].join(', ');
 
 const FARMER_COLUMNS = [

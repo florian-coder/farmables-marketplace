@@ -14,6 +14,12 @@ const {
 } = require('../lib/domain');
 const { ACTIONS, recordAudit } = require('../lib/audit');
 const { serializeAvailability, parseAvailabilityInput } = require('../lib/availability');
+const {
+  validateLabelling,
+  organicClaimAllowed,
+  ORGANIC_REFUSALS,
+  requiredFieldsFor,
+} = require('../lib/labelling');
 const { recalculateAndPersistProductRatings } = require('../lib/productRating');
 const { mapConnectState } = require('../lib/connect');
 
@@ -147,6 +153,9 @@ const PRODUCT_COLUMNS = [
   '"bio check"',
   'available',
   'instant_buy',
+  // LEG-04 — the mandatory particulars travel with the product everywhere.
+  'labelling',
+  'batch_code',
 ].join(', ');
 
 const normalizePublicUrls = (images) => {
@@ -660,10 +669,53 @@ router.post('/products', requireVendor, async (req, res, next) => {
       return res.status(403).json({ error: 'You do not have permission to sell Honey.' });
     }
 
+    const resolvedCategory = normalizeText(category, 80) || 'fruits_and_vegetables';
+
+    // LEG-04 — food information is not optional, and it has to be there
+    // BEFORE the purchase is concluded (Reg. 1169/2011). Refusing the publish
+    // is the only enforcement point that works: a product listed without its
+    // mandatory particulars is already non-compliant by the time anyone looks.
+    const labelCheck = validateLabelling({
+      category: resolvedCategory,
+      labelling: req.body?.labelling || {},
+    });
+    if (!labelCheck.ok) {
+      return res.status(400).json({
+        error: 'This product is missing food information the law requires before it can be sold.',
+        code: 'labelling_incomplete',
+        missing: labelCheck.missing,
+        problems: labelCheck.errors,
+        required: requiredFieldsFor(resolvedCategory),
+      });
+    }
+
+    // "Bio" is a claim, not an adjective. Regulation (EU) 2018/848 requires a
+    // certificate from an approved control body; saying it without one is a
+    // misleading commercial practice (Law 363/2007). So it is never the
+    // farmer's own say-so.
+    let organicAllowed = false;
+    if (isBio) {
+      const { data: certificate } = await supabase
+        .from(TABLES.organicCertificates)
+        .select('id, state, valid_until')
+        .eq('farmer_id', String(farmer.id))
+        .in('state', ['pending', 'approved'])
+        .maybeSingle();
+
+      const verdict = organicClaimAllowed(certificate);
+      if (!verdict.allowed) {
+        return res.status(403).json({
+          error: ORGANIC_REFUSALS[verdict.reason] || ORGANIC_REFUSALS.no_certificate,
+          code: `organic_${verdict.reason}`,
+        });
+      }
+      organicAllowed = true;
+    }
+
     const payload = {
       farmer_id: farmer.id,
       'product name': normalizeText(name, 180),
-      category: normalizeText(category, 80) || 'fruits_and_vegetables',
+      category: resolvedCategory,
       type: normalizeText(type, 80),
       Unit: normalizeText(unit, 40) || 'unit',
       quantity: Number(quantityValue.toFixed(2)),
@@ -671,6 +723,10 @@ router.post('/products', requireVendor, async (req, res, next) => {
       available: toIntFlag(available !== false),
       instant_buy: Boolean(instantBuy),
       'photo url': typeof imageUrl === 'string' && imageUrl.trim() ? imageUrl.trim() : null,
+      labelling: labelCheck.labelling,
+      labelling_validated_at: new Date().toISOString(),
+      batch_code: normalizeText(req.body?.batchCode, 80),
+      'bio check': toIntFlag(organicAllowed),
     };
 
     const { data: insertedProduct, error: insertError } = await supabase
@@ -814,6 +870,87 @@ router.post('/availability', requireVendor, async (req, res, next) => {
     });
 
     return res.json({ availability: serializeAvailability(parsed.patch) });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+/**
+ * LEG-04 — the organic certificate.
+ *
+ * Uploaded by the farm, checked by an admin, and it expires. The claim turns
+ * itself off when it lapses, without anyone having to remember — which is the
+ * whole reason this is a record with a date rather than a boolean.
+ */
+router.get('/organic-certificate', requireVendor, async (req, res, next) => {
+  try {
+    const { data } = await supabase
+      .from(TABLES.organicCertificates)
+      .select('id, control_body, certificate_number, valid_from, valid_until, state, review_note, reviewed_at')
+      .eq('farmer_id', String(req.user.id))
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    const certificate = (data || [])[0] || null;
+    const verdict = organicClaimAllowed(certificate);
+
+    return res.json({
+      certificate,
+      canClaimOrganic: verdict.allowed,
+      reason: verdict.allowed ? null : ORGANIC_REFUSALS[verdict.reason] || null,
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.post('/organic-certificate', requireVendor, runUpload(documentUpload.any()), async (req, res, next) => {
+  try {
+    const controlBody = normalizeText(req.body?.controlBody, 160);
+    const certificateNumber = normalizeText(req.body?.certificateNumber, 120);
+    const validFrom = normalizeText(req.body?.validFrom, 10);
+    const validUntil = normalizeText(req.body?.validUntil, 10);
+
+    if (!controlBody || !certificateNumber) {
+      return res.status(400).json({
+        error: 'The control body and the certificate number are both required.',
+      });
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(validUntil)) {
+      return res.status(400).json({
+        error: 'An expiry date is required — the organic claim ends when the certificate does.',
+      });
+    }
+    if (Date.parse(validUntil) <= Date.now()) {
+      return res.status(400).json({ error: 'That certificate has already expired.' });
+    }
+
+    // A renewal replaces whatever is there rather than stacking: the partial
+    // unique index allows one live certificate per farm.
+    await supabase
+      .from(TABLES.organicCertificates)
+      .delete()
+      .eq('farmer_id', String(req.user.id))
+      .in('state', ['pending', 'rejected']);
+
+    const { error } = await supabase.from(TABLES.organicCertificates).insert({
+      farmer_id: String(req.user.id),
+      control_body: controlBody,
+      control_body_code: normalizeText(req.body?.controlBodyCode, 40),
+      certificate_number: certificateNumber,
+      valid_from: validFrom || null,
+      valid_until: validUntil,
+      state: 'pending',
+    });
+
+    if (error) {
+      return res.status(500).json({ error: 'Unable to save the certificate.' });
+    }
+
+    return res.status(201).json({
+      submitted: true,
+      message: 'Submitted for review. Your products can be listed as organic once it is approved.',
+    });
   } catch (error) {
     return next(error);
   }
