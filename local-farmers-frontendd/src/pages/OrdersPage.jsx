@@ -5,6 +5,7 @@ import { apiFetch } from '../lib/api.js';
 import { useAuth } from '../lib/auth.jsx';
 import { useLiveUpdates, LIVE_TOPICS } from '../lib/liveUpdates.js';
 import ReportProblem from '../components/ReportProblem.jsx';
+import FulfilmentForm from '../components/FulfilmentForm.jsx';
 
 const STATE_LABELS = {
   placed_order: 'In cart',
@@ -656,6 +657,17 @@ export default function OrdersPage() {
                         <p className="order-item-unit">
                           {formatMoney(item.unitPrice)} / {item.productUnit || 'unit'}
                         </p>
+                        {/* OPS-06 — `quantity` is what was ordered and paid
+                            for; this is what arrived. Only shown when they
+                            differ, so a full delivery stays quiet. */}
+                        {item.fulfilledQuantity !== null &&
+                          item.fulfilledQuantity !== undefined &&
+                          item.fulfilledQuantity !== item.quantity && (
+                            <p className="order-item-fulfilled">
+                              Delivered: {formatQuantity(item.fulfilledQuantity)}{' '}
+                              {item.productUnit || 'unit'} of {formatQuantity(item.quantity)}
+                            </p>
+                          )}
                       </div>
 
                       {isCart ? (
@@ -798,6 +810,11 @@ export default function OrdersPage() {
                       A customer who has to go looking for it charges back
                       instead, which costs everyone more and tells us nothing. */}
                   {!isVendor && <ReportProblem order={order} />}
+                  {/* OPS-06 — a farm with 3 of 5 kilos delivers the 3 and
+                      records it, instead of declining the whole order. */}
+                  {isVendor && (
+                    <FulfilmentForm order={order} onRecorded={() => loadOrders(bucket)} />
+                  )}
                 </div>
               </div>
 

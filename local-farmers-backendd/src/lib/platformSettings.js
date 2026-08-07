@@ -11,6 +11,8 @@ const { supabase, TABLES } = require('./supabase');
 const FALLBACK_COMMISSION_BPS = 1000;
 /** Stripe refuses RON charges under 2.00 lei. */
 const FALLBACK_MIN_CHARGE_BANI = 200;
+/** LOG-04 — the ±10% in customer terms §10.4, as a number the code reads. */
+const FALLBACK_WEIGHT_TOLERANCE_BPS = 1000;
 
 const CACHE_TTL_MS = 60 * 1000;
 
@@ -20,7 +22,7 @@ let cachedAt = 0;
 const readFromDatabase = async () => {
   const { data, error } = await supabase
     .from(TABLES.platformSettings)
-    .select('commission_bps, min_charge_bani')
+    .select('commission_bps, min_charge_bani, weight_tolerance_bps')
     .eq('id', true)
     .maybeSingle();
 
@@ -31,12 +33,14 @@ const readFromDatabase = async () => {
     return {
       commissionBps: FALLBACK_COMMISSION_BPS,
       minChargeBani: FALLBACK_MIN_CHARGE_BANI,
+      weightToleranceBps: FALLBACK_WEIGHT_TOLERANCE_BPS,
       fromDatabase: false,
     };
   }
 
   const bps = Number(data.commission_bps);
   const minCharge = Number(data.min_charge_bani);
+  const tolerance = Number(data.weight_tolerance_bps);
 
   return {
     commissionBps: Number.isFinite(bps) && bps >= 0 ? Math.round(bps) : FALLBACK_COMMISSION_BPS,
@@ -44,6 +48,10 @@ const readFromDatabase = async () => {
       Number.isFinite(minCharge) && minCharge >= 0
         ? Math.round(minCharge)
         : FALLBACK_MIN_CHARGE_BANI,
+    weightToleranceBps:
+      Number.isFinite(tolerance) && tolerance >= 0
+        ? Math.round(tolerance)
+        : FALLBACK_WEIGHT_TOLERANCE_BPS,
     fromDatabase: true,
   };
 };
@@ -71,6 +79,7 @@ const invalidatePlatformSettings = () => {
 module.exports = {
   FALLBACK_COMMISSION_BPS,
   FALLBACK_MIN_CHARGE_BANI,
+  FALLBACK_WEIGHT_TOLERANCE_BPS,
   getPlatformSettings,
   invalidatePlatformSettings,
 };

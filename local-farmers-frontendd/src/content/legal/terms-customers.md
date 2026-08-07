@@ -145,7 +145,15 @@ You are a **consumer**, and your statutory rights cannot be limited by these ter
 
 **10.3.** Each producer may set a **minimum order value**. If you have not reached it, we show you how much is still missing.
 
-**10.4.** Products sold by weight may deviate by **±[10]%** from the quantity ordered, which is inherent to fresh produce. [Option: "The difference is neither charged additionally nor refunded." / "Any shortfall is refunded automatically."] Deviations beyond this threshold constitute non-conformity and give you the right to a refund.
+**10.4.** Products sold by weight may deviate by **±10%** from the quantity ordered. This is inherent to fresh produce: a "1 kg" bag of tomatoes is what the farm weighed out, and it will not be exactly 1,000 g. The rule is:
+
+- **Within 10%:** the price stands. You may receive slightly more or slightly less, and it evens out.
+- **More than 10% short:** the difference is **refunded automatically**, in proportion to the platform service fee as well. You do not have to notice it, report it, or ask.
+- **More than 10% over:** you are **not** charged extra. The farm gave you more than it billed you for.
+
+**Your card is charged once, at the price shown at checkout. We never charge you again after delivery, whatever the scales say.** The alternative permitted by law — authorising a larger amount and capturing at the real weight — would show you a hold larger than the price you agreed to, and we are not willing to take a payment you did not authorise.
+
+Deviations beyond this threshold constitute non-conformity and give you the right to a refund under Law 449/2003, which the automatic refund above satisfies. If it does not reach you, report the order through **Report a problem** and we will look into it.
 
 ### 11. Payment
 

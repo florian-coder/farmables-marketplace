@@ -12,6 +12,7 @@
 
 const { supabase, TABLES } = require('./supabase');
 const { getPlatformSettings } = require('./platformSettings');
+const { availabilityBlocker, serializeAvailability } = require('./availability');
 const {
   leiToBani,
   toBani,
@@ -33,18 +34,41 @@ const FARMER_PRICING_COLUMNS = [
   'delivery_fee_bani',
   'min_order_value_bani',
   'free_delivery_threshold_bani',
+  // OPS-06 — a farm is a person: hours, holidays, and a cap on how many boxes
+  // it can pack in a day.
+  'working_hours',
+  'closed_dates',
+  'daily_order_capacity',
+  'lead_time_hours',
+  // OPS-03 — a suspension is ours, not Stripe's `charges_enabled`.
+  'suspended_at',
+  'suspension_effective_at',
 ].join(', ');
 
 const asBool = (value) => value === true || value === 1 || value === '1';
 
 /** Why a farmer's sub-cart cannot be paid for right now, in Romanian. */
-const blockingReason = ({ farmer, farmName, productsSubtotalBani }) => {
+const blockingReason = ({ farmer, farmName, productsSubtotalBani, ordersToday = 0 }) => {
   if (!farmer) {
     return {
       code: 'farmer_missing',
       message: `This farm no longer exists. Remove its products from your basket.`,
     };
   }
+
+  // OPS-03 — a suspension that has taken effect stops sales, and says so
+  // rather than pretending the farm has a payment problem.
+  if (
+    farmer.suspended_at &&
+    (!farmer.suspension_effective_at ||
+      Date.parse(farmer.suspension_effective_at) <= Date.now())
+  ) {
+    return {
+      code: 'farm_suspended',
+      message: `${farmName} is not currently selling on the platform.`,
+    };
+  }
+
   if (!farmer.stripe_account_id || !asBool(farmer.charges_enabled)) {
     return {
       code: 'farmer_not_payable',
@@ -68,6 +92,14 @@ const blockingReason = ({ farmer, farmName, productsSubtotalBani }) => {
       code: 'empty_group',
       message: `Your basket from ${farmName} is empty.`,
     };
+  }
+
+  // OPS-06 — closed today is advisory (a delay, not a refusal); at capacity is
+  // not. A farm that has said how many boxes it can pack has said it in
+  // advance, and taking one more is knowingly selling something undeliverable.
+  const availability = availabilityBlocker({ farmer, farmName, ordersToday });
+  if (availability && !availability.advisory) {
+    return availability;
   }
 
   return null;
@@ -174,6 +206,9 @@ const buildCartQuote = async ({ clientId }) => {
     });
 
     const blocked = blockingReason({ farmer, farmName, productsSubtotalBani });
+    // Advisory notices are shown alongside the group rather than stopping the
+    // checkout: "they are closed on Sundays" is worth knowing, not a refusal.
+    const notice = availabilityBlocker({ farmer, farmName });
 
     groups.push({
       orderId,
@@ -193,6 +228,8 @@ const buildCartQuote = async ({ clientId }) => {
       listedDeliveryFeeBani: toBani(farmer?.delivery_fee_bani),
       deliveryFeeWaived: toBani(farmer?.delivery_fee_bani) > 0 && fee === 0,
       blocked,
+      notice: notice && notice.advisory ? notice : null,
+      availability: serializeAvailability(farmer),
     });
   }
 
@@ -237,6 +274,8 @@ const serializeQuote = (quote) => ({
     freeDeliveryThresholdBani: group.freeDeliveryThresholdBani,
     itemCount: group.items.length,
     blocked: group.blocked,
+    notice: group.notice,
+    availability: group.availability,
   })),
   totals: quote.totals,
   payable: quote.payable,

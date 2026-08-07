@@ -13,6 +13,7 @@ const {
   toNumberOrNull,
 } = require('../lib/domain');
 const { ACTIONS, recordAudit } = require('../lib/audit');
+const { serializeAvailability, parseAvailabilityInput } = require('../lib/availability');
 const { recalculateAndPersistProductRatings } = require('../lib/productRating');
 const { mapConnectState } = require('../lib/connect');
 
@@ -744,6 +745,75 @@ router.delete('/products/:productId', requireVendor, async (req, res, next) => {
     }
 
     return res.json({ product: mapProductToApi(deletedProduct) });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+/**
+ * OPS-06 — when this farm is open, and how much it can take.
+ *
+ * Every default is "no restriction": every farm that exists today has none
+ * configured, and none of them should suddenly go dark because a column
+ * appeared.
+ */
+router.get('/availability', requireVendor, async (req, res, next) => {
+  try {
+    const { data, error } = await supabase
+      .from(TABLES.farmers)
+      .select('id, working_hours, closed_dates, daily_order_capacity, lead_time_hours, suspended_at, suspended_reason, suspension_effective_at')
+      .eq('id', req.user.id)
+      .maybeSingle();
+
+    if (error || !data) {
+      return res.status(404).json({ error: 'Farm profile not found.' });
+    }
+
+    return res.json({
+      availability: serializeAvailability(data),
+      // OPS-03 / P2B art. 4 — a suspended farm is told why, and when it takes
+      // effect. Finding out by watching your sales stop is not a statement of
+      // reasons.
+      suspension: data.suspended_at
+        ? {
+            suspendedAt: data.suspended_at,
+            reason: data.suspended_reason || '',
+            effectiveAt: data.suspension_effective_at || null,
+          }
+        : null,
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.post('/availability', requireVendor, async (req, res, next) => {
+  try {
+    const parsed = parseAvailabilityInput(req.body || {});
+    if (!parsed.ok) {
+      return res.status(400).json({ error: parsed.error });
+    }
+
+    const { error } = await supabase
+      .from(TABLES.farmers)
+      .update(parsed.patch)
+      .eq('id', req.user.id);
+
+    if (error) {
+      return res.status(500).json({ error: 'Unable to save your availability.' });
+    }
+
+    await recordAudit({
+      req,
+      actorType: 'farmer',
+      actorId: req.user.id,
+      action: ACTIONS.FARM_AVAILABILITY_CHANGED,
+      entityType: 'farmer',
+      entityId: String(req.user.id),
+      newValue: `capacity=${parsed.patch.daily_order_capacity}`,
+    });
+
+    return res.json({ availability: serializeAvailability(parsed.patch) });
   } catch (error) {
     return next(error);
   }

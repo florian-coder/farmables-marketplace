@@ -51,6 +51,8 @@ const ACTIONS = Object.freeze({
   ADMIN_2FA_ENROLLED: 'admin.2fa_enrolled',
   ADMIN_2FA_FAILED: 'admin.2fa_failed',
   EMAIL_CHANGED: 'email.changed',
+  ORDER_FULFILMENT_RECORDED: 'order.fulfilment_recorded',
+  FARM_AVAILABILITY_CHANGED: 'farm.availability_changed',
 });
 
 /**

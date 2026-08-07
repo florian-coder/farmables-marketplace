@@ -4793,3 +4793,38 @@ a {
 .order-dispute-notice {
   margin: var(--s-3) var(--s-4) 0;
 }
+
+/* OPS-06 — ce a intrat efectiv în ladă. */
+.fulfilment-lines {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fulfilment-lines li {
+  display: flex;
+  gap: var(--s-3);
+  align-items: center;
+  justify-content: space-between;
+  font-size: var(--t-1);
+}
+
+.fulfilment-line-name {
+  flex: 1 1 auto;
+}
+
+.fulfilment-lines input {
+  flex: 0 0 6rem;
+  width: 6rem;
+}
+
+/* Se arată doar când diferă de cât s-a comandat: o livrare completă tace. */
+.order-item-fulfilled {
+  margin: var(--s-1) 0 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--warn);
+}

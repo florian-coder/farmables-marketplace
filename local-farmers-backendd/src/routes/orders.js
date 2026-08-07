@@ -15,6 +15,7 @@ const {
 const { ACTIONS, recordAudit } = require('../lib/audit');
 const { cancelPaidOrder } = require('../lib/refunds');
 const { notifyCustomerOrderState } = require('../lib/notifications');
+const { recordFulfilment } = require('../lib/fulfilment');
 
 const router = express.Router();
 
@@ -59,6 +60,8 @@ const ORDER_ITEM_COLUMNS = [
   'line_total',
   'created_at',
   'updated_at',
+  // OPS-06 — what was ordered stays `quantity`; this is what arrived.
+  'fulfilled_quantity',
 ].join(', ');
 
 const ORDER_REPLY_COLUMNS = [
@@ -191,6 +194,10 @@ const mapOrderItemRow = (row) => ({
   quantity: toNumber(row.quantity, 0),
   unitPrice: formatMoney(row.unit_price),
   lineTotal: formatMoney(row.line_total),
+  fulfilledQuantity:
+    row.fulfilled_quantity === null || row.fulfilled_quantity === undefined
+      ? null
+      : toNumber(row.fulfilled_quantity, 0),
   createdAt: row.created_at || null,
   updatedAt: row.updated_at || null,
 });
@@ -448,6 +455,7 @@ const fetchOrderDetails = async ({ orders, user }) => {
         quantity: item.quantity,
         unitPrice: item.unitPrice,
         lineTotal: item.lineTotal,
+        fulfilledQuantity: item.fulfilledQuantity,
       }));
 
     return {
@@ -863,6 +871,76 @@ router.post('/:orderId/replies', requireAuth, async (req, res, next) => {
         message: insertedReply.message || '',
         createdAt: insertedReply.created_at || null,
       },
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+/**
+ * OPS-06 + LOG-04 — record what actually went in the box.
+ *
+ * The finding was "a farmer with 3 of 5 kg can only decline the whole order".
+ * Now they deliver the 3, record it, and the customer is refunded the
+ * difference automatically — no complaint, no dispute, no waiting.
+ *
+ * Small differences are absorbed by the tolerance (±10% by default): a bag of
+ * tomatoes is never exactly a kilo, and refunding 50 g would cost more in
+ * Stripe fees than it returns.
+ */
+router.post('/:orderId/fulfilment', requireAuth, async (req, res, next) => {
+  try {
+    if (req.user.role !== 'vendor') {
+      return res.status(403).json({ error: 'Only the farm can record what was delivered.' });
+    }
+
+    const orderId = normalizeIdentifier(req.params.orderId);
+    const vendorRecord = await fetchVendorRecord(req.user.id);
+    const order = await fetchOrderById(orderId);
+
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found.' });
+    }
+    if (!canAccessOrder(req.user, vendorRecord, order)) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    // Recording is part of handing the order over, so it belongs to the states
+    // where that is happening. Before that there is nothing to weigh; after
+    // `received` the customer has already confirmed what they got.
+    if (!['preparing_order', 'in_transit', 'arrived'].includes(order.orderState)) {
+      return res.status(409).json({
+        error: 'You can record what was delivered while the order is being prepared or on its way.',
+        code: 'wrong_state',
+      });
+    }
+
+    const fulfilled = req.body?.fulfilled;
+    if (fulfilled && typeof fulfilled !== 'object') {
+      return res.status(400).json({ error: 'fulfilled must be a map of item id to quantity.' });
+    }
+
+    const result = await recordFulfilment({
+      req,
+      order: { id: orderId },
+      fulfilled: fulfilled || {},
+      actorId: req.user.id,
+    });
+
+    if (!result.ok) {
+      return res.status(result.status || 500).json({ error: result.error, code: result.code });
+    }
+
+    const detailedOrder = await fetchDetailedOrder({ orderId, user: req.user, vendorRecord });
+    return res.json({
+      order: detailedOrder,
+      fulfilment: {
+        kind: result.evaluation.kind,
+        shortfallBani: result.evaluation.shortfallBani,
+        toleranceBps: result.evaluation.toleranceBps,
+        lines: result.evaluation.lines,
+      },
+      refund: result.refund,
     });
   } catch (error) {
     return next(error);
