@@ -45,6 +45,9 @@ const TABLES = {
   // OPS-01b — the refund ledger. One row per money-back event, with the
   // Stripe reversal and refund ids that prove it happened.
   refunds: 'refunds',
+  // OPS-02 — queued notifications. `event_key` is unique, so a webhook
+  // redelivery cannot email the same person twice.
+  emailOutbox: 'email_outbox',
   // LEG-02/LEG-03 — consent to the legal documents: which version, when, from
   // where. Append-only.
   legalAcceptances: 'legal_acceptances',

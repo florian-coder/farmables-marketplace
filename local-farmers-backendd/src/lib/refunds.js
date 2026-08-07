@@ -29,6 +29,10 @@ const { supabase, TABLES } = require('./supabase');
 const { stripe, stripeRequestId } = require('./stripeClient');
 const { toBani, formatBani, refundBreakdown } = require('./money');
 const { ACTIONS, recordAudit } = require('./audit');
+const {
+  notifyCustomerCancelled,
+  notifyCustomerRefundCompleted,
+} = require('./notifications');
 
 /** Refund lifecycle, mirrored onto `orders.refund_state`. */
 const REFUND_STATES = Object.freeze({
@@ -434,6 +438,15 @@ const issueRefund = async ({
     newValue: `${breakdown.amountBani}:${customerRefund.refundId || 'none'}`,
   });
 
+  // OPS-02 — the customer hears that the money is actually moving. Queued,
+  // so a mail failure cannot unwind a refund that has already happened.
+  await notifyCustomerRefundCompleted({
+    order,
+    refundId: refund.id,
+    amountBani: breakdown.amountBani,
+    isPartial: breakdown.kind === 'partial',
+  });
+
   if (reversal.manual) {
     // Loud on purpose: this is the only failure mode that costs the platform
     // real money and it will not fix itself.
@@ -505,17 +518,40 @@ const cancelPaidOrder = async ({
     newValue: `cancelled:${String(reason || '').slice(0, 100)}`,
   });
 
-  if (!refundRequired) {
-    return { ok: true, refund: null };
-  }
-
   // Re-read rather than trusting the RPC payload: the in-memory test double
   // and a future change to the function's return shape both go through here,
   // and the money columns are the one thing that must be right.
   const order = await loadOrderForRefund(orderId);
+
+  if (!refundRequired) {
+    if (order && order.paid_at) {
+      // Cancelled after payment was attempted but before the charge cleared —
+      // nothing to refund, but the customer still deserves to be told.
+      await notifyCustomerCancelled({
+        order,
+        reason,
+        refundAmountBani: 0,
+        cancelledBy: actor,
+      });
+    }
+    return { ok: true, refund: null };
+  }
+
   if (!order) {
     return { ok: true, refund: null };
   }
+
+  // Told before the refund runs, not after: "cancelled, money on its way" is
+  // the message, and it must not wait on Stripe to be true.
+  await notifyCustomerCancelled({
+    order,
+    reason,
+    refundAmountBani:
+      toBani(order.products_subtotal_bani) +
+      toBani(order.delivery_fee_bani) +
+      toBani(order.commission_bani),
+    cancelledBy: actor,
+  });
 
   const refund = await issueRefund({
     req,

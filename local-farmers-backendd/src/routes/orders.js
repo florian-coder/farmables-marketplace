@@ -14,6 +14,7 @@ const {
 } = require('../lib/orderState');
 const { ACTIONS, recordAudit } = require('../lib/audit');
 const { cancelPaidOrder } = require('../lib/refunds');
+const { notifyCustomerOrderState } = require('../lib/notifications');
 
 const router = express.Router();
 
@@ -757,9 +758,16 @@ router.patch('/:orderId/state', requireAuth, async (req, res, next) => {
       return res.json({ order: cancelledOrder, refund: outcome.refund || null });
     }
 
+    const statePatch = { order_state: nextState };
+    // OPS-04 — stamp the moment it reached the door. `updated_at` moves for
+    // every write, so it cannot be the clock a deadline is measured against.
+    if (nextState === 'arrived') {
+      statePatch.arrived_at = new Date().toISOString();
+    }
+
     const { error: updateError } = await supabase
       .from(TABLES.orders)
-      .update({ order_state: nextState })
+      .update(statePatch)
       .eq('id', orderId);
     if (updateError) {
       return res.status(500).json({ error: updateError.message || 'Unable to update order.' });
@@ -774,6 +782,13 @@ router.patch('/:orderId/state', requireAuth, async (req, res, next) => {
       entityId: orderId,
       oldValue: order.orderState,
       newValue: nextState,
+    });
+
+    // OPS-02 — the customer is not sitting on the orders page waiting for a
+    // Realtime event. Realtime only works while a tab is open.
+    await notifyCustomerOrderState({
+      order: { id: orderId, client_id: order.clientId, farmer_id: order.farmerId },
+      state: nextState,
     });
 
     const includedBefore = RATING_ORDER_STATES.includes(order.orderState);

@@ -50,7 +50,11 @@ const sendMail = async (message) => {
         from: fromAddress(),
         to: [message.to],
         subject: message.subject,
+        // Both parts, always. Some clients show the text version by default,
+        // and an order confirmation that only exists as HTML is a weaker
+        // durable-medium record than one that also reads as plain text.
         text: message.text,
+        ...(message.html ? { html: message.html } : {}),
       }),
     });
 

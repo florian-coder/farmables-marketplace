@@ -6,6 +6,11 @@ const { STRIPE_WEBHOOK_SECRET } = require('../lib/config');
 const { ACTIONS, recordAudit } = require('../lib/audit');
 const { syncAccountToFarmer } = require('../lib/connect');
 const { transferCheckoutGroups } = require('../lib/transfers');
+const {
+  notifyCustomerOrderConfirmed,
+  notifyFarmerNewOrder,
+  notifyConnectIncomplete,
+} = require('../lib/notifications');
 
 const router = express.Router();
 
@@ -38,6 +43,52 @@ const claimEvent = async (event) => {
 /** The checkout id travels on both the session and the payment intent. */
 const checkoutIdFrom = (object) =>
   String(object?.metadata?.checkout_id || object?.client_reference_id || '').trim();
+
+/**
+ * Tell everyone a checkout was paid for: one confirmation to the customer,
+ * one new-order alert per farm.
+ *
+ * Both are queued through the outbox, so this returns in the time of a couple
+ * of selects and never depends on the email provider being up.
+ */
+const announcePaidCheckout = async (checkoutId) => {
+  try {
+    const { data: checkout } = await supabase
+      .from(TABLES.checkouts)
+      .select(
+        'id, client_id, products_subtotal_bani, delivery_fee_total_bani, commission_total_bani, total_bani',
+      )
+      .eq('id', String(checkoutId))
+      .maybeSingle();
+
+    if (!checkout) {
+      return;
+    }
+
+    const { data: orders } = await supabase
+      .from(TABLES.orders)
+      .select(
+        'id, farmer_id, client_id, products_subtotal_bani, delivery_fee_bani, commission_bani, transfer_amount_bani, order_state',
+      )
+      .eq('checkout_id', String(checkoutId));
+
+    const groups = (orders || []).filter((order) => order.order_state !== 'cancelled');
+
+    await notifyCustomerOrderConfirmed({ checkout, orders: groups });
+
+    for (const order of groups) {
+      const { data: items } = await supabase
+        .from(TABLES.orderItems)
+        .select('product_name, product_unit, quantity, line_total')
+        .eq('order_id', String(order.id));
+      await notifyFarmerNewOrder({ order, items: items || [] });
+    }
+  } catch (error) {
+    // A missing notification must never make us return non-2xx to Stripe and
+    // earn a redelivery of a payment we already recorded.
+    console.error('[webhook] Could not announce paid checkout:', error?.message || error);
+  }
+};
 
 /**
  * Payment confirmed: flip the checkout and all its farmer groups to paid,
@@ -74,6 +125,13 @@ const handlePaymentSucceeded = async ({ checkoutId, paymentIntentId, eventId }) 
       entityId: checkoutId,
       newValue: `paid:${applied.total_bani || 0}`,
     });
+  }
+
+  if (applied?.newly_paid) {
+    // OPS-02 / LEG-02 — the confirmation on a durable medium, and the one
+    // email a farmer cannot afford to miss. Queued, never sent inline: the
+    // webhook must answer Stripe in time regardless of how Resend is feeling.
+    await announcePaidCheckout(checkoutId);
   }
 
   // Transfers run on every delivery of the event, not only the first: if the
@@ -229,6 +287,19 @@ router.post('/stripe', express.raw({ type: 'application/json' }), async (req, re
             entityId: result.accountId,
             newValue: `charges_enabled=${result.chargesEnabled}`,
           });
+
+          // OPS-02 — a farm that still cannot take payments is invisible in
+          // the catalogue, and the farmer has no way of knowing that unless
+          // we tell them. Nudged once a day, not once per Stripe event.
+          if (!result.chargesEnabled && result.farmerId) {
+            await notifyConnectIncomplete({
+              userId: result.farmerId,
+              farmName: result.farmName || 'Your farm',
+              requirementsDue: Array.isArray(account?.requirements?.currently_due)
+                ? account.requirements.currently_due
+                : [],
+            });
+          }
         }
         break;
       }

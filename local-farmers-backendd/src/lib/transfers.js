@@ -17,6 +17,7 @@
 const { supabase, TABLES } = require('./supabase');
 const { stripe, stripeRequestId } = require('./stripeClient');
 const { toBani, formatBani } = require('./money');
+const { notifyFarmerTransferSent } = require('./notifications');
 
 /** Transfer lifecycle, mirrored on `orders.transfer_state`. */
 const TRANSFER_STATES = Object.freeze({
@@ -148,6 +149,9 @@ const transferToFarmer = async ({ order, checkout, eventId }) => {
       state: TRANSFER_STATES.SENT,
       stripeTransferId: transfer.id,
     });
+
+    // OPS-02 — the farmer sees money arrive without having to open the app.
+    await notifyFarmerTransferSent({ order, amountBani });
 
     return { transferred: true, transferId: transfer.id, amountBani };
   } catch (error) {

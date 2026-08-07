@@ -13,7 +13,7 @@ const { getUserFromRequest, requireAuth } = require('../middleware/auth');
 const { authLimiter, usernameLimiter } = require('../middleware/rateLimit');
 const { supabase, TABLES } = require('../lib/supabase');
 const { mapDbUserToApi, normalizeText, toDbUserType } = require('../lib/domain');
-const { sendMail } = require('../lib/mailer');
+const { enqueueEmail } = require('../lib/outbox');
 const { ACTIONS, recordAudit } = require('../lib/audit');
 const { IS_PRODUCTION } = require('../lib/config');
 const { validateAcceptances } = require('../lib/legalDocuments');
@@ -255,10 +255,15 @@ router.post('/signup', authLimiter, async (req, res, next) => {
         ttlMs: 24 * 60 * 60 * 1000,
       });
       const link = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/auth/verify-email?token=${token}`;
-      await sendMail({
+      // OPS-02 — through the outbox like everything else, so a Resend hiccup
+      // retries instead of silently costing someone their verification link.
+      // The event key carries the token, so a resend is a new message.
+      await enqueueEmail({
+        eventKey: `verify-email:${insertedUser.id}:${token.slice(0, 16)}`,
+        template: 'auth.verify_email',
         to: normalizedEmail,
-        subject: 'Confirm your email address — Farmables',
-        text: `Welcome to Farmables.\n\nConfirm your email address by opening the link below:\n\n${link}\n\nThe link is valid for 24 hours.`,
+        userId: String(insertedUser.id),
+        payload: { verifyUrl: link },
       });
     } catch (tokenError) {
       console.error('[auth] Unable to send verification email:', tokenError?.message);
@@ -419,10 +424,14 @@ router.post('/forgot-password', authLimiter, usernameLimiter, async (req, res, n
           ttlMs: RESET_TOKEN_TTL_MS,
         });
         const link = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/auth/reset-password?token=${token}`;
-        await sendMail({
+        // Keyed on the token, so asking again really does send again — the
+        // whole point of the flow is that the first link may never arrive.
+        await enqueueEmail({
+          eventKey: `password-reset:${user.id}:${token.slice(0, 16)}`,
+          template: 'auth.password_reset',
           to: user.email,
-          subject: 'Password reset — Farmables',
-          text: `We received a password reset request for the account ${user.username}.\n\nOpen the link below to choose a new password:\n\n${link}\n\nThe link is valid for 30 minutes and can be used once.\nIf you did not request the reset, ignore this message — your password stays unchanged.`,
+          userId: String(user.id),
+          payload: { resetUrl: link },
         });
       } catch (tokenError) {
         console.error('[auth] Unable to issue reset token:', tokenError?.message);

@@ -13,6 +13,9 @@ const UNIQUE_KEYS = {
   users: ['username'],
   // Cheia unică pe `order_id` E mecanismul de idempotență al transferurilor.
   order_transfers: ['order_id'],
+  // Idem pentru notificări: `event_key` e derivat din faptul petrecut, deci o
+  // reluare de webhook se pliază peste rândul deja existent.
+  email_outbox: ['event_key'],
 };
 
 /**

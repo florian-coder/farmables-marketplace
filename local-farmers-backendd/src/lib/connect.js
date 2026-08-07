@@ -195,7 +195,21 @@ const syncAccountToFarmer = async (account) => {
     throw new Error(error.message || 'Unable to sync Stripe account state.');
   }
 
-  return { accountId, chargesEnabled, detailsSubmitted };
+  // Who this account belongs to, so the caller can notify them without a
+  // second lookup. Read after the update so a first-time link is reflected.
+  const { data: owner } = await supabase
+    .from(TABLES.farmers)
+    .select('id, "farm name", "display name"')
+    .eq('stripe_account_id', accountId)
+    .maybeSingle();
+
+  return {
+    accountId,
+    chargesEnabled,
+    detailsSubmitted,
+    farmerId: owner?.id ? String(owner.id) : farmerId ? String(farmerId) : '',
+    farmName: owner?.['farm name'] || owner?.['display name'] || '',
+  };
 };
 
 /**

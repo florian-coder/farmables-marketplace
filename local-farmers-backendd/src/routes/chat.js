@@ -2,6 +2,7 @@ const express = require('express');
 
 const { requireAuth } = require('../middleware/auth');
 const { supabase, TABLES } = require('../lib/supabase');
+const { notifyChatMessage } = require('../lib/notifications');
 
 const router = express.Router();
 
@@ -612,6 +613,18 @@ router.post(
           updateConversationError.message || 'Unable to update conversation metadata.',
         );
       }
+
+      // OPS-02 — the other side is probably not looking at the tab. Debounced
+      // to at most one email per conversation per quarter of an hour, so a
+      // back-and-forth does not become twenty messages in an inbox.
+      await notifyChatMessage({
+        conversationId,
+        recipientUserId: isCustomerSender
+          ? currentConversation.vendorId
+          : currentConversation.customerId,
+        senderName: req.user.username || 'Someone',
+        preview: text,
+      });
 
       return res.status(201).json({
         message: {

@@ -21,6 +21,7 @@ const toStoragePath = (value) => {
 const { recalculateAndPersistProductRatings } = require('../lib/productRating');
 const { issueRefund, cancelPaidOrder, loadOrderForRefund } = require('../lib/refunds');
 const { evaluateTransition } = require('../lib/orderState');
+const { notifyFarmApproved, notifyFarmRejected } = require('../lib/notifications');
 const {
   ADMIN_COOKIE_NAME,
   ADMIN_SESSION_TTL_MS,
@@ -410,6 +411,23 @@ router.post('/farmer-requests/:requestId/approve', requireAdmin, async (req, res
     if (updateRequestError) {
       return res.status(500).json({ error: updateRequestError.message || 'Unable to update request status.' });
     }
+
+    await recordAudit({
+      req,
+      actorType: 'admin',
+      actorId: req.admin.username,
+      action: ACTIONS.FARM_APPROVED,
+      entityType: 'farmer_request',
+      entityId: requestId,
+      newValue: String(request.user_id || ''),
+    });
+
+    // OPS-02 — being approved is worth an email; the farmer is not going to
+    // keep refreshing the dashboard for days waiting for it.
+    await notifyFarmApproved({
+      userId: request.user_id,
+      farmName: request.farm_name || 'Your farm',
+    });
 
     const { data: users } = await supabase
       .from(TABLES.users)
@@ -804,6 +822,24 @@ router.post('/farmer-requests/:requestId/reject', requireAdmin, async (req, res,
     if (updateRequestError) {
       return res.status(500).json({ error: updateRequestError.message || 'Unable to reject request.' });
     }
+
+    await recordAudit({
+      req,
+      actorType: 'admin',
+      actorId: req.admin.username,
+      action: ACTIONS.FARM_REJECTED,
+      entityType: 'farmer_request',
+      entityId: requestId,
+      newValue: reviewNote.slice(0, 200),
+    });
+
+    // A rejection with no explanation and no message is how you lose an
+    // applicant who would have fixed the one missing document.
+    await notifyFarmRejected({
+      userId: request.user_id,
+      farmName: request.farm_name || 'your farm',
+      reviewNote,
+    });
 
     const { data: users } = await supabase
       .from(TABLES.users)
