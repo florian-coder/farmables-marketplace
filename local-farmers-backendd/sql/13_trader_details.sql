@@ -36,28 +36,20 @@ comment on column public.farmers.trader_type is
 
 
 -- =====================================================================
--- Backfill from what the approval already collected
+-- No automatic backfill, deliberately
 --
--- The CUI was uploaded as a document at registration; where the request row
--- still carries it, copy it across rather than asking every farm again.
--- =====================================================================
-
-do $$
-begin
-  if exists (
-    select 1 from information_schema.columns
-    where table_schema = 'public' and table_name = 'farmer_requests' and column_name = 'documents'
-  ) then
-    update public.farmers f
-    set cui = coalesce(nullif(f.cui, ''), '')
-    where true;
-  end if;
-end;
-$$;
-
--- Farms default to `unknown` rather than being guessed. An incorrect trader
+-- The CUI was uploaded as a *document* at registration — a file in the `docs`
+-- bucket, not a string in a column. There is nothing to copy across, and a
+-- migration that pretended otherwise would be a no-op UPDATE over every farm.
+--
+-- So existing farms start blank, the public page says "not supplied yet"
+-- rather than inventing a value, and you fill them in from the uploaded
+-- documents. The query at the bottom lists who is missing.
+--
+-- `trader_type` stays `unknown` rather than being guessed. An incorrect trader
 -- type is worse than a visibly missing one: it makes a claim about which
--- consumer rights apply.
+-- consumer-protection regime applies to the sale.
+-- =====================================================================
 
 
 -- =====================================================================

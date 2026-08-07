@@ -60,7 +60,7 @@ alter table if exists public.platform_settings
 
 comment on column public.platform_settings.weight_tolerance_bps is
   'LOG-04 — allowed variance on items sold by weight, in basis points. '
-  '1000 = 10%%, which is what customer terms §10.4 states. Short beyond this '
+  '1000 = 10%, which is what customer terms §10.4 states. Short beyond this '
   'is refunded automatically; over is never charged for. Changing this changes '
   'the terms — bump the document version too.';
 
