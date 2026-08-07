@@ -6,6 +6,11 @@
 
 import termsCustomers from '../content/legal/terms-customers.md?raw';
 import termsProducers from '../content/legal/terms-producers.md?raw';
+import privacy from '../content/legal/privacy.md?raw';
+import returns from '../content/legal/returns.md?raw';
+import cookies from '../content/legal/cookies.md?raw';
+import contact from '../content/legal/contact.md?raw';
+import ranking from '../content/legal/ranking.md?raw';
 
 /**
  * Minimal YAML frontmatter reader.
@@ -46,6 +51,11 @@ const parseFrontmatter = (source) => {
 const RAW_DOCUMENTS = {
   'terms-customers': termsCustomers,
   'terms-producers': termsProducers,
+  privacy,
+  returns,
+  cookies,
+  contact,
+  ranking,
 };
 
 /** Every document, keyed by its frontmatter `key`. */

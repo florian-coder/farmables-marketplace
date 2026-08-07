@@ -16,6 +16,8 @@ const { FRONTEND_URL } = require('../lib/config');
 const { buildCartQuote, serializeQuote } = require('../lib/pricing');
 const { formatBani, toBani } = require('../lib/money');
 const { transferCheckoutGroups } = require('../lib/transfers');
+const { validateAcceptances } = require('../lib/legalDocuments');
+const { recordAcceptances } = require('../lib/legalAcceptance');
 
 const router = express.Router();
 
@@ -239,7 +241,26 @@ router.post('/create-checkout-session', requireAuth, async (req, res, next) => {
       }
     }
 
-    // 2. Price the cart and refuse early on anything the customer must fix.
+    // 2. LEG-02 — consent at the moment of ordering, not only at signup.
+    //
+    // OUG 34/2014 requires the customer to accept the terms *for this
+    // contract*, and to have seen the version that is actually in force. The
+    // registry has said `requiredAtOrder: true` on the customer terms since
+    // the terms landed; this is the wiring that was missing. Checked before
+    // any stock is reserved, so a refusal costs nothing.
+    const consent = validateAcceptances({
+      role: req.user.role,
+      moment: 'order',
+      accepted: req.body?.acceptedDocuments,
+    });
+    if (!consent.ok) {
+      return res.status(consent.code === 'terms_version_stale' ? 409 : 400).json({
+        error: consent.error,
+        code: consent.code,
+      });
+    }
+
+    // 3. Price the cart and refuse early on anything the customer must fix.
     const quote = await buildCartQuote({ clientId: req.user.id });
 
     if (quote.groups.length === 0) {
@@ -253,7 +274,7 @@ router.post('/create-checkout-session', requireAuth, async (req, res, next) => {
       });
     }
 
-    // 3. Create the parent checkout. `transfer_group` ties the charge and all
+    // 4. Create the parent checkout. `transfer_group` ties the charge and all
     //    the farmer transfers together in Stripe's own reporting.
     const transferGroup = `chk_${crypto.randomUUID().replace(/-/g, '')}`;
     const { data: checkoutRow, error: checkoutError } = await supabase
@@ -276,7 +297,7 @@ router.post('/create-checkout-session', requireAuth, async (req, res, next) => {
     }
     checkoutId = checkoutRow.id;
 
-    // 4. Reserve stock and freeze the money, atomically, in one transaction.
+    // 5. Reserve stock and freeze the money, atomically, in one transaction.
     //    The SQL function is the authority: it re-reads the farmer settings
     //    and the commission rate itself, so the numbers it writes cannot
     //    drift from what it validated.
@@ -300,7 +321,23 @@ router.post('/create-checkout-session', requireAuth, async (req, res, next) => {
       });
     }
 
-    // 5. Build the session from the frozen values.
+    // 6. Record the consent, now that the orders it applies to exist.
+    //
+    // After the reservation, not before: a consent record pointing at an order
+    // that was never created is noise, and `process_checkout` is the step that
+    // can still refuse. Recording never throws — a failure here must not undo
+    // a reservation, but it is logged loudly because it is a gap someone has
+    // to close by hand.
+    const reservedOrderIds = quote.groups.map((group) => group.orderId);
+    await recordAcceptances({
+      req,
+      userId: req.user.id,
+      documents: consent.documents,
+      context: 'order',
+      orderId: reservedOrderIds[0] || null,
+    });
+
+    // 7. Build the session from the frozen values.
     const groups = await loadFrozenGroups(checkoutId);
     const { lineItems } = buildLineItems(groups);
     const totalBani = toBani(rpcData.total_bani);

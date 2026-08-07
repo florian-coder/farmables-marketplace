@@ -1,22 +1,34 @@
+// LEG-05 — the categories the site actually sells.
+//
+// This used to read `meat` / `fruits_and_vegetables` / `dairy_products`,
+// inherited from an earlier plan for the marketplace. The site sells fruit and
+// vegetables, eggs and honey — so two of the three categories were always
+// empty, and "farmer of the month for Dairy" was permanently nobody. The
+// categories here must match `MARKET_MENU_ITEMS` in the frontend and the
+// columns of the `permission` table; those three lists are the same list.
 const CATEGORY_CONFIG = Object.freeze([
-  { key: 'meat', label: 'Meat' },
   { key: 'fruits_and_vegetables', label: 'Fruits & Vegetables' },
-  { key: 'dairy_products', label: 'Dairy' },
+  { key: 'eggs', label: 'Eggs' },
+  { key: 'honey', label: 'Honey' },
 ]);
 
 const CATEGORY_LABELS = new Map(CATEGORY_CONFIG.map((entry) => [entry.key, entry.label]));
 
 const CATEGORY_ALIASES = new Map([
-  ['meat', 'meat'],
   ['fruits_and_vegetables', 'fruits_and_vegetables'],
   ['fruit_and_veg', 'fruits_and_vegetables'],
   ['fruit_veg', 'fruits_and_vegetables'],
   ['fruits_vegetables', 'fruits_and_vegetables'],
   ['fruit_vegetables', 'fruits_and_vegetables'],
+  ['fruits_and_veggies', 'fruits_and_vegetables'],
   ['vegetables', 'fruits_and_vegetables'],
   ['fruits', 'fruits_and_vegetables'],
-  ['dairy_products', 'dairy_products'],
-  ['dairy', 'dairy_products'],
+  ['legume', 'fruits_and_vegetables'],
+  ['eggs', 'eggs'],
+  ['egg', 'eggs'],
+  ['oua', 'eggs'],
+  ['honey', 'honey'],
+  ['miere', 'honey'],
 ]);
 
 const SCORE_WEIGHTS = Object.freeze({

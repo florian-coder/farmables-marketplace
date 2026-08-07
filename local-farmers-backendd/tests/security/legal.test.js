@@ -135,3 +135,97 @@ describe('LEG-03 — acceptarea la înregistrare', () => {
     expect(fake._db.legal_acceptances[0].document_key).toBe(PRODUCER_DOC.key);
   });
 });
+
+// LEG-02 — acceptarea la PLASAREA COMENZII, nu doar la înregistrare.
+//
+// Registrul spunea `requiredAtOrder: true` pe termenii clientului de când
+// există termenii; ce lipsea era firul până la checkout. OUG 34/2014 cere
+// acceptarea pentru contractul acesta, cu versiunea aflată în vigoare.
+
+const ORDER_SEED = () => ({
+  users: [
+    { id: '10', username: 'ana', email: 'ana@example.com', user_type: 'client', token_version: 0 },
+  ],
+  customers: [{ id: '10', name: 'Ana', surname: 'Pop' }],
+  farmers: [
+    {
+      id: '77',
+      'farm name': 'Gradina Verde',
+      charges_enabled: true,
+      stripe_account_id: 'acct_farm',
+      delivery_fee_bani: 0,
+      min_order_value_bani: 0,
+    },
+  ],
+  orders: [
+    { id: 'ord-1', farmer_id: '77', client_id: '10', order_state: 'placed_order', created_at: '2026-08-01' },
+  ],
+  order_items: [
+    {
+      id: 'item-1',
+      order_id: 'ord-1',
+      product_id: 'p-1',
+      product_name: 'Rosii',
+      quantity: 5,
+      unit_price: 20,
+      line_total: 100,
+    },
+  ],
+  checkouts: [],
+  legal_acceptances: [],
+  platform_settings: [{ id: true, commission_bps: 1000, min_charge_bani: 200 }],
+});
+
+const startCheckout = async (app, body) => {
+  const { sessionCookieFor } = require('../helpers/appHarness');
+  const cookie = await sessionCookieFor({ id: '10', role: 'customer', tokenVersion: 0 });
+  return request(app)
+    .post('/api/checkout/create-checkout-session')
+    .set(browserHeaders)
+    .set('Cookie', cookie)
+    .send(body);
+};
+
+describe('LEG-02 — acceptarea la plasarea comenzii', () => {
+  it('refuză plata fără acceptare, înainte să rezerve orice stoc', async () => {
+    const { app, fake } = buildApp(ORDER_SEED());
+
+    const response = await startCheckout(app, { acceptedDocuments: [] });
+
+    expect(response.status).toBe(400);
+    expect(response.body.code).toBe('terms_not_accepted');
+    // Verificarea e înaintea rezervării: niciun checkout, niciun `process_checkout`.
+    expect(fake._db.checkouts).toHaveLength(0);
+    expect(fake._calls.rpc.filter((call) => call.name === 'process_checkout')).toHaveLength(0);
+  });
+
+  it('refuză o versiune veche cu 409, nu o înregistrează', async () => {
+    // Un tab lăsat deschis peste o actualizare a termenilor.
+    const { app, fake } = buildApp(ORDER_SEED());
+
+    const response = await startCheckout(app, {
+      acceptedDocuments: [{ key: CUSTOMER_DOC.key, version: '0.9' }],
+    });
+
+    expect(response.status).toBe(409);
+    expect(response.body.code).toBe('terms_version_stale');
+    expect(fake._db.legal_acceptances).toHaveLength(0);
+  });
+
+  it('înregistrează acceptarea cu versiune, context și comandă', async () => {
+    const { app, fake } = buildApp(ORDER_SEED());
+
+    await startCheckout(app, {
+      acceptedDocuments: [{ key: CUSTOMER_DOC.key, version: CUSTOMER_DOC.version }],
+    });
+
+    const acceptance = fake._db.legal_acceptances.find(
+      (row) => row.document_key === CUSTOMER_DOC.key && row.context === 'order',
+    );
+    expect(acceptance).toBeDefined();
+    expect(acceptance.document_version).toBe(CUSTOMER_DOC.version);
+    expect(acceptance.user_id).toBe('10');
+    // Fără comanda la care se referă, dovada nu spune la ce s-a consimțit.
+    expect(acceptance.order_id).toBe('ord-1');
+  });
+});

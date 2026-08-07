@@ -57,6 +57,19 @@ const seed = () => ({
 
 const ORDER_ID = 'aaaaaaaa-0000-0000-0000-000000000001';
 
+// LEG-02 — checkout now requires consent to the terms in force for *this*
+// order. These tests are about ownership and pricing, so they supply valid
+// consent to get past that gate; the gate itself is covered in legal.test.js.
+const { LEGAL_DOCUMENTS } = require('../../src/lib/legalDocuments');
+const CONSENT = {
+  acceptedDocuments: [
+    {
+      key: LEGAL_DOCUMENTS['terms-customers'].key,
+      version: LEGAL_DOCUMENTS['terms-customers'].version,
+    },
+  ],
+};
+
 describe('SEC-04 — requests from other sites', () => {
   it('rejects a request carrying a session cookie from a foreign origin', async () => {
     const { app } = buildApp(seed());
@@ -145,7 +158,7 @@ describe('SEC-05 — the basket belongs to the authenticated user, no id in the 
       .post('/api/checkout/create-checkout-session')
       .set('Cookie', cookie)
       .set(browserHeaders)
-      .send({ orderId: ORDER_ID });
+      .send({ orderId: ORDER_ID, ...CONSENT });
 
     // Coșul lui radu e gol; comanda anei nu intră în el.
     expect(response.status).toBe(400);
@@ -163,12 +176,12 @@ describe('SEC-05 — the basket belongs to the authenticated user, no id in the 
       .post('/api/checkout/create-checkout-session')
       .set('Cookie', cookie)
       .set(browserHeaders)
-      .send({ orderId: ORDER_ID });
+      .send({ orderId: ORDER_ID, ...CONSENT });
     const withoutId = await request(app)
       .post('/api/checkout/create-checkout-session')
       .set('Cookie', cookie)
       .set(browserHeaders)
-      .send({});
+      .send({ ...CONSENT });
 
     expect(withId.status).toBe(withoutId.status);
     expect(withId.body).toEqual(withoutId.body);
@@ -209,7 +222,7 @@ describe('SEC-05 — the basket belongs to the authenticated user, no id in the 
       .post('/api/checkout/create-checkout-session')
       .set('Cookie', cookie)
       .set(browserHeaders)
-      .send({});
+      .send({ ...CONSENT });
 
     expect(response.status).toBe(400);
     const checkoutCalls = fake._calls.rpc.filter((call) => call.name === 'process_checkout');
@@ -227,7 +240,7 @@ describe('SEC-05 — the basket belongs to the authenticated user, no id in the 
       .post('/api/checkout/create-checkout-session')
       .set('Cookie', cookie)
       .set(browserHeaders)
-      .send({});
+      .send({ ...CONSENT });
 
     expect(response.status).toBe(400);
     expect(fake._calls.rpc).toHaveLength(0);
@@ -293,7 +306,7 @@ describe('Checkout — price breakdown and farmer thresholds', () => {
       .post('/api/checkout/create-checkout-session')
       .set('Cookie', cookie)
       .set(browserHeaders)
-      .send({});
+      .send({ ...CONSENT });
 
     expect(attempt.status).toBe(409);
     expect(fake._calls.rpc).toHaveLength(0);
@@ -309,7 +322,7 @@ describe('Checkout — price breakdown and farmer thresholds', () => {
       .post('/api/checkout/create-checkout-session')
       .set('Cookie', cookie)
       .set(browserHeaders)
-      .send({});
+      .send({ ...CONSENT });
 
     expect(response.status).toBe(409);
     expect(response.body.error).toMatch(/cannot receive payments yet/i);

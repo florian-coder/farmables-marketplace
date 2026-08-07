@@ -167,6 +167,11 @@ export default function OrdersPage() {
   // the card is charged.
   const [quote, setQuote] = useState(null);
   const [payStatus, setPayStatus] = useState({ state: 'idle', message: '' });
+  // LEG-02 — consent at order placement. Deliberately not remembered between
+  // orders: it is consent for *this* contract, and a pre-ticked box is not
+  // consent at all.
+  const [orderTerms, setOrderTerms] = useState(null);
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   const isAllowedRole = user?.role === 'customer' || user?.role === 'vendor';
   const currentTab = tabs.find((tab) => tab.id === activeTab) || tabs[0];
@@ -233,6 +238,40 @@ export default function OrdersPage() {
     }
   }, [user?.role]);
 
+  /**
+   * LEG-02 — which document has to be accepted when an order is placed.
+   *
+   * The backend registry is the authority on the version in force; the
+   * Markdown in this repo only carries the text. Fetching it means a tab left
+   * open across a terms update cannot tick a box for a version nobody is
+   * showing any more.
+   */
+  const loadOrderTerms = useCallback(async () => {
+    if (user?.role !== 'customer') {
+      return;
+    }
+    try {
+      const response = await apiFetch('/api/legal/documents', { method: 'GET' });
+      const data = await response.json();
+      if (!response.ok) {
+        return;
+      }
+      const required = (data.documents || []).find(
+        (doc) => doc.requiredAtOrder && (doc.audience === 'all' || doc.audience === 'customer'),
+      );
+      setOrderTerms(required || null);
+    } catch (error) {
+      // Leaving `orderTerms` null means the checkbox is not rendered and the
+      // server is the one that refuses — which is the right place for the
+      // decision anyway.
+      console.error('Could not load the terms registry:', error);
+    }
+  }, [user?.role]);
+
+  useEffect(() => {
+    loadOrderTerms().catch(() => {});
+  }, [loadOrderTerms]);
+
   useEffect(() => {
     if (authStatus !== 'authenticated' || !user || !isAllowedRole) {
       return undefined;
@@ -290,16 +329,38 @@ export default function OrdersPage() {
    * whatever `placed_order` rows belong to the authenticated customer.
    */
   const handlePayCart = async () => {
+    // LEG-02 — consent belongs to *this contract*, not only to the account.
+    // The version travels with it so the server can refuse a tab that has been
+    // open since before the terms changed, rather than record consent to text
+    // nobody is showing any more.
+    if (orderTerms && !termsAccepted) {
+      setPayStatus({
+        state: 'error',
+        message: 'Please accept the terms and conditions before placing the order.',
+      });
+      return;
+    }
+
     setPayStatus({ state: 'loading', message: 'Opening secure checkout...' });
     try {
       const response = await apiFetch('/api/checkout/create-checkout-session', {
         method: 'POST',
-        body: JSON.stringify({}),
+        body: JSON.stringify({
+          acceptedDocuments: orderTerms
+            ? [{ key: orderTerms.key, version: orderTerms.version }]
+            : [],
+        }),
       });
       const data = await response.json();
       if (!response.ok) {
         if (data.quote) {
           setQuote(data.quote);
+        }
+        if (response.status === 409 && data.code === 'terms_version_stale') {
+          // The text changed while this tab was open. Reload the registry so
+          // the checkbox refers to what is actually in force now.
+          await loadOrderTerms();
+          setTermsAccepted(false);
         }
         throw new Error(data.error || 'Could not start the payment.');
       }
@@ -898,6 +959,30 @@ export default function OrdersPage() {
             </ul>
           )}
 
+          {/* LEG-02 — accepting the terms is part of placing the order, not
+              just part of having an account. Unticked every time: a pre-ticked
+              box is not consent. */}
+          {orderTerms && (
+            <label className="cart-summary-consent">
+              <input
+                type="checkbox"
+                checked={termsAccepted}
+                onChange={(event) => setTermsAccepted(event.target.checked)}
+              />
+              <span>
+                I have read and accept the{' '}
+                <Link to="/legal/terms-customers" target="_blank" rel="noreferrer">
+                  {orderTerms.title}
+                </Link>{' '}
+                (version {orderTerms.version}) and the{' '}
+                <Link to="/legal/returns" target="_blank" rel="noreferrer">
+                  refund policy
+                </Link>
+                . I understand that fresh food is exempt from the 14-day withdrawal right.
+              </span>
+            </label>
+          )}
+
           {payStatus.state === 'error' && (
             <p className="notice error" role="alert">
               {payStatus.message}
@@ -907,7 +992,11 @@ export default function OrdersPage() {
           <button
             type="button"
             className="button primary cart-summary-pay"
-            disabled={!quote.payable || payStatus.state === 'loading'}
+            disabled={
+              !quote.payable ||
+              payStatus.state === 'loading' ||
+              Boolean(orderTerms && !termsAccepted)
+            }
             onClick={handlePayCart}
           >
             {payStatus.state === 'loading'

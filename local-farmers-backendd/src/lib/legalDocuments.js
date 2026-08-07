@@ -33,6 +33,59 @@ const LEGAL_DOCUMENTS = Object.freeze({
     requiredAtSignup: true,
     requiredAtOrder: false,
   }),
+  // LEG-02/LEG-03 — informational documents. They are not "accepted" the way
+  // the terms are: consent to a privacy policy is not a legal basis for
+  // processing under GDPR, and asking for it would suggest otherwise. They
+  // are published, versioned and linked, which is what the law actually
+  // requires. They still live in this registry so the footer, the email
+  // templates and the version check all read one list.
+  privacy: Object.freeze({
+    key: 'privacy',
+    title: 'Privacy Policy',
+    version: '1.0',
+    audience: 'all',
+    path: '/legal/privacy',
+    requiredAtSignup: false,
+    requiredAtOrder: false,
+  }),
+  returns: Object.freeze({
+    key: 'returns',
+    title: 'Returns, Cancellations and Refunds',
+    version: '1.0',
+    audience: 'all',
+    path: '/legal/returns',
+    requiredAtSignup: false,
+    requiredAtOrder: false,
+  }),
+  cookies: Object.freeze({
+    key: 'cookies',
+    title: 'Cookie Policy',
+    version: '1.0',
+    audience: 'all',
+    path: '/legal/cookies',
+    requiredAtSignup: false,
+    requiredAtOrder: false,
+  }),
+  contact: Object.freeze({
+    key: 'contact',
+    title: 'Contact and Operator Details',
+    version: '1.0',
+    audience: 'all',
+    path: '/legal/contact',
+    requiredAtSignup: false,
+    requiredAtOrder: false,
+  }),
+  // LEG-05 — the P2B Regulation requires the ranking parameters to be
+  // published, so the page is a compliance artefact, not marketing.
+  ranking: Object.freeze({
+    key: 'ranking',
+    title: 'How Ranking Works',
+    version: '1.0',
+    audience: 'all',
+    path: '/legal/ranking',
+    requiredAtSignup: false,
+    requiredAtOrder: false,
+  }),
 });
 
 /** Documents a given role must accept at a given moment. */

@@ -33,6 +33,7 @@ const LegalPage = lazy(() => import('./pages/LegalPage.jsx'));
 import { apiFetch } from './lib/api.js';
 import { AuthProvider, useAuth } from './lib/auth.jsx';
 import { supabase } from './lib/supabase.js';
+import { OPERATOR } from './lib/operator.js';
 
 function FruitsVegIcon() {
   return (
@@ -312,7 +313,7 @@ function AppShell() {
           <Route path="/vendor/products_uploaded" element={<VendorProductsPage />} />
           <Route path="/vendor/upload_product" element={<VendorAddProductPage />} />
           {/* One page component per document key. Adding a legal document is a
-              Markdown file plus a line here. */}
+              Markdown file, a registry entry in the backend, and a line here. */}
           <Route
             path="/legal/terms-customers"
             element={<LegalPage documentKey="terms-customers" />}
@@ -321,6 +322,11 @@ function AppShell() {
             path="/legal/terms-producers"
             element={<LegalPage documentKey="terms-producers" />}
           />
+          <Route path="/legal/privacy" element={<LegalPage documentKey="privacy" />} />
+          <Route path="/legal/returns" element={<LegalPage documentKey="returns" />} />
+          <Route path="/legal/cookies" element={<LegalPage documentKey="cookies" />} />
+          <Route path="/legal/contact" element={<LegalPage documentKey="contact" />} />
+          <Route path="/legal/ranking" element={<LegalPage documentKey="ranking" />} />
           <Route
             path="/termeni-si-conditii"
             element={<Navigate to="/legal/terms-customers" replace />}
@@ -329,16 +335,50 @@ function AppShell() {
         </Routes>
         </Suspense>
       </main>
-      {/* The legal links have to be reachable from every page, not only from
-          signup. The operator identification block and the ANPC/SAL links come
-          with the rest of the legal delivery — the placeholders below are the
-          slots they drop into. */}
+      {/* LEG-02 — the legal links and the operator identification have to be
+          reachable from every page, not only from signup. OUG 34/2014 art. 6
+          and Law 365/2002 art. 5 both require the trader to be identifiable
+          before the customer commits to anything, and the ANPC/SAL/SOL links
+          have to be findable without asking us for them. */}
       <footer className="footer">
         <nav className="footer-legal" aria-label="Legal documents">
           <Link to="/legal/terms-customers">Terms &amp; Conditions</Link>
           <Link to="/legal/terms-producers">Producer Terms</Link>
+          <Link to="/legal/privacy">Privacy</Link>
+          <Link to="/legal/returns">Returns &amp; Refunds</Link>
+          <Link to="/legal/cookies">Cookies</Link>
+          <Link to="/legal/ranking">How ranking works</Link>
+          <Link to="/legal/contact">Contact</Link>
         </nav>
-        <p>Farmables — built for community-powered food systems.</p>
+
+        <nav className="footer-legal" aria-label="Consumer protection">
+          <a href={OPERATOR.anpcUrl} target="_blank" rel="noreferrer noopener">
+            ANPC
+          </a>
+          <a href={OPERATOR.anpcSalUrl} target="_blank" rel="noreferrer noopener">
+            ANPC — SAL
+          </a>
+          <a href={OPERATOR.anpcSolUrl} target="_blank" rel="noreferrer noopener">
+            EU ODR
+          </a>
+        </nav>
+
+        <address className="footer-operator">
+          <strong>{OPERATOR.legalName}</strong>
+          <span>CUI {OPERATOR.cui}</span>
+          <span>{OPERATOR.tradeRegister}</span>
+          <span>{OPERATOR.address}</span>
+          <span>
+            <a href={`mailto:${OPERATOR.email}`}>{OPERATOR.email}</a>
+            {' · '}
+            <a href={`tel:${OPERATOR.phone.replace(/\s+/g, '')}`}>{OPERATOR.phone}</a>
+          </span>
+        </address>
+
+        <p className="footer-role">
+          {OPERATOR.brand} is an intermediary marketplace. Each farm sells to you directly and is
+          the seller of the goods.
+        </p>
       </footer>
     </div>
   );
