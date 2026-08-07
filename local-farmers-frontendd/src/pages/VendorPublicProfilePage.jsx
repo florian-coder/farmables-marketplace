@@ -4,6 +4,15 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { apiFetch, resolveImageUrl } from '../lib/api.js';
 import { useAuth } from '../lib/auth.jsx';
 import ProductCard from '../components/ProductCard.jsx';
+import { OPERATOR } from '../lib/operator.js';
+
+/** DSA art. 30(1)(e) — it changes which consumer rights apply. */
+const TRADER_TYPE_LABELS = {
+  company: 'Company (SRL/SA)',
+  pfa: 'Authorised natural person (PFA)',
+  individual_producer: 'Individual producer (producer certificate)',
+  private_individual: 'Private individual — not a trader',
+};
 
 const initialState = {
   status: 'loading',
@@ -146,6 +155,7 @@ export default function VendorPublicProfilePage() {
   const galleryImages = vendor?.farmImages?.slice(1) || [];
 
   const contactRows = [
+    // Empty until there is a paid order — the server decides, not the client.
     { label: 'Phone', value: vendor?.phoneNumber, href: vendor?.phoneNumber ? `tel:${vendor.phoneNumber}` : null },
     { label: 'Email', value: vendor?.email, href: vendor?.email ? `mailto:${vendor.email}` : null },
     { label: 'Address', value: [street, location].filter(Boolean).join(', ') },
@@ -220,7 +230,7 @@ export default function VendorPublicProfilePage() {
       <article className="farm-public-card">
         {contactRows.length > 0 && (
           <section className="farm-block">
-            <h2>Contact & delivery</h2>
+            <h2>Contact &amp; delivery</h2>
             <dl className="farm-contact-list">
               {contactRows.map((row) => (
                 <div className="farm-contact-row" key={row.label}>
@@ -231,6 +241,71 @@ export default function VendorPublicProfilePage() {
                 </div>
               ))}
             </dl>
+
+            {/* OPS-05 — phone and email used to render as tel:/mailto: for
+                anyone at all. Now they appear once there is a paid order
+                between you, and until then the chat is the channel — which is
+                also the one we can moderate and keep a record of. */}
+            {vendor?.contactVisible === false && (
+              <p className="farm-contact-hidden">
+                {vendor.contactHiddenReason}{' '}
+                <Link to={`/chat?vendor=${vendor.id}`}>Message this farm</Link>
+              </p>
+            )}
+          </section>
+        )}
+
+        {/* LEG-07 — DSA art. 30. Who you are actually contracting with. The
+            platform is an intermediary; the farm is the seller, and customer
+            terms §7.2 promises this block. */}
+        {vendor?.trader && (
+          <section className="farm-block farm-trader">
+            <h2>Seller details</h2>
+            <p className="muted">
+              This farm sells to you directly. {OPERATOR.brand} is an intermediary and is not the
+              seller of the goods.
+            </p>
+            <dl className="farm-contact-list">
+              {vendor.trader.legalName && (
+                <div className="farm-contact-row">
+                  <dt>Registered name</dt>
+                  <dd>{vendor.trader.legalName}</dd>
+                </div>
+              )}
+              {vendor.trader.registrationNumber && (
+                <div className="farm-contact-row">
+                  <dt>Registration number</dt>
+                  <dd>{vendor.trader.registrationNumber}</dd>
+                </div>
+              )}
+              {vendor.trader.vatNumber && (
+                <div className="farm-contact-row">
+                  <dt>CUI / VAT</dt>
+                  <dd>{vendor.trader.vatNumber}</dd>
+                </div>
+              )}
+              {vendor.trader.registeredOffice && (
+                <div className="farm-contact-row">
+                  <dt>Registered office</dt>
+                  <dd>{vendor.trader.registeredOffice}</dd>
+                </div>
+              )}
+              {vendor.trader.traderType && vendor.trader.traderType !== 'unknown' && (
+                <div className="farm-contact-row">
+                  <dt>Trades as</dt>
+                  <dd>{TRADER_TYPE_LABELS[vendor.trader.traderType] || vendor.trader.traderType}</dd>
+                </div>
+              )}
+            </dl>
+
+            {/* Visibly incomplete beats looking like there is nothing to
+                declare. */}
+            {!vendor.trader.isComplete && (
+              <p className="farm-trader-incomplete">
+                This farm has not supplied its full registration details yet. We have asked them
+                for it.
+              </p>
+            )}
           </section>
         )}
 

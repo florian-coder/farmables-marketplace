@@ -2,6 +2,12 @@ const express = require('express');
 
 const { supabase, TABLES } = require('../lib/supabase');
 const { mapFarmerToVendor, mapProductToApi } = require('../lib/domain');
+const { getUserFromRequest } = require('../middleware/auth');
+const {
+  hasPaidOrderBetween,
+  publicTraderDetails,
+  applyContactVisibility,
+} = require('../lib/traderDetails');
 
 const router = express.Router();
 
@@ -22,13 +28,35 @@ const FARMER_COLUMNS = [
   'delivery_fee_bani',
   'min_order_value_bani',
   'free_delivery_threshold_bani',
+  // LEG-07 / DSA art. 30 — who the customer is actually contracting with.
+  'legal_name',
+  'trade_register_number',
+  'cui',
+  'trader_type',
+  // OPS-03 — a suspended farm is not published.
+  'suspended_at',
+  'suspension_effective_at',
 ].join(', ');
 
 /** Only farms that can actually receive money are shown to buyers. */
-const canSell = (farmer) =>
-  farmer?.charges_enabled === true ||
-  farmer?.charges_enabled === 1 ||
-  farmer?.charges_enabled === '1';
+const canSell = (farmer) => {
+  const chargesEnabled =
+    farmer?.charges_enabled === true ||
+    farmer?.charges_enabled === 1 ||
+    farmer?.charges_enabled === '1';
+  if (!chargesEnabled) {
+    return false;
+  }
+  // OPS-03 — a suspension that has taken effect unpublishes the farm.
+  if (
+    farmer?.suspended_at &&
+    (!farmer.suspension_effective_at ||
+      Date.parse(farmer.suspension_effective_at) <= Date.now())
+  ) {
+    return false;
+  }
+  return true;
+};
 
 const PRODUCT_COLUMNS = [
   'id',
@@ -107,10 +135,19 @@ router.get('/', async (_req, res, next) => {
     const vendors = rows
       .filter((entry) => canSell(entry.farmer))
       .map((entry) => {
-        const vendor = mapFarmerToVendor(entry.farmer, {
-          email: entry.user?.email || '',
-          farmPhotos: entry.farmPhotos,
-        });
+        const vendor = applyContactVisibility(
+          {
+            ...mapFarmerToVendor(entry.farmer, {
+              email: entry.user?.email || '',
+              farmPhotos: entry.farmPhotos,
+            }),
+            // LEG-07 — identification is public, always. It is a matter of
+            // public record and it is not a channel anyone can spam.
+            trader: publicTraderDetails(entry.farmer),
+          },
+          // OPS-05 — a directory listing has no order in view, so never.
+          { revealContact: false },
+        );
         const productCount = entry.products.length;
         const ratingValues = entry.products
           .map((product) => Number(product.rating))
@@ -163,10 +200,28 @@ router.get('/:vendorId', async (req, res, next) => {
       return res.status(404).json({ error: 'Vendor profile not found.' });
     }
 
-    const vendor = mapFarmerToVendor(match.farmer, {
-      email: match.user?.email || '',
-      farmPhotos: match.farmPhotos,
-    });
+    // OPS-05 — phone and email were rendering as tel:/mailto: to anyone at
+    // all. That is a scraped contact list waiting to happen, and it is how a
+    // marketplace gets disintermediated: the customer calls, pays cash, and
+    // loses every protection they were about to have. Revealed once there is
+    // a paid order between the two of them — "ever", not "currently", because
+    // re-hiding a number someone already wrote down is theatre.
+    const viewer = await getUserFromRequest(req);
+    const revealContact =
+      viewer?.role === 'customer'
+        ? await hasPaidOrderBetween({ customerId: viewer.id, farmerId: match.farmer.id })
+        : String(viewer?.id || '') === String(match.farmer.id);
+
+    const vendor = applyContactVisibility(
+      {
+        ...mapFarmerToVendor(match.farmer, {
+          email: match.user?.email || '',
+          farmPhotos: match.farmPhotos,
+        }),
+        trader: publicTraderDetails(match.farmer),
+      },
+      { revealContact },
+    );
 
     const products = match.products
       .slice()

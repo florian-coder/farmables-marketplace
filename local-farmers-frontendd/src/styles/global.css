@@ -4932,3 +4932,37 @@ a {
   margin-top: var(--s-1);
   font-size: 0.78rem;
 }
+
+/* ============================================================
+   LEG-07 (DSA art. 30) + OPS-05
+   Identificarea vânzătorului e publică întotdeauna; telefonul și emailul
+   apar abia după o comandă plătită. Până atunci canalul e chatul — singurul
+   pe care îl putem modera și din care rămâne o urmă.
+   ============================================================ */
+
+.farm-contact-hidden {
+  margin: var(--s-3) 0 0;
+  padding: var(--s-3);
+  border-radius: var(--r-md);
+  background: var(--sky-lo);
+  color: var(--sky);
+  font-size: var(--t-1);
+  line-height: 1.5;
+}
+
+.farm-contact-hidden a {
+  color: inherit;
+  font-weight: 700;
+}
+
+.farm-trader .muted {
+  margin: 0 0 var(--s-3);
+  font-size: var(--t-1);
+}
+
+/* Vizibil incomplet bate „pare că nu are nimic de declarat". */
+.farm-trader-incomplete {
+  margin: var(--s-3) 0 0;
+  font-size: var(--t-1);
+  color: var(--warn);
+}
