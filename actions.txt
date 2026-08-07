@@ -1,0 +1,336 @@
+===============================================================================
+FARMABLES — CE MAI AI DE FACUT
+===============================================================================
+
+Codul e scris, testat (333 teste backend, 3 frontend) si urcat pe main.
+Ce urmeaza aici nu poate fi facut de cod: variabile de mediu, migrari rulate
+manual in Supabase, texte legale si cinci decizii de business.
+
+Lucreaza fisierul de sus in jos. Ordinea conteaza in PARTEA 3.
+
+Legenda:  [ ] de facut    [!] blocant    [~] optional
+
+
+===============================================================================
+PARTEA 1 — VARIABILE DE MEDIU: BACKEND (Render)
+===============================================================================
+
+[!] SUPABASE_SERVICE_ROLE_KEY
+    Supabase -> Project Settings -> API -> service_role secret
+    BACKENDUL NU PORNESTE FARA EA. Nu e o alegere de stil: dupa ce se
+    activeaza RLS (PARTEA 3, RUN 2), cheia publishable nu mai poate citi
+    nimic, iar un proces pornit pe ea ar raspunde la health check si ar
+    esua la fiecare interogare. Mai bine nu porneste.
+
+--- Identificarea operatorului --------------------------------------------
+Apar in subsolul FIECAREI pagini si la finalul FIECARUI email.
+Cerinta legala: OUG 34/2014 art. 6 + Legea 365/2002 art. 5.
+Backendul scrie un avertisment la pornire pentru fiecare valoare ramasa
+placeholder, deci o sa vezi in log daca ai uitat una.
+
+[!] OPERATOR_LEGAL_NAME     ex: "SC EXEMPLU SRL"  (numele din registru, nu brandul)
+[!] OPERATOR_CUI            ex: "RO12345678"
+[!] OPERATOR_TRADE_REGISTER ex: "J12/345/2020"
+[!] OPERATOR_ADDRESS        ex: "Str. Exemplu 1, Cluj-Napoca, Cluj"
+[!] OPERATOR_EMAIL          ex: "contact@domeniul-tau.ro"
+[!] OPERATOR_PHONE          ex: "+40 700 000 000"
+
+--- Email ------------------------------------------------------------------
+[!] RESEND_API_KEY          resend.com -> API Keys
+    Fara ea nimic nu se blocheaza: emailurile se scriu in consola si se
+    marcheaza ca trimise. Dar clientul nu primeste confirmarea de comanda,
+    care e obligatorie pe suport durabil (GEO 34/2014 art. 8).
+
+[ ] MAIL_FROM               ex: "Farmables <noreply@domeniul-tau.ro>"
+    Domeniul trebuie verificat in Resend, altfel pleaca de pe onboarding@resend.dev
+
+--- Dupa primul login de admin (PARTEA 5) ---------------------------------
+[!] ADMIN_BOOTSTRAP_DISABLED=1
+    NU-l seta acum. Il setezi DUPA ce te-ai logat o data si ai activat TOTP.
+    Asta e pasul care face inerta parola veche de admin — care e in
+    istoricul git si trebuie tratata ca publica.
+
+--- Optionale (au valori implicite bune) ----------------------------------
+[~] OPERATOR_BRAND=Farmables
+[~] OPERATOR_ANPC_URL, OPERATOR_ANPC_SAL_URL, OPERATOR_ANPC_SOL_URL
+[~] ADMIN_IP_ALLOWLIST=""          gol = fara restrictie (intentionat: un
+                                   allowlist gresit care te blocheaza pe tine
+                                   e mai rau decat lipsa lui)
+[~] AUTO_CONFIRM_DAYS=7            dupa cate zile se inchide singura o comanda
+[~] AUTO_CONFIRM_WARN_DAYS=4       cand pleaca avertismentul catre client
+[~] OUTBOX_INTERVAL_MS=30000       cat de des se goleste coada de emailuri
+[~] MAINTENANCE_INTERVAL_MS=3600000
+
+--- Nu se schimba (le ai deja) --------------------------------------------
+SESSION_SECRET, ADMIN_SESSION_SECRET, ADMIN_USERNAME, ADMIN_PASSWORD,
+STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, CORS_ORIGINS, FRONTEND_URL,
+SUPABASE_URL
+
+
+===============================================================================
+PARTEA 2 — VARIABILE DE MEDIU: FRONTEND (Vercel)
+===============================================================================
+
+Aceleasi valori ca OPERATOR_* de pe backend. Sunt build-time, ca subsolul sa
+se randeze si cand API-ul e picat — e cerinta legala, nu decor.
+
+[!] VITE_OPERATOR_LEGAL_NAME
+[!] VITE_OPERATOR_CUI
+[!] VITE_OPERATOR_TRADE_REGISTER
+[!] VITE_OPERATOR_ADDRESS
+[!] VITE_OPERATOR_EMAIL
+[!] VITE_OPERATOR_PHONE
+
+[~] VITE_OPERATOR_BRAND, VITE_OPERATOR_ANPC_URL, VITE_OPERATOR_ANPC_SAL_URL,
+    VITE_OPERATOR_ANPC_SOL_URL
+
+--- DE STERS, dupa deploy (PARTEA 3 pasul 5) ------------------------------
+[ ] VITE_SUPABASE_URL
+[ ] VITE_SUPABASE_PUBLISHABLE_KEY
+    Frontendul nu mai are client Supabase deloc — @supabase/supabase-js a
+    fost scos din dependinte. Cheia nu mai e in bundle si oricum nu ar mai
+    avea ce citi dupa RLS. Sterge-le ca sa nu para ca inca se folosesc.
+
+VITE_API_URL ramane neschimbat.
+
+
+===============================================================================
+PARTEA 3 — MIGRARILE SQL SI DEPLOYUL  ***ORDINEA CONTEAZA***
+===============================================================================
+
+Nimic din sql/ nu ruleaza automat. Se copiaza in Supabase SQL Editor.
+Toate sunt idempotente: o a doua rulare nu schimba nimic.
+
+  PASUL 1  [ ] Seteaza variabilele din PARTEA 1 si PARTEA 2
+
+  PASUL 2  [ ] Ruleaza:  local-farmers-backendd/sql/RUN_1_BEFORE_DEPLOY.sql
+               Un singur paste. E concatenarea fisierelor 03-08 si 10-14 in
+               ordinea dependentelor.
+
+               Creeaza tabelele:
+                 refunds, email_outbox, admin_users, admin_backup_codes,
+                 message_reports, user_blocks, disputes, dispute_evidence,
+                 organic_certificates, subscriptions
+               Adauga coloane pe:
+                 orders, order_items, products, farmers, users,
+                 platform_settings
+               Creeaza functiile:
+                 cancel_order_with_stock, apply_refund_result,
+                 claim_due_emails, orders_accepted_today,
+                 expire_organic_claims, advance_subscription
+               Creeaza bucket-ul privat: dispute-evidence
+
+  PASUL 3  [ ] Deploy BACKEND
+               Aduce endpointul SSE (/api/events/stream) si abonarea Realtime
+               de pe server. Astea trebuie sa existe INAINTE de RLS.
+
+  PASUL 4  [ ] Deploy FRONTEND
+               Nu mai are client Supabase. Bundle-ul scade cu ~132 kB.
+
+  PASUL 5  [ ] Sterge VITE_SUPABASE_URL si VITE_SUPABASE_PUBLISHABLE_KEY
+               din Vercel
+
+  PASUL 6  [ ] Ruleaza:  local-farmers-backendd/sql/RUN_2_AFTER_DEPLOY.sql
+               ⚠ ABIA ACUM. Activeaza RLS pe toate cele 24 de tabele.
+
+               DE CE ULTIMUL: RLS taie abonarea Realtime veche din browser.
+               Inlocuitorul (canalul SSE de pe backend) exista abia dupa
+               pasii 3 si 4. Rulat mai devreme, ingheata live updates pentru
+               oricine e in sesiune in momentul ala.
+
+               Intre pasul 4 si pasul 6 nimic nu e stricat — esti doar inca
+               expus. Deci daca ceva merge prost la deploy, nu te grabi.
+
+  PASUL 7  [ ] Verifica. Trebuie sa intoarca 0 randuri:
+
+               select tablename from pg_tables
+                 where schemaname = 'public' and rowsecurity = false;
+
+               Si bucket-ul de acte trebuie sa fie privat:
+
+               select id, public from storage.buckets order by id;
+
+
+===============================================================================
+PARTEA 4 — DACA CEVA MERGE PROST
+===============================================================================
+
+Backendul nu porneste, in log: "SUPABASE_SERVICE_ROLE_KEY is not set"
+  -> PARTEA 1. E intentionat, nu e un bug.
+
+Backendul porneste dar anularile dau eroare 500
+  -> N-ai rulat RUN 1. Lipseste functia cancel_order_with_stock.
+
+Comenzile merg, dar nu pleaca niciun email
+  -> RESEND_API_KEY lipseste. Verifica /api/health/diagnostics -> emailsPending.
+     Mesajele sunt in coada, nu pierdute: se trimit cand pui cheia.
+
+Live updates nu mai merg dupa RUN 2
+  -> Ai rulat RUN 2 inainte de a deploya frontendul. Deployeaza-l acum;
+     EventSource se reconecteaza singur. Nu trebuie sa dai RLS inapoi.
+
+In subsol scrie "[CUI NOT CONFIGURED]"
+  -> PARTEA 1 si 2. Frontendul citeste VITE_OPERATOR_*, backendul OPERATOR_*.
+     Trebuie setate amandoua.
+
+Nu ma pot loga in /manage-portal
+  -> Prima logare foloseste ADMIN_USERNAME/ADMIN_PASSWORD si cere imediat
+     inrolarea TOTP. Daca ai setat deja ADMIN_BOOTSTRAP_DISABLED=1 inainte
+     sa te inrolezi, scoate-l temporar.
+
+
+===============================================================================
+PARTEA 5 — CONTUL DE ADMIN  (dupa deploy)
+===============================================================================
+
+[!] 1. Intra pe /manage-portal cu ADMIN_USERNAME / ADMIN_PASSWORD actuale.
+       Se creeaza UN SINGUR rand in admin_users si ti se cere imediat TOTP.
+       Parola singura nu deschide nimic.
+
+[!] 2. Scaneaza codul cu Google Authenticator / 1Password / Aegis si confirma.
+
+[!] 3. SALVEAZA CODURILE DE REZERVA. Se arata O SINGURA DATA.
+       Pastram doar hash-uri SHA-256 — nu le putem recupera, la propriu.
+       Fiecare merge o singura data. Sunt singura cale de intrare daca
+       pierzi telefonul.
+
+[!] 4. Seteaza ADMIN_BOOTSTRAP_DISABLED=1 pe Render si redeployeaza.
+       PANA FACI ASTA, PAROLA VECHE DE ADMIN — CARE E IN ISTORICUL GIT —
+       E INCA FOLOSIBILA PENTRU A CREA PRIMUL CONT.
+
+[ ] 5. Verifica /api/health/diagnostics. Ar trebui sa spuna status: ok.
+       Daca spune "attention", listeaza exact ce e in neregula: emailuri
+       blocate, rambursari care cer recuperare manuala, transferuri esuate,
+       campuri de operator ramase placeholder.
+
+
+===============================================================================
+PARTEA 6 — TEXTELE LEGALE
+===============================================================================
+
+Sapte documente in local-farmers-frontendd/src/content/legal/, toate cu
+status: draft. Fiecare [PARANTEZA PATRATA] e o decizie sau o informatie pe
+care doar tu o ai.
+
+[ ] terms-customers.md    date firma, §5.1 si §5.4 (vezi mai jos), §14.4 garantia
+[ ] terms-producers.md    date firma, §5.1, §5.4, numele mediatorilor (P2B), §14
+[ ] privacy.md            regiunile procesatorilor, DPO, confirmare retentii
+[ ] returns.md            date firma
+[ ] cookies.md            email de contact
+[ ] contact.md            date firma, adrese de email pe departamente
+[ ] ranking.md            date firma
+
+--- §5.1 si §5.4 le poti completa acum ------------------------------------
+Pagina /legal/ranking pe care am construit-o publica exact parametrii pe care
+codul ii foloseste. Poti scrie in ambele documente:
+
+  §5.1  "Parametrii principali sunt publicati integral, permanent accesibili,
+         la /legal/ranking."
+
+  §5.4  "Criteriile pentru distinctia 'Fermierul lunii' sunt publicate la
+         /legal/ranking: venit 50%, numar de comenzi 30%, cantitate 20%,
+         normalizate pe categorie."
+
+Astea sunt cifrele reale din src/lib/farmerRanking.js. Daca le schimbi acolo,
+schimba-le si in pagina.
+
+--- Dupa ce semneaza avocatul ---------------------------------------------
+[ ] 1. status: draft -> final in frontmatter
+[ ] 2. Ridica `version` in AMANDOUA locurile:
+         - frontmatter-ul .md
+         - local-farmers-backendd/src/lib/legalDocuments.js
+       Se verifica reciproc la runtime. Daca nu se potrivesc, inregistrarea
+       se opreste cu 409 — intentionat, ca sa nu inregistram acceptul cuiva
+       pentru un text pe care nu i l-am aratat.
+
+
+===============================================================================
+PARTEA 7 — CINCI DECIZII DE BUSINESS (nu cod)
+===============================================================================
+
+[ ] 1. VERIFICAM ACTELE PRODUCATORILOR SAU NU?
+       Rescrie customer terms §7.4, Sectiunea 4 si tot marketingul.
+       "Partial" nu e o optiune disponibila — badge plus disclaimer e cea mai
+       proasta pozitie juridica posibila (DSA art. 6(3) + Legea 363/2007).
+       CODUL PRESUPUNE ACUM CA DA: aprobarea verifica documente pe categorie.
+
+[ ] 2. OFERIM GARANTIA COMERCIALA? (producer §14 / customer §14.4)
+       Singurul lucru care justifica comercial 10% fata de un grup gratuit
+       de Facebook.
+
+[ ] 3. COMANDA MINIMA PE PLATFORMA
+       Pragul de rentabilitate e ~11,80 RON de produse; cu 15 RON livrare
+       urca la ~14,30. Se schimba fara deploy:
+         update public.platform_settings set min_charge_bani = 1430;
+
+[ ] 4. UN SINGUR ORAS, SATURAT
+       Raza de livrare inseamna ca cresterea nu se transfera intre orase.
+
+[ ] 5. TOLERANTA LA CANTARIRE
+       Acum e ±10% (platform_settings.weight_tolerance_bps = 1000) si customer
+       terms §10.4 spune acelasi lucru. Daca o schimbi, schimba-le pe amandoua
+       — altfel termenii mint.
+
+
+===============================================================================
+PARTEA 8 — DE FACUT IN URMATOARELE SAPTAMANI (nimic blocant)
+===============================================================================
+
+[ ] Completeaza datele de comerciant ale fermelor existente
+    farmers.legal_name, trade_register_number, cui, trader_type sunt goale
+    pentru fermele deja aprobate — CUI-ul a fost incarcat ca FISIER in
+    bucket-ul docs, nu ca text, deci nu se putea migra automat.
+    Pagina publica spune cinstit "nu a fost furnizat inca" pana le pui.
+    Cine lipseste:
+
+      select id, "farm name", legal_name, trade_register_number, cui
+        from public.farmers
+        where coalesce(trade_register_number, '') = ''
+          and coalesce(cui, '') = ''
+        order by "farm name";
+
+[ ] Completeaza etichetarea produselor existente
+    Migrarea 12 le-a lasat la vanzare, marcate {"needsAttention": true}.
+    Raman vandabile; prima editare le cere setul complet. Pune-ti un termen —
+    e o obligatie legala amanata, nu rezolvata.
+
+      select count(*) filter (where labelling ? 'needsAttention') as de_completat,
+             count(*) as total
+        from public.products;
+
+[ ] Verifica bucket-ul docs pentru scurgeri vechi
+    Daca vreun act de identitate a fost servit vreodata pe URL public inainte
+    de inchiderea bucket-ului, considera-l divulgat si cere reincarcarea.
+    Flag-ul opreste accesele noi; nu poate sterge ce e deja in cache sau CDN.
+
+[~] Muta outbox-ul si sweep-ul orar in proces separat, daca creste volumul
+    Amandoua folosesc deja `for update skip locked`, deci mai multe instante
+    sunt sigure azi. E o schimbare de deployment, nu de cod.
+
+[~] Rate limiting e in memorie
+    Corect pentru o singura instanta. Mai multe au nevoie de Redis, altfel
+    fiecare numara separat.
+
+
+===============================================================================
+PARTEA 9 — IN AFARA SCOPULUI (decis, nu uitat)
+===============================================================================
+
+LOG-01 — curier, tracking, sloturi de livrare.
+Fermele livreaza singure. Carligele exista pentru ziua in care se schimba:
+farmers.lead_time_hours si orders.expected_delivery_date.
+
+
+===============================================================================
+FISIERE UTILE
+===============================================================================
+
+local-farmers-backendd/sql/RUN_1_BEFORE_DEPLOY.sql   de rulat la pasul 2
+local-farmers-backendd/sql/RUN_2_AFTER_DEPLOY.sql    de rulat la pasul 6
+local-farmers-backendd/sql/RUN_1_COMPACT.sql         acelasi SQL, fara proza
+local-farmers-backendd/sql/03..14_*.sql              fisierele individuale
+tasks.md                                             ce a ramas, pe scurt
+CODEBASE_SUMMARY.md                                  arhitectura si conventii
+
+Endpoint de sanatate:  GET /api/health/diagnostics
+Panou admin:           /manage-portal
