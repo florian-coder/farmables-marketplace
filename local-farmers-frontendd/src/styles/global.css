@@ -4709,3 +4709,87 @@ a {
   text-align: center;
   letter-spacing: 0.06em;
 }
+
+/* ============================================================
+   OPS-07 — moderare în chat
+   Filtrul semnalează, nu blochează: un fermier și un client care stabilesc
+   o livrare își dau firesc numărul de telefon. Deci avertisment, o dată,
+   nu un mesaj refuzat.
+   ============================================================ */
+
+.chat-moderation-warning {
+  margin: 0 var(--s-4) var(--s-3);
+  padding: var(--s-3);
+  border-radius: var(--r-md);
+  background: var(--sun-lo);
+  color: var(--sun-dk);
+  font-size: var(--t-1);
+  line-height: 1.5;
+}
+
+.chat-report {
+  margin-left: var(--s-2);
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 0.72rem;
+  color: var(--ink-muted);
+  text-decoration: underline;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+/* Vizibil la hover sau la focus de tastatură — prezent, dar nu strigă. */
+.chat-bubble:hover .chat-report,
+.chat-report:focus-visible {
+  opacity: 1;
+}
+
+.chat-report:disabled {
+  cursor: default;
+  text-decoration: none;
+}
+
+/* ============================================================
+   OPS-03 — reclamația stă acolo unde e problema
+   ============================================================ */
+
+.order-dispute {
+  margin-top: var(--s-2);
+  width: 100%;
+}
+
+.order-dispute-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: var(--s-4);
+  margin-top: var(--s-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--paper-1);
+}
+
+.order-dispute-form label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  font-size: var(--t-1);
+  font-weight: 600;
+}
+
+.order-dispute-hint {
+  margin: 0;
+  font-size: var(--t-1);
+}
+
+.order-dispute-actions {
+  display: flex;
+  gap: var(--s-2);
+  justify-content: flex-end;
+}
+
+.order-dispute-notice {
+  margin: var(--s-3) var(--s-4) 0;
+}

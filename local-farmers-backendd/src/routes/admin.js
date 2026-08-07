@@ -22,6 +22,7 @@ const { recalculateAndPersistProductRatings } = require('../lib/productRating');
 const { issueRefund, cancelPaidOrder, loadOrderForRefund } = require('../lib/refunds');
 const { evaluateTransition } = require('../lib/orderState');
 const { notifyFarmApproved, notifyFarmRejected } = require('../lib/notifications');
+const { DISPUTE_COLUMNS, mapDispute, resolveDispute } = require('../lib/disputes');
 const {
   ADMIN_COOKIE_NAME,
   ADMIN_SESSION_TTL_MS,
@@ -983,6 +984,354 @@ router.post('/orders/:orderId/cancel', requireAdmin, async (req, res, next) => {
     }
 
     return res.json({ cancelled: true, orderId, refund: outcome.refund || null });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+/**
+ * OPS-03 — search orders.
+ *
+ * The first thing anyone handling a complaint needs, and the thing whose
+ * absence meant every question started with a database console.
+ */
+router.get('/orders', requireAdmin, async (req, res, next) => {
+  try {
+    const state = String(req.query?.state || '').trim();
+    const farmerId = String(req.query?.farmerId || '').trim();
+    const clientId = String(req.query?.clientId || '').trim();
+    const orderId = String(req.query?.orderId || '').trim();
+
+    let query = supabase
+      .from(TABLES.orders)
+      .select(
+        'id, farmer_id, client_id, order_state, checkout_id, products_subtotal_bani, delivery_fee_bani, commission_bani, transfer_amount_bani, transfer_state, refund_state, refunded_bani, paid_at, cancelled_at, cancel_reason, created_at',
+      );
+
+    if (orderId) query = query.eq('id', orderId);
+    if (state) query = query.eq('order_state', state);
+    if (farmerId) query = query.eq('farmer_id', farmerId);
+    if (clientId) query = query.eq('client_id', clientId);
+
+    const { data, error } = await query.order('created_at', { ascending: false }).limit(100);
+    if (error) {
+      return res.status(500).json({ error: 'Unable to search orders.' });
+    }
+
+    return res.json({ orders: data || [] });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+/** OPS-03 / SEC-11 — the history of one order, straight from the audit log. */
+router.get('/orders/:orderId/history', requireAdmin, async (req, res, next) => {
+  try {
+    const orderId = String(req.params?.orderId || '').trim();
+    const { data, error } = await supabase
+      .from(TABLES.auditLog)
+      .select('actor_type, actor_id, action, old_value, new_value, created_at')
+      .eq('entity_id', orderId)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      return res.status(500).json({ error: 'Unable to load the order history.' });
+    }
+
+    return res.json({ history: data || [] });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+/** OPS-03 — the case queue, newest first, escalated cases first of all. */
+router.get('/disputes', requireAdmin, async (req, res, next) => {
+  try {
+    const state = String(req.query?.state || '').trim();
+    let query = supabase.from(TABLES.disputes).select(DISPUTE_COLUMNS);
+    if (state) {
+      query = query.eq('state', state);
+    }
+
+    const { data, error } = await query.order('created_at', { ascending: false }).limit(200);
+    if (error) {
+      return res.status(500).json({ error: 'Unable to load cases.' });
+    }
+
+    const disputes = (data || []).map(mapDispute);
+    // Escalated first: those are the ones where a farmer stopped replying and
+    // a customer has been waiting on us specifically.
+    disputes.sort((left, right) => {
+      const rank = (entry) => (entry.state === 'escalated' ? 0 : entry.state === 'resolved' ? 2 : 1);
+      return rank(left) - rank(right);
+    });
+
+    return res.json({ disputes });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+/** OPS-03 — decide a case, and move the money if that is the answer. */
+router.post('/disputes/:disputeId/resolve', requireAdmin, async (req, res, next) => {
+  try {
+    const { data: dispute, error } = await supabase
+      .from(TABLES.disputes)
+      .select(DISPUTE_COLUMNS)
+      .eq('id', String(req.params?.disputeId || ''))
+      .maybeSingle();
+
+    if (error || !dispute) {
+      return res.status(404).json({ error: 'Case not found.' });
+    }
+
+    const result = await resolveDispute({
+      req,
+      dispute,
+      adminUsername: req.admin.username,
+      resolution: String(req.body?.resolution || ''),
+      note: req.body?.note,
+      refundProductsBani: req.body?.refundProductsBani,
+    });
+
+    if (!result.ok) {
+      return res.status(result.status).json({
+        error: result.error,
+        code: result.code,
+        detail: result.detail || null,
+      });
+    }
+
+    return res.json({ resolved: true, resolution: result.resolution, refund: result.refund });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+/**
+ * OPS-03 / OPS-07 — read a private conversation, in context, with a reason.
+ *
+ * This is the most invasive thing an admin can do on this platform, so it is
+ * the most tightly bound: it requires an open case or a report to point at, it
+ * requires a written reason, and it writes an audit entry naming the admin
+ * before it returns a single message. Nobody reads a private conversation
+ * anonymously here.
+ */
+router.get('/conversations/:conversationId', requireAdmin, async (req, res, next) => {
+  try {
+    const conversationId = String(req.params?.conversationId || '').trim();
+    const reason = String(req.query?.reason || '').trim().slice(0, 500);
+    const disputeId = String(req.query?.disputeId || '').trim();
+    const reportId = String(req.query?.reportId || '').trim();
+
+    if (!reason) {
+      return res.status(400).json({
+        error: 'A reason is required to open a private conversation.',
+        code: 'reason_required',
+      });
+    }
+    if (!disputeId && !reportId) {
+      return res.status(400).json({
+        error: 'Opening a private conversation requires an open case or a report to point at.',
+        code: 'context_required',
+      });
+    }
+
+    const { data: conversation } = await supabase
+      .from(TABLES.conversations)
+      .select('id, customer_id, vendor_id, created_at')
+      .eq('id', conversationId)
+      .maybeSingle();
+
+    if (!conversation) {
+      return res.status(404).json({ error: 'Conversation not found.' });
+    }
+
+    // Logged before the data is returned, not after: a crash between the read
+    // and the write must not lose the record of the read.
+    await recordAudit({
+      req,
+      actorType: 'admin',
+      actorId: req.admin.username,
+      action: ACTIONS.CONVERSATION_VIEWED,
+      entityType: 'conversation',
+      entityId: conversationId,
+      newValue: `${disputeId ? `dispute:${disputeId}` : `report:${reportId}`} — ${reason}`,
+    });
+
+    const { data: messages } = await supabase
+      .from(TABLES.messages)
+      .select('id, sender_user_id, text, created_at')
+      .eq('conversation_id', conversationId)
+      .order('created_at', { ascending: true });
+
+    return res.json({
+      conversation: {
+        id: String(conversation.id),
+        customerId: String(conversation.customer_id),
+        vendorId: String(conversation.vendor_id),
+      },
+      messages: messages || [],
+      // Said back to the admin so it is obvious this was not a quiet look.
+      accessLogged: true,
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+/** OPS-07 — the report queue. */
+router.get('/reports', requireAdmin, async (req, res, next) => {
+  try {
+    const state = String(req.query?.state || 'open').trim();
+    const { data, error } = await supabase
+      .from(TABLES.messageReports)
+      .select(
+        'id, message_id, conversation_id, reporter_user_id, reported_user_id, reason, detail, message_snapshot, state, action_taken, reviewed_by, reviewed_at, created_at',
+      )
+      .eq('state', state)
+      .order('created_at', { ascending: false })
+      .limit(200);
+
+    if (error) {
+      return res.status(500).json({ error: 'Unable to load reports.' });
+    }
+
+    return res.json({ reports: data || [] });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.post('/reports/:reportId/review', requireAdmin, async (req, res, next) => {
+  try {
+    const state = String(req.body?.state || '').trim();
+    if (!['actioned', 'dismissed', 'reviewing'].includes(state)) {
+      return res.status(400).json({ error: 'state must be reviewing, actioned or dismissed.' });
+    }
+
+    const { error } = await supabase
+      .from(TABLES.messageReports)
+      .update({
+        state,
+        action_taken: String(req.body?.actionTaken || '').slice(0, 500),
+        reviewed_by: req.admin.username,
+        reviewed_at: new Date().toISOString(),
+      })
+      .eq('id', String(req.params?.reportId || ''));
+
+    if (error) {
+      return res.status(500).json({ error: 'Unable to update the report.' });
+    }
+
+    return res.json({ reviewed: true });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+/**
+ * OPS-03 — suspend a farm.
+ *
+ * Not the same as `charges_enabled`: that is Stripe's field and Stripe
+ * overwrites it on every `account.updated`, so a suspension written there
+ * would silently undo itself. This is ours.
+ *
+ * P2B art. 4 requires a statement of reasons, and 30 days' notice unless the
+ * suspension is a legal obligation or a repeated breach. `immediate` is the
+ * escape hatch for those; it has to be asked for explicitly, so the default is
+ * the compliant one.
+ */
+router.post('/farms/:farmerId/suspend', requireAdmin, async (req, res, next) => {
+  try {
+    const farmerId = String(req.params?.farmerId || '').trim();
+    const reason = String(req.body?.reason || '').trim().slice(0, 1000);
+    const immediate = req.body?.immediate === true;
+
+    if (!reason) {
+      return res.status(400).json({
+        error: 'A statement of reasons is required (P2B Regulation art. 4).',
+        code: 'reason_required',
+      });
+    }
+
+    const now = new Date();
+    const effectiveAt = immediate
+      ? now
+      : new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+    const { error } = await supabase
+      .from(TABLES.farmers)
+      .update({
+        suspended_at: now.toISOString(),
+        suspended_reason: reason,
+        suspended_by: req.admin.username,
+        suspension_effective_at: effectiveAt.toISOString(),
+        // Immediate suspensions stop sales now. A notice period leaves the
+        // farm selling until it takes effect, which is the point of notice.
+        ...(immediate ? { charges_enabled: false } : {}),
+      })
+      .eq('id', farmerId);
+
+    if (error) {
+      return res.status(500).json({ error: 'Unable to suspend the farm.' });
+    }
+
+    await recordAudit({
+      req,
+      actorType: 'admin',
+      actorId: req.admin.username,
+      action: ACTIONS.FARM_SUSPENDED,
+      entityType: 'farmer',
+      entityId: farmerId,
+      newValue: `${immediate ? 'immediate' : '30d_notice'}: ${reason.slice(0, 200)}`,
+    });
+
+    return res.json({
+      suspended: true,
+      effectiveAt: effectiveAt.toISOString(),
+      noticeGiven: !immediate,
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.post('/farms/:farmerId/unsuspend', requireAdmin, async (req, res, next) => {
+  try {
+    const farmerId = String(req.params?.farmerId || '').trim();
+
+    const { error } = await supabase
+      .from(TABLES.farmers)
+      .update({
+        suspended_at: null,
+        suspended_reason: '',
+        suspended_by: '',
+        suspension_effective_at: null,
+        // `charges_enabled` is deliberately NOT restored here. It belongs to
+        // Stripe, and the next `account.updated` is what should set it — if
+        // Stripe is unhappy for its own reasons, lifting our suspension must
+        // not paper over that.
+      })
+      .eq('id', farmerId);
+
+    if (error) {
+      return res.status(500).json({ error: 'Unable to lift the suspension.' });
+    }
+
+    await recordAudit({
+      req,
+      actorType: 'admin',
+      actorId: req.admin.username,
+      action: ACTIONS.FARM_UNSUSPENDED,
+      entityType: 'farmer',
+      entityId: farmerId,
+    });
+
+    return res.json({
+      unsuspended: true,
+      note: 'The farm can sell again once Stripe reports the account as able to take charges.',
+    });
   } catch (error) {
     return next(error);
   }

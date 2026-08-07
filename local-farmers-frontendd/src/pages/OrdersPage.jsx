@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { apiFetch } from '../lib/api.js';
 import { useAuth } from '../lib/auth.jsx';
 import { useLiveUpdates, LIVE_TOPICS } from '../lib/liveUpdates.js';
+import ReportProblem from '../components/ReportProblem.jsx';
 
 const STATE_LABELS = {
   placed_order: 'In cart',
@@ -793,6 +794,10 @@ export default function OrdersPage() {
                       {action.label}
                     </button>
                   ))}
+                  {/* OPS-03 — the complaint form lives where the problem is.
+                      A customer who has to go looking for it charges back
+                      instead, which costs everyone more and tells us nothing. */}
+                  {!isVendor && <ReportProblem order={order} />}
                 </div>
               </div>
 

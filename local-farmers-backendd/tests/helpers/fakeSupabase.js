@@ -16,6 +16,10 @@ const UNIQUE_KEYS = {
   // Idem pentru notificări: `event_key` e derivat din faptul petrecut, deci o
   // reluare de webhook se pliază peste rândul deja existent.
   email_outbox: ['event_key'],
+  // OPS-07 — o raportare de două ori e un click greșit, nu un semnal mai tare.
+  message_reports: ['message_id', 'reporter_user_id'],
+  user_blocks: ['blocker_user_id', 'blocked_user_id'],
+  admin_backup_codes: ['code_hash'],
 };
 
 /**
@@ -28,6 +32,15 @@ const PARTIAL_UNIQUE_KEYS = {
     {
       columns: ['order_id'],
       where: (row) => row.kind === 'full' && row.state !== 'failed',
+    },
+  ],
+  // OPS-03 — o singură reclamație deschisă per comandă. A doua nemulțumire
+  // despre aceeași comandă aparține primului caz, nu unuia alături de el.
+  disputes: [
+    {
+      columns: ['order_id'],
+      where: (row) =>
+        ['open', 'awaiting_farmer', 'farmer_responded', 'escalated'].includes(row.state),
     },
   ],
 };

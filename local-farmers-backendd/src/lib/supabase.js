@@ -72,6 +72,13 @@ const TABLES = {
   // and their own backup codes, so an audit entry names someone.
   adminUsers: 'admin_users',
   adminBackupCodes: 'admin_backup_codes',
+  // OPS-07 — moderation. Reports are the only signal that scales; blocks are
+  // personal and one-directional.
+  messageReports: 'message_reports',
+  userBlocks: 'user_blocks',
+  // OPS-03 — disputes, and the private bucket their evidence lives in.
+  disputes: 'disputes',
+  disputeEvidence: 'dispute_evidence',
 };
 
 const dedupe = (values) => {

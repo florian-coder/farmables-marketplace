@@ -15,6 +15,7 @@ const { supabase, TABLES } = require('./supabase');
 const { ACTIONS, recordAudit } = require('./audit');
 const { evaluateTransition } = require('./orderState');
 const { notifyAutoConfirmWarning } = require('./notifications');
+const { hasActiveDispute, escalateOverdueDisputes } = require('./disputes');
 const {
   RATING_ORDER_STATES,
   recalculateAndPersistProductRatings,
@@ -90,6 +91,13 @@ const autoConfirmStaleArrivedOrders = async () => {
       continue;
     }
 
+    // OPS-03 — and neither is one with a live dispute. Auto-confirming the
+    // single order most likely to need the window kept open would be exactly
+    // the wrong order to close.
+    if (await hasActiveDispute(order.id)) {
+      continue;
+    }
+
     const verdict = evaluateTransition({
       actor: 'system',
       from: order.order_state,
@@ -137,8 +145,11 @@ const autoConfirmStaleArrivedOrders = async () => {
 };
 
 const runOrderMaintenance = async () => {
-  const summary = { warned: 0, confirmed: 0 };
+  const summary = { warned: 0, confirmed: 0, escalated: 0 };
   try {
+    // OPS-03 first: a case that escalates in this pass must be visible to the
+    // auto-confirm sweep that follows it.
+    summary.escalated = await escalateOverdueDisputes();
     summary.warned = await warnStaleArrivedOrders();
     summary.confirmed = await autoConfirmStaleArrivedOrders();
   } catch (error) {

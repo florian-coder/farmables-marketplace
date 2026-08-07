@@ -58,6 +58,11 @@ export default function ChatPage() {
   const [listStatus, setListStatus] = useState({ state: 'loading', message: '' });
   const [detailStatus, setDetailStatus] = useState({ state: 'idle', message: '' });
   const [sendStatus, setSendStatus] = useState({ state: 'idle', message: '' });
+  // OPS-07 — the filter flags rather than blocks, so the server sometimes
+  // sends a message AND a warning about what it gives up. Shown once, above
+  // the composer, then cleared on the next send.
+  const [moderationWarning, setModerationWarning] = useState('');
+  const [reportedMessages, setReportedMessages] = useState({});
   const [draft, setDraft] = useState('');
   const [startedVendorId, setStartedVendorId] = useState('');
   const [mobileView, setMobileView] = useState('list');
@@ -276,12 +281,36 @@ export default function ChatPage() {
       }
       setDraft('');
       setSendStatus({ state: 'idle', message: '' });
+      setModerationWarning(data.warning || '');
       await Promise.all([
         loadConversationDetail(selectedConversationId),
         loadConversations(),
       ]);
     } catch (error) {
       setSendStatus({ state: 'error', message: error.message || 'Unable to send message.' });
+    }
+  };
+
+  /** OPS-07 — reporting is the only moderation signal that scales. */
+  const handleReport = async (messageId) => {
+    const reason = window.prompt(
+      'Why are you reporting this message?\n\nType one of: spam, abuse, off_platform_payment, scam, other',
+      'abuse',
+    );
+    if (!reason) return;
+
+    try {
+      const response = await apiFetch(`/api/chat/messages/${messageId}/report`, {
+        method: 'POST',
+        body: JSON.stringify({ reason: reason.trim() }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Could not send the report.');
+      }
+      setReportedMessages((prev) => ({ ...prev, [messageId]: true }));
+    } catch (error) {
+      setSendStatus({ state: 'error', message: error.message });
     }
   };
 
@@ -454,6 +483,21 @@ export default function ChatPage() {
                             <span className="chat-bubble-time">
                               {formatTime(message.createdAt)}
                             </span>
+                            {/* Only on the other side's messages: reporting
+                                your own is a mis-click, and the server says so
+                                anyway. */}
+                            {!group.isOwn && (
+                              <button
+                                className="chat-report"
+                                type="button"
+                                title="Report this message"
+                                aria-label="Report this message"
+                                disabled={Boolean(reportedMessages[message.id])}
+                                onClick={() => handleReport(message.id)}
+                              >
+                                {reportedMessages[message.id] ? 'Reported' : 'Report'}
+                              </button>
+                            )}
                           </p>
                         ))}
                       </div>
@@ -467,6 +511,12 @@ export default function ChatPage() {
                   </div>
                 )}
               </div>
+
+              {moderationWarning && (
+                <p className="chat-moderation-warning" role="status">
+                  {moderationWarning}
+                </p>
+              )}
 
               <form className="chat-composer" onSubmit={handleSend}>
                 <label className="field chat-composer-field">

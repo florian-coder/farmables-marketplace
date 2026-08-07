@@ -21,6 +21,7 @@ const checkoutRouter = require('./routes/checkout');
 const connectRouter = require('./routes/connect');
 const legalRouter = require('./routes/legal');
 const eventsRouter = require('./routes/events');
+const disputesRouter = require('./routes/disputes');
 const { purgeLegacyState } = require('./lib/legacyCleanup');
 
 const app = express();
@@ -97,6 +98,7 @@ app.use('/api/legal', legalRouter);
 // SEC-01 — live updates now come from here, not from a Supabase subscription
 // in the browser holding a database key.
 app.use('/api/events', eventsRouter);
+app.use('/api/disputes', disputesRouter);
 
 app.use((req, res) => {
   res.status(404).json({ error: 'Not Found' });

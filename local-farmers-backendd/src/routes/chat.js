@@ -3,8 +3,12 @@ const express = require('express');
 const { requireAuth } = require('../middleware/auth');
 const { supabase, TABLES } = require('../lib/supabase');
 const { notifyChatMessage } = require('../lib/notifications');
+const { inspectMessage, blockedBetween } = require('../lib/moderation');
+const { ACTIONS, recordAudit } = require('../lib/audit');
 
 const router = express.Router();
+
+const REPORT_REASONS = ['spam', 'abuse', 'off_platform_payment', 'scam', 'other'];
 
 const MAX_MESSAGE_LENGTH = 1200;
 const CONVERSATION_COLUMNS =
@@ -578,6 +582,33 @@ router.post(
         return res.status(403).json({ error: 'Forbidden' });
       }
 
+      const isCustomer = req.user.role === 'customer';
+      const recipientUserId = isCustomer
+        ? currentConversation.vendorId
+        : currentConversation.customerId;
+
+      // OPS-07 — a block is the only hard stop. One-directional and silent:
+      // the sender is told the message was not delivered, never that they were
+      // blocked, because a block that announces itself invites retaliation
+      // through some other channel.
+      const blocked = await blockedBetween({
+        supabase,
+        tables: TABLES,
+        senderId: req.user.id,
+        recipientId: recipientUserId,
+      });
+      if (blocked) {
+        return res.status(403).json({
+          error: 'This message could not be delivered.',
+          code: 'not_delivered',
+        });
+      }
+
+      // The filter flags, it does not refuse. A farmer and a customer
+      // arranging a delivery legitimately swap phone numbers; blocking that to
+      // catch a rare bad message would break the commonest conversation here.
+      const inspection = inspectMessage(text);
+
       const now = new Date().toISOString();
       const { data: insertedMessageRow, error: insertMessageError } = await supabase
         .from(TABLES.messages)
@@ -595,7 +626,23 @@ router.post(
       }
 
       const message = mapMessageRow(insertedMessageRow);
-      const isCustomerSender = req.user.role === 'customer';
+
+      // A high-severity flag raises a report on its own. Steering a customer
+      // off-platform costs them their refund protection, and waiting for them
+      // to notice and report it is waiting for the harm to land first.
+      if (inspection.severity === 'high') {
+        await supabase.from(TABLES.messageReports).insert({
+          message_id: message.id,
+          conversation_id: conversationId,
+          reporter_user_id: 'system',
+          reported_user_id: normalizeIdentifier(req.user.id),
+          reason: 'off_platform_payment',
+          detail: `Automatic flag: ${inspection.kinds.join(', ')}`,
+          message_snapshot: text.slice(0, 1200),
+        });
+      }
+
+      const isCustomerSender = isCustomer;
       const unreadForCustomer = toUnreadCount(currentConversation.unreadForCustomer);
       const unreadForVendor = toUnreadCount(currentConversation.unreadForVendor);
 
@@ -619,9 +666,7 @@ router.post(
       // back-and-forth does not become twenty messages in an inbox.
       await notifyChatMessage({
         conversationId,
-        recipientUserId: isCustomerSender
-          ? currentConversation.vendorId
-          : currentConversation.customerId,
+        recipientUserId,
         senderName: req.user.username || 'Someone',
         preview: text,
       });
@@ -633,11 +678,194 @@ router.post(
           text: message.text,
           createdAt: message.createdAt,
         },
+        // Shown to the sender, once, under their own message. Explaining what
+        // they give up works better than refusing to send it.
+        warning: inspection.warning || undefined,
       });
     } catch (error) {
       return next(error);
     }
   },
 );
+
+/**
+ * OPS-07 — report a message.
+ *
+ * Reporting is the only moderation signal that scales: we cannot read every
+ * conversation, and should not. The report keeps a snapshot of the text,
+ * because the account may be deleted (GDPR Art. 17 replaces the body with a
+ * placeholder) long before anyone reviews it.
+ */
+router.post('/messages/:messageId/report', requireAuth, async (req, res, next) => {
+  try {
+    const messageId = normalizeIdentifier(req.params.messageId);
+    const reason = String(req.body?.reason || '').trim();
+    const detail = String(req.body?.detail || '').trim().slice(0, 1000);
+
+    if (!messageId) {
+      return res.status(400).json({ error: 'messageId is required.' });
+    }
+    if (!REPORT_REASONS.includes(reason)) {
+      return res.status(400).json({ error: `reason must be one of: ${REPORT_REASONS.join(', ')}.` });
+    }
+
+    const { data: message, error: messageError } = await supabase
+      .from(TABLES.messages)
+      .select(MESSAGE_COLUMNS)
+      .eq('id', messageId)
+      .maybeSingle();
+
+    if (messageError || !message) {
+      return res.status(404).json({ error: 'Message not found.' });
+    }
+
+    // Only someone in the conversation may report it. Otherwise the endpoint
+    // is a way to confirm that a given message id exists.
+    const conversation = await fetchConversationById(message.conversation_id);
+    const { vendors } = await fetchChatContext();
+    const currentVendor = resolveVendorForUser(req.user, vendors);
+    if (!conversation || !canAccessConversation(req.user, currentVendor, conversation)) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    // Reporting your own message is a mis-click, not a signal.
+    if (normalizeIdentifier(message.sender_user_id) === normalizeIdentifier(req.user.id)) {
+      return res.status(400).json({ error: 'You cannot report your own message.' });
+    }
+
+    const { error: insertError } = await supabase.from(TABLES.messageReports).insert({
+      message_id: messageId,
+      conversation_id: normalizeIdentifier(message.conversation_id),
+      reporter_user_id: normalizeIdentifier(req.user.id),
+      reported_user_id: normalizeIdentifier(message.sender_user_id),
+      reason,
+      detail,
+      // A copy, because the original may not survive to be reviewed.
+      message_snapshot: String(message.text || '').slice(0, 1200),
+    });
+
+    if (insertError) {
+      if (insertError.code === '23505') {
+        // Already reported by this person. Reporting twice is a mis-click,
+        // not a stronger signal — and saying "already reported" is honest.
+        return res.json({ reported: true, alreadyReported: true });
+      }
+      return res.status(500).json({ error: 'Unable to record the report.' });
+    }
+
+    await recordAudit({
+      req,
+      actorType: req.user.role === 'vendor' ? 'farmer' : 'customer',
+      actorId: req.user.id,
+      action: ACTIONS.MESSAGE_REPORTED,
+      entityType: 'message',
+      entityId: messageId,
+      newValue: reason,
+    });
+
+    return res.status(201).json({ reported: true });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+/**
+ * OPS-07 — block someone.
+ *
+ * Personal and one-directional: it stops them reaching you, and it is not a
+ * platform-level ban. The blocked person is never told.
+ */
+router.post('/blocks', requireAuth, async (req, res, next) => {
+  try {
+    const blockedUserId = normalizeIdentifier(req.body?.userId);
+    const reason = String(req.body?.reason || '').trim().slice(0, 500);
+
+    if (!blockedUserId) {
+      return res.status(400).json({ error: 'userId is required.' });
+    }
+    if (blockedUserId === normalizeIdentifier(req.user.id)) {
+      return res.status(400).json({ error: 'You cannot block yourself.' });
+    }
+
+    const { error } = await supabase.from(TABLES.userBlocks).insert({
+      blocker_user_id: normalizeIdentifier(req.user.id),
+      blocked_user_id: blockedUserId,
+      reason,
+    });
+
+    if (error && error.code !== '23505') {
+      return res.status(500).json({ error: 'Unable to block this user.' });
+    }
+
+    await recordAudit({
+      req,
+      actorType: req.user.role === 'vendor' ? 'farmer' : 'customer',
+      actorId: req.user.id,
+      action: ACTIONS.USER_BLOCKED,
+      entityType: 'user',
+      entityId: blockedUserId,
+    });
+
+    return res.status(201).json({ blocked: true });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.delete('/blocks/:userId', requireAuth, async (req, res, next) => {
+  try {
+    const blockedUserId = normalizeIdentifier(req.params.userId);
+    if (!blockedUserId) {
+      return res.status(400).json({ error: 'userId is required.' });
+    }
+
+    const { error } = await supabase
+      .from(TABLES.userBlocks)
+      .delete()
+      .eq('blocker_user_id', normalizeIdentifier(req.user.id))
+      .eq('blocked_user_id', blockedUserId);
+
+    if (error) {
+      return res.status(500).json({ error: 'Unable to unblock this user.' });
+    }
+
+    await recordAudit({
+      req,
+      actorType: req.user.role === 'vendor' ? 'farmer' : 'customer',
+      actorId: req.user.id,
+      action: ACTIONS.USER_UNBLOCKED,
+      entityType: 'user',
+      entityId: blockedUserId,
+    });
+
+    return res.json({ unblocked: true });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+/** Who this user has blocked, so the UI can offer to undo it. */
+router.get('/blocks', requireAuth, async (req, res, next) => {
+  try {
+    const { data, error } = await supabase
+      .from(TABLES.userBlocks)
+      .select('blocked_user_id, reason, created_at')
+      .eq('blocker_user_id', normalizeIdentifier(req.user.id));
+
+    if (error) {
+      return res.status(500).json({ error: 'Unable to load your blocks.' });
+    }
+
+    return res.json({
+      blocks: (data || []).map((row) => ({
+        userId: String(row.blocked_user_id),
+        reason: row.reason || '',
+        createdAt: row.created_at || null,
+      })),
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
 
 module.exports = router;
