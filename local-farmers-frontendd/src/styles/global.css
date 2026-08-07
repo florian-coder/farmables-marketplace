@@ -4488,3 +4488,94 @@ a {
 .cart-summary-consent a {
   color: var(--leaf);
 }
+
+/* ============================================================
+   LEG-03 — drepturile GDPR pe pagina de profil
+   Ștergerea arată INTEGRAL ce se șterge și ce rămâne, înainte de
+   confirmare. Diferența dintre ce crede omul că înseamnă „șterge tot" și
+   ce permite legea contabilității e exact locul unde se pierde încrederea.
+   ============================================================ */
+
+.privacy-action {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-4);
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: var(--s-4) 0;
+  border-top: 1px solid var(--line);
+}
+
+.privacy-action h3 {
+  margin: 0 0 var(--s-1);
+  font-size: var(--t-2);
+}
+
+.privacy-action p {
+  margin: 0;
+  max-width: 44ch;
+  font-size: var(--t-1);
+  line-height: 1.55;
+}
+
+.privacy-action .button {
+  flex: 0 0 auto;
+}
+
+.button.danger.ghost {
+  background: transparent;
+  color: var(--bad);
+  border: 1px solid var(--bad);
+}
+
+.privacy-plan {
+  padding: var(--s-4);
+  margin-bottom: var(--s-4);
+  border: 1px solid var(--bad);
+  border-radius: var(--r-md);
+  background: var(--bad-lo);
+}
+
+.privacy-plan h4 {
+  margin: var(--s-4) 0 var(--s-2);
+  font-size: var(--t-1);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.privacy-plan h4:first-child {
+  margin-top: 0;
+}
+
+.privacy-plan ul {
+  margin: 0;
+  padding-left: var(--s-5);
+  font-size: var(--t-1);
+  line-height: 1.6;
+}
+
+.privacy-confirm {
+  margin-top: var(--s-5);
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--bad);
+}
+
+.privacy-confirm label {
+  display: block;
+  font-size: var(--t-1);
+  font-weight: 600;
+}
+
+.privacy-confirm input {
+  display: block;
+  width: 100%;
+  max-width: 24rem;
+  margin-top: var(--s-2);
+}
+
+.privacy-confirm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  margin-top: var(--s-4);
+}

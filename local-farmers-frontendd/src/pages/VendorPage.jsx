@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { apiFetch, getApiBase, resolveImageUrl } from '../lib/api.js';
 import { useAuth } from '../lib/auth.jsx';
 import PasswordChangeCard from '../components/PasswordChangeCard.jsx';
+import PrivacyCard from '../components/PrivacyCard.jsx';
 import PayoutSettingsCard from '../components/PayoutSettingsCard.jsx';
 
 const MAX_FARM_IMAGES = 10;
@@ -745,6 +746,7 @@ export default function VendorPage() {
       <PayoutSettingsCard />
 
       <PasswordChangeCard />
+      <PrivacyCard />
     </div>
   );
 }

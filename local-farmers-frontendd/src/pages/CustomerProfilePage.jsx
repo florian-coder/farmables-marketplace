@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { apiFetch } from '../lib/api.js';
 import { useAuth } from '../lib/auth.jsx';
 import PasswordChangeCard from '../components/PasswordChangeCard.jsx';
+import PrivacyCard from '../components/PrivacyCard.jsx';
 
 const initialProfile = {
   firstName: '',
@@ -317,6 +318,7 @@ export default function CustomerProfilePage() {
       </form>
 
       <PasswordChangeCard />
+      <PrivacyCard />
     </div>
   );
 }
