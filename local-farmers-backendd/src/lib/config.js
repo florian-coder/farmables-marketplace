@@ -83,7 +83,33 @@ const FRONTEND_URL = (process.env.FRONTEND_URL || 'http://localhost:5173').repla
  */
 const STRIPE_CONNECT_ACCOUNT_TYPE = process.env.STRIPE_CONNECT_ACCOUNT_TYPE || 'express';
 
+/**
+ * SEC-12 — the environment credential is a bootstrap, not a login.
+ *
+ * It exists only to create the first `admin_users` row, and that row must
+ * enrol in TOTP before it can do anything. Once someone has enrolled, set this
+ * and the credential stops working entirely — which matters because the
+ * current password is in git history and has to be treated as public.
+ */
+const ADMIN_BOOTSTRAP_DISABLED = process.env.ADMIN_BOOTSTRAP_DISABLED === '1';
+
+/**
+ * Optional IP allowlist for the admin panel, comma-separated.
+ *
+ * Empty means no restriction — deliberately, because a misconfigured
+ * allowlist that locks out the only admin is worse than no allowlist. It is
+ * defence in depth on top of the password and TOTP, never instead of them.
+ */
+const ADMIN_IP_ALLOWLIST = (process.env.ADMIN_IP_ALLOWLIST || '')
+  .split(',')
+  .map((entry) => entry.trim())
+  .filter(Boolean);
+
 module.exports = {
+  ADMIN_BOOTSTRAP_DISABLED,
+  ADMIN_IP_ALLOWLIST,
+  /** Used to label TOTP entries in the authenticator app. */
+  OPERATOR_BRAND: process.env.OPERATOR_BRAND || 'Farmables',
   SESSION_SECRET: byName.get('SESSION_SECRET'),
   ADMIN_SESSION_SECRET: byName.get('ADMIN_SESSION_SECRET'),
   ADMIN_USERNAME: byName.get('ADMIN_USERNAME'),

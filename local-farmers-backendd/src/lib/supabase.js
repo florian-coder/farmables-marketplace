@@ -51,6 +51,10 @@ const TABLES = {
   // LEG-02/LEG-03 — consent to the legal documents: which version, when, from
   // where. Append-only.
   legalAcceptances: 'legal_acceptances',
+  // SEC-12 — admins as people. One row per human, with their own TOTP secret
+  // and their own backup codes, so an audit entry names someone.
+  adminUsers: 'admin_users',
+  adminBackupCodes: 'admin_backup_codes',
 };
 
 const dedupe = (values) => {

@@ -4650,3 +4650,62 @@ a {
   margin-top: var(--s-3) !important;
   font-weight: 600;
 }
+
+/* ============================================================
+   SEC-12 — 2FA în panoul de administrare
+   ============================================================ */
+
+.admin-totp-secret {
+  margin: var(--s-4) 0 var(--s-2);
+  text-align: center;
+}
+
+.admin-totp-secret code {
+  display: inline-block;
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-md);
+  background: var(--paper-1);
+  border: 1px solid var(--line);
+  font-size: var(--t-3);
+  letter-spacing: 0.12em;
+  word-break: break-all;
+}
+
+.admin-totp-uri {
+  font-size: var(--t-1);
+  word-break: break-all;
+}
+
+/* Codurile de rezervă se arată o singură dată. Nu le putem recupera —
+   păstrăm doar hash-uri — deci avertismentul e vizual imposibil de ratat. */
+.admin-backup-codes {
+  margin: var(--s-4) 0;
+  padding: var(--s-4);
+  border: 2px solid var(--warn);
+  border-radius: var(--r-md);
+  background: var(--warn-lo);
+  color: var(--warn);
+}
+
+.admin-backup-codes h2 {
+  margin: 0 0 var(--s-2);
+  font-size: var(--t-3);
+}
+
+.admin-backup-codes ul {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+  gap: var(--s-2);
+  margin: var(--s-4) 0;
+  padding: 0;
+  list-style: none;
+}
+
+.admin-backup-codes code {
+  display: block;
+  padding: var(--s-2);
+  border-radius: var(--r-sm);
+  background: var(--paper-0);
+  text-align: center;
+  letter-spacing: 0.06em;
+}

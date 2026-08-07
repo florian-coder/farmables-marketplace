@@ -3,7 +3,7 @@ const express = require('express');
 const { supabase, TABLES } = require('../lib/supabase');
 const { mapProductToApi } = require('../lib/domain');
 const { ACTIONS, recordAudit } = require('../lib/audit');
-const { authLimiter, usernameLimiter } = require('../middleware/rateLimit');
+const { adminAuthLimiter, usernameLimiter } = require('../middleware/rateLimit');
 
 const DOCS_BUCKET = 'docs';
 const SIGNED_URL_TTL_SECONDS = 120;
@@ -25,11 +25,19 @@ const { notifyFarmApproved, notifyFarmRejected } = require('../lib/notifications
 const {
   ADMIN_COOKIE_NAME,
   ADMIN_SESSION_TTL_MS,
-  ADMIN_USERNAME,
+  SCOPES,
   createAdminSessionToken,
+  ipAllowed,
   requireAdmin,
-  verifyAdminCredentials,
+  requireAdminEnrolling,
 } = require('../middleware/adminAuth');
+const {
+  authenticateAdmin,
+  findAdmin,
+  beginTotpEnrolment,
+  completeTotpEnrolment,
+  issueBackupCodes,
+} = require('../lib/adminAccounts');
 
 const router = express.Router();
 
@@ -182,30 +190,7 @@ const syncFarmPhotos = async (farmerId, imageUrls) => {
   }
 };
 
-router.post('/login', authLimiter, usernameLimiter, async (req, res) => {
-  const username = typeof req.body?.username === 'string' ? req.body.username.trim() : '';
-  const password = typeof req.body?.password === 'string' ? req.body.password : '';
-
-  if (!verifyAdminCredentials(username, password)) {
-    await recordAudit({
-      req,
-      actorType: 'admin',
-      actorId: username.slice(0, 60),
-      action: ACTIONS.ADMIN_LOGIN_FAILED,
-      entityType: 'admin',
-    });
-    return res.status(401).json({ error: 'Invalid admin credentials.' });
-  }
-
-  await recordAudit({
-    req,
-    actorType: 'admin',
-    actorId: ADMIN_USERNAME,
-    action: ACTIONS.ADMIN_LOGIN,
-    entityType: 'admin',
-  });
-
-  const token = createAdminSessionToken();
+const setAdminCookie = (res, token) => {
   const isProduction = process.env.NODE_ENV === 'production';
   res.cookie(ADMIN_COOKIE_NAME, token, {
     httpOnly: true,
@@ -214,21 +199,236 @@ router.post('/login', authLimiter, usernameLimiter, async (req, res) => {
     maxAge: ADMIN_SESSION_TTL_MS,
     path: '/',
   });
+};
 
-  return res.json({
-    authenticated: true,
-    username: ADMIN_USERNAME,
-  });
+/** Refusal reasons, mapped to something a human can act on. */
+const LOGIN_FAILURES = {
+  invalid_credentials: { status: 401, error: 'Invalid admin credentials.' },
+  invalid_second_factor: { status: 401, error: 'That code is not correct.' },
+  code_already_used: {
+    status: 401,
+    // Said plainly rather than as "invalid": someone who typed the right code
+    // and was refused needs to know it is not their mistake.
+    error: 'That code has already been used. Wait for the next one.',
+  },
+  disabled: { status: 403, error: 'This admin account has been disabled.' },
+  locked: {
+    status: 423,
+    error: 'This account is locked after too many failed attempts. Another admin must unlock it.',
+  },
+};
+
+/**
+ * SEC-12 — admin sign-in with a second factor.
+ *
+ * The environment credential is no longer a login: it can only bootstrap the
+ * first `admin_users` row, and that row must enrol in TOTP before it can do
+ * anything. The password is in git history and is treated as public.
+ */
+router.post('/login', adminAuthLimiter, usernameLimiter, async (req, res, next) => {
+  try {
+    const username = typeof req.body?.username === 'string' ? req.body.username.trim() : '';
+    const password = typeof req.body?.password === 'string' ? req.body.password : '';
+    const token = typeof req.body?.token === 'string' ? req.body.token : '';
+    const backupCode = typeof req.body?.backupCode === 'string' ? req.body.backupCode : '';
+
+    if (!ipAllowed(req)) {
+      return res.status(401).json({ error: 'Invalid admin credentials.' });
+    }
+
+    const result = await authenticateAdmin({
+      username,
+      password,
+      token,
+      backupCode,
+      ip: req.ip,
+    });
+
+    if (!result.ok) {
+      await recordAudit({
+        req,
+        actorType: 'admin',
+        actorId: username.slice(0, 60),
+        action: ACTIONS.ADMIN_LOGIN_FAILED,
+        entityType: 'admin',
+        newValue: result.reason,
+      });
+      const failure = LOGIN_FAILURES[result.reason] || LOGIN_FAILURES.invalid_credentials;
+      return res.status(failure.status).json({ error: failure.error, code: result.reason });
+    }
+
+    // Password accepted but no second factor yet: a session that can reach the
+    // enrolment routes and nothing else.
+    if (result.needsEnrolment) {
+      setAdminCookie(
+        res,
+        createAdminSessionToken({
+          adminId: result.admin.id,
+          username: result.admin.username,
+          scope: SCOPES.ENROL,
+        }),
+      );
+      return res.json({
+        authenticated: false,
+        enrolmentRequired: true,
+        username: result.admin.username,
+      });
+    }
+
+    await recordAudit({
+      req,
+      actorType: 'admin',
+      actorId: result.admin.username,
+      action: ACTIONS.ADMIN_LOGIN,
+      entityType: 'admin',
+      entityId: String(result.admin.id),
+      newValue: result.usedBackupCode ? 'backup_code' : 'totp',
+    });
+
+    setAdminCookie(
+      res,
+      createAdminSessionToken({
+        adminId: result.admin.id,
+        username: result.admin.username,
+        scope: SCOPES.FULL,
+      }),
+    );
+
+    return res.json({
+      authenticated: true,
+      username: result.admin.username,
+      // Worth surfacing: a backup code is a one-shot, and the admin should
+      // know how many they have left before they run out entirely.
+      usedBackupCode: Boolean(result.usedBackupCode),
+    });
+  } catch (error) {
+    return next(error);
+  }
 });
 
-router.get('/session', requireAdmin, (req, res) =>
-  res.json({
-    authenticated: true,
-    username: req.admin.username,
-    expiresAt: req.admin.expiresAt,
-  }));
+/** Start TOTP enrolment. Password-only session is enough to reach this. */
+router.post('/2fa/setup', requireAdminEnrolling, async (req, res, next) => {
+  try {
+    const admin = await findAdmin(req.admin.username);
+    if (!admin) {
+      return res.status(404).json({ error: 'Admin account not found.' });
+    }
+    if (admin.totp_enrolled_at) {
+      // Enrolled once, required forever. Re-enrolling would be a way to
+      // downgrade an account back to a password, from a stolen session.
+      return res.status(409).json({
+        error: 'This account already has two-factor authentication. Reset it from another admin account.',
+        code: 'already_enrolled',
+      });
+    }
 
-router.post('/logout', requireAdmin, (req, res) => {
+    const { secret, uri } = await beginTotpEnrolment(admin);
+    // The secret is shown once, here, so it can be typed into an app that
+    // cannot scan. It is never returned again.
+    return res.json({ secret, uri });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+/** Confirm enrolment with a code, and hand over the backup codes. */
+router.post('/2fa/confirm', requireAdminEnrolling, async (req, res, next) => {
+  try {
+    const admin = await findAdmin(req.admin.username);
+    if (!admin) {
+      return res.status(404).json({ error: 'Admin account not found.' });
+    }
+
+    const result = await completeTotpEnrolment({ admin, token: req.body?.token });
+    if (!result.ok) {
+      return res.status(400).json({
+        error:
+          result.reason === 'not_started'
+            ? 'Start the setup first.'
+            : 'That code is not correct. Check your authenticator app and try again.',
+        code: result.reason,
+      });
+    }
+
+    await recordAudit({
+      req,
+      actorType: 'admin',
+      actorId: admin.username,
+      action: ACTIONS.ADMIN_2FA_ENROLLED,
+      entityType: 'admin',
+      entityId: String(admin.id),
+    });
+
+    // Upgrade the session in place: they proved the second factor just now.
+    setAdminCookie(
+      res,
+      createAdminSessionToken({
+        adminId: admin.id,
+        username: admin.username,
+        scope: SCOPES.FULL,
+      }),
+    );
+
+    return res.json({
+      enrolled: true,
+      // Shown exactly once. We store only hashes and genuinely cannot recover
+      // them — say so, because people assume support can.
+      backupCodes: result.backupCodes,
+      warning:
+        'Save these now. They are shown once and we cannot recover them. Each one works a single time.',
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+/** Replace the backup codes. Requires a full session, so a live second factor. */
+router.post('/2fa/backup-codes', requireAdmin, async (req, res, next) => {
+  try {
+    const admin = await findAdmin(req.admin.username);
+    if (!admin?.totp_enrolled_at) {
+      return res.status(409).json({ error: 'Set up two-factor authentication first.' });
+    }
+
+    const codes = await issueBackupCodes(admin.id);
+    await recordAudit({
+      req,
+      actorType: 'admin',
+      actorId: admin.username,
+      action: ACTIONS.ADMIN_2FA_ENROLLED,
+      entityType: 'admin',
+      entityId: String(admin.id),
+      newValue: 'backup_codes_reissued',
+    });
+
+    return res.json({ backupCodes: codes });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.get('/session', requireAdmin, async (req, res, next) => {
+  try {
+    const admin = await findAdmin(req.admin.username);
+    const { data: unused } = await supabase
+      .from(TABLES.adminBackupCodes)
+      .select('id')
+      .eq('admin_id', String(req.admin.adminId))
+      .is('used_at', null);
+
+    return res.json({
+      authenticated: true,
+      username: req.admin.username,
+      expiresAt: req.admin.expiresAt,
+      twoFactorEnrolled: Boolean(admin?.totp_enrolled_at),
+      backupCodesRemaining: Array.isArray(unused) ? unused.length : 0,
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.post('/logout', requireAdminEnrolling, (req, res) => {
   res.clearCookie(ADMIN_COOKIE_NAME, { path: '/' });
   return res.status(204).end();
 });

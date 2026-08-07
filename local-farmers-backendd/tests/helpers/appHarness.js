@@ -54,11 +54,20 @@ const sessionCookieFor = async (user) => {
   return `${SESSION_COOKIE_NAME}=${session.token}`;
 };
 
-const adminCookie = () => {
-  const { createAdminSessionToken, ADMIN_COOKIE_NAME } = require(
+/**
+ * SEC-12 — o sesiune de admin numește acum o persoană, nu un singur cont
+ * partajat. `scope` implicit e cel complet; testele de înrolare cer explicit
+ * `enrol`, sesiunea care ajunge doar la rutele de configurare a 2FA.
+ */
+const adminCookie = ({ adminId = 'admin-1', username = 'test-admin', scope } = {}) => {
+  const { createAdminSessionToken, ADMIN_COOKIE_NAME, SCOPES } = require(
     path.join(BACKEND_ROOT, 'src/middleware/adminAuth.js'),
   );
-  return `${ADMIN_COOKIE_NAME}=${createAdminSessionToken()}`;
+  return `${ADMIN_COOKIE_NAME}=${createAdminSessionToken({
+    adminId,
+    username,
+    scope: scope || SCOPES.FULL,
+  })}`;
 };
 
 module.exports = { buildApp, browserHeaders, sessionCookieFor, adminCookie, ORIGIN };

@@ -47,4 +47,24 @@ const writeLimiter = rateLimit({
   message: jsonMessage('Too many requests. Slow down.'),
 });
 
-module.exports = { authLimiter, usernameLimiter, writeLimiter };
+/**
+ * SEC-12 — the admin panel gets its own, much tighter limit.
+ *
+ * Separate from `authLimiter` on purpose. There is a handful of admins and
+ * they sign in a few times a day; a customer-facing allowance of ten attempts
+ * per quarter hour is far more room than that needs, and this endpoint is the
+ * one where a successful guess can refund money and suspend farms.
+ *
+ * Five per hour, per IP. `admin_users.failed_attempts` locks the account after
+ * five failures independently — this stops the attempt reaching the account at
+ * all, so a distributed attack cannot lock out every admin as a denial of
+ * service.
+ */
+const adminAuthLimiter = rateLimit({
+  ...baseOptions,
+  windowMs: 60 * 60 * 1000,
+  limit: 5,
+  message: jsonMessage('Too many sign-in attempts. Try again in an hour.'),
+});
+
+module.exports = { authLimiter, usernameLimiter, writeLimiter, adminAuthLimiter };

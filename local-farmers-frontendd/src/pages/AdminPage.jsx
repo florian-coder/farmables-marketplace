@@ -60,7 +60,16 @@ export default function AdminPage() {
   const [credentials, setCredentials] = useState({
     username: '',
     password: '',
+    // SEC-12 — the second factor. `token` is the authenticator code;
+    // `backupCode` is the one-shot escape hatch when the phone is gone.
+    token: '',
+    backupCode: '',
   });
+  const [useBackupCode, setUseBackupCode] = useState(false);
+  // Set when the account exists but has not enrolled in TOTP yet — the only
+  // thing a password-only session may do.
+  const [enrolment, setEnrolment] = useState(null);
+  const [backupCodes, setBackupCodes] = useState(null);
   const [requests, setRequests] = useState([]);
   const [requestsStatus, setRequestsStatus] = useState({
     state: 'idle',
@@ -187,15 +196,69 @@ export default function AdminPage() {
         throw new Error(data.error || 'Invalid admin credentials.');
       }
 
+      // Password accepted, but no second factor on the account yet. The
+      // session we now hold can reach the enrolment routes and nothing else.
+      if (data.enrolmentRequired) {
+        setAdminUsername(data.username || credentials.username || 'admin');
+        setCredentials({ username: '', password: '', token: '', backupCode: '' });
+        setLoginStatus({ state: 'idle', message: '' });
+        await startEnrolment();
+        return;
+      }
+
       setAdminUsername(data.username || credentials.username || 'admin');
-      setCredentials({ username: '', password: '' });
-      setLoginStatus({ state: 'success', message: '' });
+      setCredentials({ username: '', password: '', token: '', backupCode: '' });
+      setLoginStatus({
+        state: 'success',
+        message: data.usedBackupCode
+          ? 'Signed in with a backup code — that code is now used up.'
+          : '',
+      });
       setSessionStatus('authenticated');
     } catch (error) {
       setLoginStatus({
         state: 'error',
         message: error.message || 'Login failed.',
       });
+    }
+  };
+
+  /** SEC-12 — show the QR payload and the secret, once. */
+  const startEnrolment = async () => {
+    try {
+      const response = await apiFetch('/api/admin/2fa/setup', {
+        method: 'POST',
+        body: JSON.stringify({}),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Could not start two-factor setup.');
+      }
+      setEnrolment({ secret: data.secret, uri: data.uri, token: '' });
+    } catch (error) {
+      setLoginStatus({ state: 'error', message: error.message });
+    }
+  };
+
+  const handleConfirmEnrolment = async (event) => {
+    event.preventDefault();
+    setLoginStatus({ state: 'loading', message: 'Checking the code...' });
+    try {
+      const response = await apiFetch('/api/admin/2fa/confirm', {
+        method: 'POST',
+        body: JSON.stringify({ token: enrolment.token }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'That code is not correct.');
+      }
+      // Shown exactly once. We store only hashes and cannot recover them.
+      setBackupCodes(data.backupCodes);
+      setEnrolment(null);
+      setLoginStatus({ state: 'idle', message: '' });
+      setSessionStatus('authenticated');
+    } catch (error) {
+      setLoginStatus({ state: 'error', message: error.message });
     }
   };
 
@@ -647,6 +710,60 @@ export default function AdminPage() {
     return <div className="notice">Loading admin panel...</div>;
   }
 
+  // SEC-12 — enrolment. The account has a password and no second factor, so
+  // the only thing it can do is finish this.
+  if (sessionStatus !== 'authenticated' && enrolment) {
+    return (
+      <div className="page-section admin-login-section">
+        <div className="form-card admin-login-card">
+          <h1>Set up two-factor authentication</h1>
+          <p className="muted">
+            This account cannot be used until it has a second factor. Add the key below to an
+            authenticator app (Google Authenticator, 1Password, Aegis), then enter the code it
+            shows.
+          </p>
+
+          <p className="admin-totp-secret">
+            <code>{enrolment.secret}</code>
+          </p>
+          <p className="muted admin-totp-uri">
+            Or paste this into your app: <code>{enrolment.uri}</code>
+          </p>
+
+          <form className="stack" onSubmit={handleConfirmEnrolment}>
+            <label className="field">
+              Code from your app
+              <input
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                pattern="[0-9]{6}"
+                maxLength={6}
+                value={enrolment.token}
+                onChange={(event) =>
+                  setEnrolment((prev) => ({ ...prev, token: event.target.value }))
+                }
+                required
+              />
+            </label>
+            <button
+              className="button primary"
+              type="submit"
+              disabled={loginStatus.state === 'loading'}
+            >
+              {loginStatus.state === 'loading' ? 'Checking...' : 'Confirm'}
+            </button>
+            {loginStatus.state === 'error' && (
+              <p className="notice error" role="alert">
+                {loginStatus.message}
+              </p>
+            )}
+          </form>
+        </div>
+      </div>
+    );
+  }
+
   if (sessionStatus !== 'authenticated') {
     return (
       <div className="page-section admin-login-section">
@@ -679,9 +796,51 @@ export default function AdminPage() {
                 required
               />
             </label>
+
+            {/* SEC-12 — the second factor. Not optional for an enrolled
+                account; the server refuses a password on its own. */}
+            {!useBackupCode ? (
+              <label className="field">
+                Code from your authenticator app
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  pattern="[0-9]{6}"
+                  maxLength={6}
+                  value={credentials.token}
+                  onChange={(event) =>
+                    setCredentials((prev) => ({ ...prev, token: event.target.value }))
+                  }
+                />
+              </label>
+            ) : (
+              <label className="field">
+                Backup code
+                <input
+                  type="text"
+                  autoComplete="off"
+                  placeholder="XXXX-XXXX"
+                  value={credentials.backupCode}
+                  onChange={(event) =>
+                    setCredentials((prev) => ({ ...prev, backupCode: event.target.value }))
+                  }
+                />
+              </label>
+            )}
+
             <button className="button primary" type="submit" disabled={loginStatus.state === 'loading'}>
               {loginStatus.state === 'loading' ? 'Signing in...' : 'Login'}
             </button>
+
+            <button
+              className="button quiet small"
+              type="button"
+              onClick={() => setUseBackupCode((prev) => !prev)}
+            >
+              {useBackupCode ? 'Use my authenticator app' : 'Use a backup code instead'}
+            </button>
+
             {loginStatus.state === 'error' && <p className="notice error" role="alert">{loginStatus.message}</p>}
           </form>
         </div>
@@ -695,6 +854,32 @@ export default function AdminPage() {
         <div>
           <h1>Admin panel</h1>
           <p className="muted">Signed in as {adminUsername}.</p>
+          {/* Shown exactly once, right after enrolment. We store only hashes
+              and genuinely cannot recover these — people assume support can,
+              so the copy says otherwise. */}
+          {backupCodes && (
+            <div className="admin-backup-codes" role="alert">
+              <h2>Save your backup codes now</h2>
+              <p>
+                These are shown once and cannot be recovered. Each one works a single time, and
+                they are the only way in if you lose your phone.
+              </p>
+              <ul>
+                {backupCodes.map((code) => (
+                  <li key={code}>
+                    <code>{code}</code>
+                  </li>
+                ))}
+              </ul>
+              <button
+                className="button primary small"
+                type="button"
+                onClick={() => setBackupCodes(null)}
+              >
+                I have saved them
+              </button>
+            </div>
+          )}
         </div>
         <div className="button-group">
           <button className="button ghost" type="button" onClick={() => loadRequests()}>
