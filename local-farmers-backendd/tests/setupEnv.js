@@ -14,6 +14,7 @@ const testDefaults = {
   CORS_ORIGINS: 'http://localhost:5173',
   FRONTEND_URL: 'http://localhost:5173',
   STRIPE_SECRET_KEY: 'sk_test_dummy_key_for_jest',
+  STRIPE_WEBHOOK_SECRET: 'whsec_test_dummy_secret_for_jest',
   DISABLE_RATE_LIMIT: '1',
 };
 

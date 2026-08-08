@@ -14,6 +14,7 @@ const {
 } = require('../lib/orderState');
 const { ACTIONS, recordAudit } = require('../lib/audit');
 const { cancelPaidOrder } = require('../lib/refunds');
+const { releaseOrderPayout, RELEASE_ORDER_STATE } = require('../lib/transfers');
 const { notifyCustomerOrderState } = require('../lib/notifications');
 const { recordFulfilment } = require('../lib/fulfilment');
 
@@ -776,7 +777,11 @@ router.patch('/:orderId/state', requireAuth, async (req, res, next) => {
     const { error: updateError } = await supabase
       .from(TABLES.orders)
       .update(statePatch)
-      .eq('id', orderId);
+      // Guard on the state we judged. Two people confirming the same order at
+      // once must produce one state change, because one state change is what
+      // releases the money.
+      .eq('id', orderId)
+      .eq('order_state', order.orderState);
     if (updateError) {
       return res.status(500).json({ error: updateError.message || 'Unable to update order.' });
     }
@@ -791,6 +796,25 @@ router.patch('/:orderId/state', requireAuth, async (req, res, next) => {
       oldValue: order.orderState,
       newValue: nextState,
     });
+
+    // This is the release. The customer confirming receipt is the event the
+    // whole escrow model waits for: until now the platform held the farmer's
+    // share, and this is where it stops being the platform's problem and
+    // becomes the farmer's money.
+    //
+    // Deliberately not awaited into the response's success: a Stripe outage
+    // must not make a confirmation fail and leave the customer clicking again
+    // on an order that is already confirmed. `releaseOrderPayout` records its
+    // own failure and the hourly sweep retries it.
+    let payout = null;
+    if (nextState === RELEASE_ORDER_STATE) {
+      payout = await releaseOrderPayout({ orderId });
+      if (!payout.released && payout.reason === 'stripe_error') {
+        console.error(
+          `[orders] Order ${orderId} confirmed but the payout did not go out: ${payout.detail}`,
+        );
+      }
+    }
 
     // OPS-02 — the customer is not sitting on the orders page waiting for a
     // Realtime event. Realtime only works while a tab is open.
@@ -819,6 +843,7 @@ router.patch('/:orderId/state', requireAuth, async (req, res, next) => {
     });
     return res.json({
       order: detailedOrder,
+      payout: payout ? { released: payout.released, amountBani: payout.amountBani } : null,
     });
   } catch (error) {
     return next(error);

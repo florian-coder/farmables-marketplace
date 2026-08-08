@@ -2654,6 +2654,20 @@ a {
   gap: var(--s-2);
 }
 
+/* Escrow, explained where the decision is made. Informational blue, not a
+   warning: nothing is wrong, the customer simply has a button that moves
+   money and deserves to know it. */
+.order-escrow-note {
+  margin: 0 0 var(--s-3);
+  padding: var(--s-2) var(--s-3);
+  border-left: 3px solid var(--sky);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  background: var(--sky-lo);
+  color: var(--ink-1);
+  font-size: var(--t-1);
+  line-height: 1.5;
+}
+
 .notice-dismiss {
   margin-left: var(--s-3);
 }

@@ -180,7 +180,8 @@ export default function PayoutSettingsCard() {
       <header className="profile-card-head">
         <h2>Payouts</h2>
         <p className="profile-card-sub">
-          Money reaches you right after each paid order, straight into your own Stripe account.
+          We hold each order&rsquo;s money from the moment the customer pays and send it to your own
+          Stripe account as soon as they confirm it arrived.
         </p>
       </header>
 
@@ -317,9 +318,10 @@ export default function PayoutSettingsCard() {
           </div>
 
           <p className="profile-hint">
-            From every order you receive <strong>the products plus your delivery fee</strong>. The
-            platform fee is paid separately by the customer, on top of your prices — it is not
-            deducted from your money.
+            From every order you receive <strong>the products plus your delivery fee</strong>, paid
+            out once the customer confirms delivery — or automatically after seven days if they
+            forget. The platform fee is paid separately by the customer, on top of your prices — it
+            is not deducted from your money.
             {status.deliveryFeeBani > 0 && (
               <>
                 {' '}

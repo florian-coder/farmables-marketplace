@@ -57,7 +57,11 @@ placeholder, deci o sa vezi in log daca ai uitat una.
                                    allowlist gresit care te blocheaza pe tine
                                    e mai rau decat lipsa lui)
 [~] AUTO_CONFIRM_DAYS=7            dupa cate zile se inchide singura o comanda
+                                   (si se plateste fermierul)
 [~] AUTO_CONFIRM_WARN_DAYS=4       cand pleaca avertismentul catre client
+[~] PAYOUT_HOLD_EXPIRY_DAYS=14     dupa cate zile o comanda platita care n-a
+                                   ajuns niciodata se anuleaza si banii se
+                                   intorc la client
 [~] OUTBOX_INTERVAL_MS=30000       cat de des se goleste coada de emailuri
 [~] MAINTENANCE_INTERVAL_MS=3600000
 
@@ -119,6 +123,31 @@ Toate sunt idempotente: o a doua rulare nu schimba nimic.
                  claim_due_emails, orders_accepted_today,
                  expire_organic_claims, advance_subscription
                Creeaza bucket-ul privat: dispute-evidence
+
+  PASUL 2b [ ] Ruleaza:  local-farmers-backendd/sql/15_escrow_payouts.sql
+               ⚠ INAINTE de deploy. Codul nou scrie transfer_state = 'held',
+               pe care constrangerea veche il refuza.
+
+               SCHIMBA CAND E PLATIT FERMIERUL. Pana acum banii plecau catre
+               fermier in secunda in care trecea cardul. De acum stau pe contul
+               platformei pana cand clientul confirma ca a primit comanda —
+               si se intorc la client daca nu ajunge niciodata.
+
+               Adauga: orders.refunded_transfer_bani, payout_released_at,
+                       payout_hold_started_at
+               Largeste: orders.transfer_state (+ 'held')
+               Creeaza: withhold_farmer_share()
+               Rescrie: mark_checkout_paid() — pune banii in escrow
+
+               Comenzile deja transferate raman exact cum sunt: 'sent' ramane
+               'sent' si nimeni nu incearca sa recupereze nimic.
+
+               Doua variabile optionale controleaza termenele:
+                 AUTO_CONFIRM_DAYS=7          cand se inchide singura si se
+                                              plateste ferma
+                 PAYOUT_HOLD_EXPIRY_DAYS=14   cand o comanda care n-a ajuns
+                                              niciodata se anuleaza si se
+                                              ramburseaza
 
   PASUL 3  [ ] Deploy BACKEND
                Aduce endpointul SSE (/api/events/stream) si abonarea Realtime
@@ -326,6 +355,7 @@ FISIERE UTILE
 ===============================================================================
 
 local-farmers-backendd/sql/RUN_1_BEFORE_DEPLOY.sql   de rulat la pasul 2
+local-farmers-backendd/sql/15_escrow_payouts.sql     de rulat la pasul 2b
 local-farmers-backendd/sql/RUN_2_AFTER_DEPLOY.sql    de rulat la pasul 6
 local-farmers-backendd/sql/RUN_1_COMPACT.sql         acelasi SQL, fara proza
 local-farmers-backendd/sql/03..14_*.sql              fisierele individuale

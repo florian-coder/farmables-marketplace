@@ -20,10 +20,13 @@ the platform takes a commission for the intermediation.
 - **Live updates are server-sent.** One Supabase Realtime subscription per
   backend process, fanned out to browsers over SSE (`src/lib/eventStream.js`).
   This is what let RLS go on `orders` and `messages`.
-- **Payments: Stripe Connect Express, separate charges and transfers.** One
-  `PaymentIntent` on the platform account for the whole basket, then one
-  `Transfer` per farm immediately on payment confirmation. Refunds run the
-  other way: **reverse the transfer first, then refund the card.**
+- **Payments: Stripe Connect Express, separate charges and transfers, with an
+  escrow window.** One `PaymentIntent` on the platform account for the whole
+  basket. Each farm's share is then **held** on the platform balance
+  (`orders.transfer_state = 'held'`) and only transferred when the customer
+  confirms the order arrived. If it never arrives, the money goes back to the
+  customer instead. Refunds against a share already sent run the other way:
+  **reverse the transfer first, then refund the card.**
 - Request flow: `browser → apiFetch (credentials: include) → Express → Supabase`.
   Stripe calls the webhook directly.
 
@@ -57,6 +60,7 @@ local-farmers-backendd/
     pricing.js            the one place basket prices are computed
     orderState.js         ⚠ the ONLY place an order transition is judged legal
     refunds.js            reversal → refund, full + partial, manual-recovery path
+    transfers.js          escrow: hold on payment, release on confirmation
     fulfilment.js         OPS-06/LOG-04 — delivered vs ordered, and the tolerance
     availability.js       farm hours, holidays, daily capacity
     disputes.js           48h farmer window, auto-escalation, resolution
@@ -73,7 +77,6 @@ local-farmers-backendd/
     operator.js           who runs the site; footer + email footer
     stripeClient.js       single Stripe client + error → user-message mapping
     connect.js            Connect accounts, onboarding links, visibility gate
-    transfers.js          farmer payouts, double idempotency
     platformSettings.js   commission_bps, min charge, weight tolerance; 60s cache
     legalDocuments.js     ⚠ authority on which legal version is in force
     legalAcceptance.js    writes consent records
@@ -133,6 +136,26 @@ orders. Money frozen on each `orders` row at placement:
 - **Recurring**: `subscriptions`
 - **Compliance**: `audit_log` (append-only, trigger-enforced), `legal_acceptances`, `stripe_events`, `auth_tokens`, `email_outbox`
 
+### The escrow window — where the money is, at each state
+
+```
+placed_order            no money anywhere (this is the cart)
+pending_order           card authorised, transfer_state = 'none'
+received_by_farmer  ─┐
+preparing_order      ├─ charged, transfer_state = 'held'
+in_transit           │  the platform holds the farmer's share
+arrived             ─┘  a cancellation here refunds 100% and costs nobody
+received                transfer_state = 'sent' — the farmer has it
+cancelled               refunded; the held share is 'reversed', never sent
+```
+
+`orders.refunded_transfer_bani` is the part of the farmer's share already
+returned to the customer during the hold. The release pays
+`transfer_amount_bani - refunded_transfer_bani`, so a partial refund is never
+paid out twice. Two deadlines make sure nothing is held forever:
+`AUTO_CONFIRM_DAYS` (7) closes a forgotten `arrived` order and pays the farm,
+`PAYOUT_HOLD_EXPIRY_DAYS` (14) cancels and refunds an order that never arrived.
+
 ### Pricing formula (frozen per order)
 
 ```
@@ -176,8 +199,13 @@ products + delivery — the commission is the platform's to forgo.
   browser holds no database key, so this needs no `auth.uid()`.
 - **A paid order is never deleted.** `cancelled` is a state, and cancelling
   restores stock and refunds in one flow (`cancelPaidOrder`).
-- **Reversal before refund, always.** Refunding first pushes the platform
-  balance negative and Stripe starts declining other farmers' transfers.
+- **A farmer is paid on confirmed receipt, never on payment.**
+  `lib/transfers.releaseOrderPayout` is the only thing that moves money to a
+  farm, and it refuses any order not in `received`.
+- **Reversal before refund, always.** When a share was already sent, refunding
+  first pushes the platform balance negative and Stripe starts declining other
+  farmers' transfers. When it is still held, there is nothing to reverse —
+  `withhold_farmer_share` records it and the release nets it out.
 - **Notifications never fail the thing they describe.** Enqueue swallows its own
   errors; sending never happens inside a request or a transaction.
 - **Payment/upload paths never return a bare 500.** User-actionable message +

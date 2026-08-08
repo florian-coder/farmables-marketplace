@@ -104,9 +104,46 @@ const markCheckoutPaid = (args, db) => {
     if (order.order_state !== 'pending_order') continue;
     order.order_state = 'received_by_farmer';
     order.paid_at = order.paid_at || now;
+    // Escrow: the farmer's share is claimed by the platform in the same
+    // statement that marks the group paid, exactly as the SQL does.
+    if ((order.transfer_state || 'none') === 'none') {
+      order.transfer_state = 'held';
+      order.payout_hold_started_at = order.payout_hold_started_at || now;
+    }
   }
 
   return { success: true, newly_paid: true, total_bani: checkout.total_bani };
+};
+
+/**
+ * `public.withhold_farmer_share` — a refund against money still held.
+ *
+ * The clamp is the point of the function, so the double clamps too: two
+ * partial refunds must not be able to withhold more than the farmer was ever
+ * owed, which would make the eventual release a negative transfer.
+ */
+const withholdFarmerShare = (args, db) => {
+  const order = findById(db, 'orders', args.p_order_id);
+  if (!order) {
+    return { success: false, error: 'Order not found.' };
+  }
+
+  const owed = toInt(order.transfer_amount_bani);
+  const withheld = Math.min(
+    owed,
+    toInt(order.refunded_transfer_bani) + Math.max(toInt(args.p_amount_bani), 0),
+  );
+
+  order.refunded_transfer_bani = withheld;
+  if (withheld >= owed && order.transfer_state === 'held') {
+    order.transfer_state = 'reversed';
+  }
+
+  return {
+    success: true,
+    refunded_transfer_bani: withheld,
+    releasable_bani: Math.max(owed - withheld, 0),
+  };
 };
 
 /** Setul complet, pentru `buildApp(seed, { rpc: orderRpc() })`. */
@@ -114,6 +151,7 @@ const orderRpc = (extra = {}) => ({
   cancel_order_with_stock: cancelOrderWithStock,
   apply_refund_result: applyRefundResult,
   mark_checkout_paid: markCheckoutPaid,
+  withhold_farmer_share: withholdFarmerShare,
   ...extra,
 });
 
@@ -121,5 +159,6 @@ module.exports = {
   cancelOrderWithStock,
   applyRefundResult,
   markCheckoutPaid,
+  withholdFarmerShare,
   orderRpc,
 };

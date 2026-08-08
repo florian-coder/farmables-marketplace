@@ -4,7 +4,8 @@
 // card forms for a three-farm basket. Now the whole cart is one
 // `checkouts` row, one Stripe Checkout Session, one `PaymentIntent` on the
 // platform account, and one `transfer_group`. The per-farmer split happens
-// after the payment confirms, in `lib/transfers.js`.
+// after the customer confirms the order arrived, in `lib/transfers.js` — the
+// charge lands on the platform balance and is held there in the meantime.
 
 const express = require('express');
 const crypto = require('crypto');
@@ -15,7 +16,7 @@ const { stripe, describeStripeError, stripeRequestId } = require('../lib/stripeC
 const { FRONTEND_URL } = require('../lib/config');
 const { buildCartQuote, serializeQuote } = require('../lib/pricing');
 const { formatBani, toBani } = require('../lib/money');
-const { transferCheckoutGroups } = require('../lib/transfers');
+const { holdCheckoutGroups } = require('../lib/transfers');
 const { validateAcceptances } = require('../lib/legalDocuments');
 const { checkoutBlockerFor } = require('../lib/emailStatus');
 const { recordAcceptances } = require('../lib/legalAcceptance');
@@ -508,10 +509,12 @@ router.get('/:checkoutId/status', requireAuth, async (req, res, next) => {
     }
 
     if (applied?.newly_paid) {
-      // Transfers are the webhook's job, but if the redirect got here first we
-      // start them now — both paths claim through `order_transfers`.
-      transferCheckoutGroups({ checkoutId, eventId: `redirect-${checkoutId}` }).catch((err) =>
-        console.error('[checkout] Transfer after redirect failed:', err?.message),
+      // The farmers are not paid here. The card money goes into escrow against
+      // each farmer group and stays on the platform balance until the customer
+      // confirms the order arrived — see `lib/transfers.js`. This only makes
+      // sure the hold is recorded if the redirect beat the webhook to it.
+      holdCheckoutGroups({ checkoutId }).catch((err) =>
+        console.error('[checkout] Could not hold payouts after redirect:', err?.message),
       );
     }
 

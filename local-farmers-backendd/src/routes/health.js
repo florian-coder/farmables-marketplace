@@ -2,6 +2,8 @@ const express = require('express');
 
 const { supabase, TABLES } = require('../lib/supabase');
 const { missingOperatorFields } = require('../lib/operator');
+const { heldPayoutSummary } = require('../lib/transfers');
+const { formatBani } = require('../lib/money');
 
 const router = express.Router();
 
@@ -41,6 +43,24 @@ router.get('/diagnostics', async (_req, res) => {
   );
   report.checks.refundsFailed = await count(TABLES.refunds, (q) => q.eq('state', 'failed'));
   report.checks.transfersFailed = await count(TABLES.orderTransfers, (q) => q.eq('state', 'failed'));
+
+  // Escrow: how much of the customers' money the platform is holding, and
+  // whether any of it is stranded. `heldBani` against open orders is normal
+  // and expected — that is the model working. `stuckOrders` is not: it counts
+  // money still held against an order that has already finished in one
+  // direction or the other, which means a release or a refund did not run.
+  try {
+    const held = await heldPayoutSummary();
+    report.checks.payoutsHeld = {
+      orders: held.heldOrders,
+      amount: formatBani(held.heldBani),
+      // Only the stranded ones count towards `attention`; a healthy platform
+      // always has money in escrow.
+      count: held.stuckOrders,
+    };
+  } catch (error) {
+    report.checks.payoutsHeld = { error: error?.message || 'query failed' };
+  }
 
   const missingOperator = missingOperatorFields();
   report.checks.operatorIdentification = missingOperator.length

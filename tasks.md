@@ -28,6 +28,23 @@ matters, and two of them have a deploy-order constraint.
 | 12 | `12_food_labelling.sql` | Before deploying. |
 | 13 | `13_trader_details.sql` | Before deploying. |
 | 14 | `14_seasonality_subscriptions.sql` | Before deploying. |
+| 15 | `15_escrow_payouts.sql` | **Before** deploying. The new code writes `transfer_state = 'held'`, which the old check constraint rejects. |
+
+### 15 changes when farmers are paid
+
+Until now the farmer's share was transferred the moment the card cleared.
+It is now **held on the platform balance until the customer confirms the order
+arrived**, and refunded to the customer if it never does. Migration 15 widens
+the `transfer_state` constraint, adds the columns that track the hold, and
+backfills every currently open paid order to `held`.
+
+Orders already transferred under the old model are left exactly as they are —
+`sent` is `sent`, and nothing tries to claw anything back.
+
+Two environment variables control the deadlines, both optional:
+`AUTO_CONFIRM_DAYS` (default 7) is when a delivered-but-unconfirmed order
+closes itself and pays the farm; `PAYOUT_HOLD_EXPIRY_DAYS` (default 14) is when
+an order that never arrived is cancelled and refunded.
 
 ### The one with a real ordering constraint — 09
 
@@ -141,10 +158,13 @@ written, so they are cheap to act on once decided.
 
 ## Done
 
-Every finding below is implemented and covered by tests (333 backend, 3
+Every finding below is implemented and covered by tests (380 backend, 3
 frontend). The commit for each explains the reasoning.
 
 **Blocking the first customer**
+PAY-01 escrow payouts (held on payment, released on confirmed receipt, refunded
+if the order never arrives; undelivered-order expiry sweep; Connect onboarding
+recovery for a dead Stripe account) ·
 OPS-01b refunds (reversal before refund, full + partial, manual-recovery path) ·
 OPS-02 notifications (outbox, 13 templates, retry/backoff) · LEG-02 distance
 selling (5 new documents, footer identification, ANPC/SAL, consent at order) ·

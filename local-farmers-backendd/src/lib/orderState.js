@@ -94,8 +94,11 @@ const TRANSITIONS = Object.freeze([
   },
   {
     from: 'received_by_farmer',
+    // `system` is the escrow expiry: an order the farmer never moved is
+    // cancelled and refunded rather than left holding the customer's money
+    // indefinitely. See `orderMaintenance.expireUndeliveredOrders`.
     to: 'cancelled',
-    actors: ['farmer', 'admin'],
+    actors: ['farmer', 'admin', 'system'],
     label: 'Decline order',
   },
   {
@@ -107,7 +110,7 @@ const TRANSITIONS = Object.freeze([
   {
     from: 'preparing_order',
     to: 'cancelled',
-    actors: ['admin'],
+    actors: ['admin', 'system'],
     label: 'Cancel order',
   },
   {
@@ -119,10 +122,13 @@ const TRANSITIONS = Object.freeze([
   {
     from: 'in_transit',
     to: 'cancelled',
-    actors: ['admin'],
+    actors: ['admin', 'system'],
     label: 'Cancel order',
   },
   {
+    // The only edge that pays a farmer. Everything before it leaves the money
+    // held on the platform, and every edge to `cancelled` sends it back to the
+    // customer instead — see `lib/transfers.releaseOrderPayout`.
     from: 'arrived',
     to: 'received',
     // `system` is OPS-04: an order nobody confirmed closes itself after the

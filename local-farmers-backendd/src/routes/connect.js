@@ -8,7 +8,7 @@ const express = require('express');
 
 const { requireVendor } = require('../middleware/auth');
 const { supabase, TABLES } = require('../lib/supabase');
-const { describeStripeError, stripeRequestId } = require('../lib/stripeClient');
+const { describeConnectError, stripeRequestId } = require('../lib/stripeClient');
 const {
   ensureConnectAccount,
   createOnboardingLink,
@@ -31,7 +31,7 @@ const failConnect = (res, { status = 502, message, logLabel, error }) => {
   return res.status(status).json({ error: message });
 };
 
-/** Guidance in Romanian for whatever Stripe still wants from the farmer. */
+/** What is standing between this farmer and being paid, in one sentence. */
 const requirementHint = (state) => {
   if (!state.connected) {
     return 'You do not have a payout account yet. Press \u201cSet up payouts\u201d to create one at Stripe.';
@@ -44,6 +44,12 @@ const requirementHint = (state) => {
   }
   if (state.requirementsDue.length > 0) {
     return 'Stripe needs extra documents or information. Open your Stripe account to provide them.';
+  }
+  if (!state.payoutsEnabled) {
+    // The distinction that matters under escrow: an account can be verified
+    // enough to sell while payouts to the bank are still on hold. The money
+    // is safe either way, but the farmer should know why nothing has landed.
+    return 'You can sell, but Stripe has not enabled payouts to your bank yet. Open your Stripe account to finish.';
   }
   if (!state.payoutSettingsSet) {
     return 'Set your delivery fee and minimum order so customers know what to expect.';
@@ -136,7 +142,7 @@ router.post('/onboard', requireVendor, async (req, res, next) => {
   } catch (error) {
     if (error?.type?.startsWith?.('Stripe')) {
       return failConnect(res, {
-        message: describeStripeError(error),
+        message: describeConnectError(error),
         logLabel: `onboarding link failed for farmer ${req.user.id}`,
         error,
       });
@@ -158,7 +164,7 @@ router.post('/dashboard', requireVendor, async (req, res, next) => {
   } catch (error) {
     if (error?.type?.startsWith?.('Stripe')) {
       return failConnect(res, {
-        message: describeStripeError(error),
+        message: describeConnectError(error),
         logLabel: `dashboard link failed for farmer ${req.user.id}`,
         error,
       });

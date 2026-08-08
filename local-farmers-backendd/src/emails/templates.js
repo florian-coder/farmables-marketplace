@@ -52,6 +52,12 @@ const TEMPLATES = {
             value:
               'Accept or decline it as soon as you can — the customer is waiting and has already been charged.',
           },
+          {
+            type: 'note',
+            value:
+              `We are holding ${formatBani(totalBani)} for you and send it to your Stripe account as soon as the ` +
+              'customer confirms the order arrived — automatically after seven days if they forget.',
+          },
         ],
       }),
     };
@@ -112,6 +118,12 @@ const TEMPLATES = {
             value:
               'Fresh food is exempt from the 14-day withdrawal right (OUG 34/2014 art. 16), but you keep every legal ' +
               'guarantee about the goods being what was described. If something is wrong, reply or open the order and message the farm.',
+          },
+          {
+            type: 'note',
+            value:
+              `${OPERATOR.brand} holds this money until you confirm the order arrived, and only then passes it to the ` +
+              'farm. If it never arrives, it comes back to you.',
           },
         ],
       }),

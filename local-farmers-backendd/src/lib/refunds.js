@@ -1,15 +1,24 @@
 // OPS-01b — giving the money back.
 //
-// The order of operations is not negotiable, because we use separate charges
-// and transfers: the farmer already has their share by the time anyone asks
-// for a refund. So it is always
+// Where the farmer's share is at the moment of the refund decides how this
+// runs, and there are two cases:
 //
-//   1. reverse the transfer  (take it back off the farmer)
-//   2. refund the charge     (give it to the customer)
+//   * Still held by the platform (the normal case under escrow — the customer
+//     has not confirmed receipt, which is usually exactly why they are asking
+//     for their money back). Nothing has to be recovered from anybody. The
+//     share is marked withheld on the order, so the later release nets it out,
+//     and the card is refunded. This is the whole reason payouts wait for
+//     confirmation: the refund costs one Stripe call and cannot fail halfway.
 //
-// and never the other way round. Refunding first would push the platform
-// balance negative on every cancellation, and Stripe would start declining
-// unrelated transfers for other farmers.
+//   * Already sent (the order was confirmed, and an admin is reversing it
+//     afterwards). Then the order of operations is not negotiable:
+//
+//       1. reverse the transfer  (take it back off the farmer)
+//       2. refund the charge     (give it to the customer)
+//
+//     and never the other way round. Refunding first would push the platform
+//     balance negative and Stripe would start declining unrelated transfers
+//     for other farmers.
 //
 // Idempotency has the same two layers as `transfers.js`:
 //   1. the `refunds` row IS the claim — a partial unique index makes a second
@@ -65,6 +74,7 @@ const ORDER_MONEY_COLUMNS = [
   'commission_bani',
   'commission_bps',
   'transfer_amount_bani',
+  'refunded_transfer_bani',
   'transfer_state',
   'stripe_transfer_id',
   'stripe_account_id',
@@ -174,6 +184,35 @@ const describeStripeFailure = (error) => {
 };
 
 /**
+ * Record that part of a held share will never reach the farmer.
+ *
+ * The database function does the arithmetic under a row lock, and clamps the
+ * running total at the farmer's whole share: two partial refunds racing must
+ * not be able to withhold more than was ever owed and turn the eventual
+ * release into a negative transfer.
+ *
+ * Returns false when the write failed — the caller then treats the refund as
+ * a plain one. That is the safe direction: an unwithheld share is money the
+ * platform may pay out twice and can chase, while refusing the refund would
+ * leave the customer out of pocket for a bookkeeping problem.
+ */
+const withholdFarmerShare = async ({ orderId, amountBani }) => {
+  const { error } = await supabase.rpc('withhold_farmer_share', {
+    p_order_id: String(orderId),
+    p_amount_bani: toBani(amountBani),
+  });
+
+  if (error) {
+    console.error(
+      `[refunds] Could not withhold ${formatBani(amountBani)} of the held share on order ${orderId}:`,
+      error.message,
+    );
+    return false;
+  }
+  return true;
+};
+
+/**
  * Take the farmer's share back before the customer is refunded.
  *
  * Returns `{ reversed, reversalId, manual, detail }`. `manual: true` means the
@@ -188,9 +227,18 @@ const reverseFarmerTransfer = async ({ order, refund, amountBani }) => {
     return { reversed: true, reversalId: null, manual: false, detail: 'nothing_to_reverse' };
   }
   if (order.transfer_state !== 'sent' || !transferId) {
-    // The farmer was never paid, so there is nothing to claw back. This is the
-    // happy case for a fast cancellation: decline before the payout lands.
-    return { reversed: true, reversalId: null, manual: false, detail: 'transfer_not_sent' };
+    // The farmer was never paid — the money is still in escrow on the platform
+    // balance. Nothing to claw back, but the amount has to be written down as
+    // withheld, or the release that follows a later confirmation would pay the
+    // farmer money that has already gone back to the customer.
+    const withheld = await withholdFarmerShare({ orderId: order.id, amountBani: amount });
+    return {
+      reversed: true,
+      reversalId: null,
+      manual: false,
+      detail: withheld ? 'withheld_from_escrow' : 'transfer_not_sent',
+      withheldBani: withheld ? amount : 0,
+    };
   }
 
   await updateRefundRow(refund.id, { state: REFUND_STATES.REVERSING });
@@ -357,6 +405,19 @@ const issueRefund = async ({
       entityType: 'order',
       entityId: orderId,
       newValue: `${reversal.reversalId}:${breakdown.reversalAmountBani}`,
+    });
+  } else if (reversal.withheldBani > 0) {
+    // No Stripe object to point at — the share never left the platform. The
+    // audit entry is the only record that this amount stopped being the
+    // farmer's, so it is not optional.
+    await recordAudit({
+      req,
+      actorType: 'system',
+      actorId: 'escrow',
+      action: ACTIONS.TRANSFER_REVERSED,
+      entityType: 'order',
+      entityId: orderId,
+      newValue: `withheld_from_escrow:${reversal.withheldBani}`,
     });
   }
 
@@ -570,6 +631,7 @@ module.exports = {
   ORDER_MONEY_COLUMNS,
   loadOrderForRefund,
   claimRefund,
+  withholdFarmerShare,
   reverseFarmerTransfer,
   refundCustomer,
   issueRefund,

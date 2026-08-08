@@ -1,9 +1,10 @@
 // Stripe Connect — the farmer's own Stripe account.
 //
-// LEG-01: the platform never holds the farmer's money. The customer's card is
-// charged on the platform account, and a `Transfer` moves each farmer's share
-// to their own Connect account the moment the payment confirms. We are a
-// payment facilitator, not an unlicensed deposit taker.
+// LEG-01: the platform is an intermediary, not the seller and not a bank. The
+// customer's card is charged on the platform account; each farmer's share is
+// held against their order and moved to their own Connect account by a
+// `Transfer` once the customer confirms the order arrived. The hold is short,
+// bounded and always owed to one of the two parties — see `lib/transfers.js`.
 //
 // Express accounts: Stripe runs the KYC, collects the IBAN, and hosts both the
 // onboarding form and the farmer's dashboard. That is why the platform no
@@ -11,7 +12,7 @@
 // with Connect in place, pointless.
 
 const { supabase, TABLES } = require('./supabase');
-const { stripe, CONNECT_ACCOUNT_TYPE } = require('./stripeClient');
+const { stripe, CONNECT_ACCOUNT_TYPE, isMissingAccountError } = require('./stripeClient');
 const { FRONTEND_URL } = require('./config');
 
 /** Columns describing where a farmer stands with Stripe. */
@@ -80,15 +81,77 @@ const fetchFarmerConnectRow = async (farmerId) => {
 };
 
 /**
- * Create the farmer's Express account if they do not have one yet.
+ * Is the account id we have on file still a real account at Stripe?
+ *
+ * Called before every onboarding link, because a dead id is the failure that
+ * used to make "Set up payouts" permanently useless: the row said the farmer
+ * had an account, so nothing ever tried to create one, and every click asked
+ * Stripe for a link to an account that was not there. The id can die for
+ * ordinary reasons — the account was deleted in the dashboard, or the
+ * platform moved from test keys to live ones and the old test accounts are
+ * invisible under the new key.
+ *
+ * Returns the live account, or null if it is gone. A Stripe outage returns
+ * the account as unknown rather than null: we must not delete a perfectly
+ * good account id because Stripe timed out once.
+ */
+const verifyStripeAccount = async (accountId) => {
+  try {
+    const account = await stripe.accounts.retrieve(String(accountId));
+    return { exists: true, account };
+  } catch (error) {
+    if (isMissingAccountError(error)) {
+      return { exists: false, account: null };
+    }
+    // Anything else — network, rate limit, permissions — is not evidence that
+    // the account is gone.
+    return { exists: true, account: null, unverified: true, error };
+  }
+};
+
+/** Forget a Stripe account id that no longer resolves, so a new one can be made. */
+const clearDeadAccount = async (farmerId, deadAccountId) => {
+  console.error(
+    `[connect] Farmer ${farmerId} had Stripe account ${deadAccountId}, which no longer exists. ` +
+      'Clearing it so onboarding can start over.',
+  );
+
+  const { error } = await supabase
+    .from(TABLES.farmers)
+    .update({
+      stripe_account_id: null,
+      // The capabilities went with the account. Leaving them true would keep
+      // the farm visible in the catalogue with nowhere to send the money.
+      charges_enabled: false,
+      payouts_enabled: false,
+      details_submitted: false,
+      requirements_due: [],
+      onboarding_completed_at: null,
+    })
+    .eq('id', farmerId)
+    .eq('stripe_account_id', String(deadAccountId));
+
+  if (error) {
+    throw new Error('Your payout account could not be reset. Please try again in a moment.');
+  }
+};
+
+/**
+ * Create the farmer's Express account if they do not have a usable one.
  *
  * `metadata.farmer_id` is what lets the `account.updated` webhook find the
  * row again, and it is also the fallback if the id is ever lost on our side.
  */
 const ensureConnectAccount = async ({ farmerId, email, farmName, country = 'RO' }) => {
   const existing = await fetchFarmerConnectRow(farmerId);
-  if (existing?.stripe_account_id) {
-    return { accountId: String(existing.stripe_account_id), created: false };
+  const storedId = String(existing?.stripe_account_id || '');
+
+  if (storedId) {
+    const check = await verifyStripeAccount(storedId);
+    if (check.exists) {
+      return { accountId: storedId, created: false, account: check.account };
+    }
+    await clearDeadAccount(farmerId, storedId);
   }
 
   const account = await stripe.accounts.create(
@@ -101,12 +164,18 @@ const ensureConnectAccount = async ({ farmerId, email, farmName, country = 'RO' 
         product_description: 'Farm produce sold through the Farmables platform.',
       },
       capabilities: {
+        // `transfers` is what the payout needs. `card_payments` is not
+        // requested: the customer's card is charged on the platform account,
+        // and asking for a capability we never use only adds KYC the farmer
+        // would have to satisfy before they could sell anything.
         transfers: { requested: true },
       },
       metadata: { farmer_id: String(farmerId) },
     },
     // Same farmer, same account: a double click cannot create two accounts.
-    { idempotencyKey: `connect-account-${farmerId}` },
+    // The dead account id is part of the key so that a farmer recovering from
+    // one does not get Stripe's cached copy of the account we just discarded.
+    { idempotencyKey: `connect-account-${farmerId}${storedId ? `-after-${storedId}` : ''}` },
   );
 
   const { error } = await supabase
@@ -130,18 +199,25 @@ const ensureConnectAccount = async ({ farmerId, email, farmName, country = 'RO' 
     throw new Error('Your Stripe account was created but could not be saved. Please try again.');
   }
 
-  return { accountId: account.id, created: true };
+  return { accountId: account.id, created: true, account };
 };
 
 /**
  * A one-time onboarding link. Account Links expire in minutes and can only be
  * used once, so we mint a fresh one on every click rather than storing it.
+ *
+ * Both URLs point at `/profile`, which is where the payout card lives — the
+ * old `/vendor` target only redirects there, and a redirect is exactly what
+ * drops the `?stripe=` marker the card reads to refresh itself on return.
  */
 const createOnboardingLink = async (accountId) => {
   const link = await stripe.accountLinks.create({
     account: accountId,
-    refresh_url: `${FRONTEND_URL}/vendor?stripe=refresh`,
-    return_url: `${FRONTEND_URL}/vendor?stripe=return`,
+    // `refresh` means the link expired before they finished; the card mints a
+    // new one. `return` means Stripe is done with them, which is not the same
+    // as approved — the card re-reads the real state either way.
+    refresh_url: `${FRONTEND_URL}/profile?stripe=refresh`,
+    return_url: `${FRONTEND_URL}/profile?stripe=return`,
     type: 'account_onboarding',
     collection_options: { fields: 'eventually_due' },
   });
@@ -268,6 +344,8 @@ module.exports = {
   CONNECT_COLUMNS,
   mapConnectState,
   fetchFarmerConnectRow,
+  verifyStripeAccount,
+  clearDeadAccount,
   ensureConnectAccount,
   createOnboardingLink,
   createDashboardLink,

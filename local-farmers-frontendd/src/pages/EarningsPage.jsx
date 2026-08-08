@@ -16,10 +16,13 @@ const STATE_LABELS = {
 /** Where each order's money currently is, in the farmer's own terms. */
 const TRANSFER_LABELS = {
   none: 'Processing',
+  // The customer has paid; the platform holds your share until they confirm
+  // the order arrived. This is the state most open orders sit in.
+  held: 'Held until delivery',
   pending: 'Transferring',
   sent: 'Transferred',
   failed: 'Transfer failed',
-  reversed: 'Reversed',
+  reversed: 'Returned to customer',
   manual_required: 'Needs review',
 };
 
@@ -278,9 +281,9 @@ export default function EarningsPage() {
                 <span className="earnings-split-note">already in your Stripe account</span>
               </li>
               <li>
-                <span className="earnings-split-label">In transit</span>
+                <span className="earnings-split-label">Held</span>
                 <span className="earnings-split-value">{formatBani(summary.inTransitBani)}</span>
-                <span className="earnings-split-note">transferring shortly</span>
+                <span className="earnings-split-note">released when the customer confirms</span>
               </li>
             </ul>
           </section>
@@ -326,7 +329,7 @@ export default function EarningsPage() {
                   </span>
                   <span className="earnings-legend-item">
                     <span className="earnings-legend-swatch is-pending" aria-hidden="true" />
-                    In transit
+                    Held
                   </span>
                 </span>
               </header>
@@ -426,8 +429,10 @@ export default function EarningsPage() {
 
           <p className="earnings-foot muted">
             There is no monthly payout any more. From every order you receive the products plus
-            your delivery fee, transferred to your Stripe account within seconds of payment. The
-            platform fee is paid separately by the customer, on top of your prices.
+            your delivery fee. We hold that amount from the moment the customer pays and transfer
+            it to your Stripe account as soon as they confirm the order arrived — automatically
+            after seven days if they forget. The platform fee is paid separately by the customer,
+            on top of your prices.
           </p>
         </>
       )}

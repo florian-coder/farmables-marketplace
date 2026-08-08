@@ -782,6 +782,16 @@ export default function OrdersPage() {
                   )}
                 </div>
 
+                {/* The customer is about to move money, and nothing on this
+                    page said so. Confirming receipt is what releases the
+                    farm's share; until then we hold it and it is refundable. */}
+                {order.orderState === 'arrived' && !isVendor && (
+                  <p className="order-escrow-note">
+                    We are holding the payment for this order. Confirming that it arrived releases
+                    it to the farm. If it never arrives, tell us and the money comes back to you.
+                  </p>
+                )}
+
                 <div className="order-actions">
                   {order.orderState === 'pending_order' && !isVendor && (
                     <button

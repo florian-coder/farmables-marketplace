@@ -5,7 +5,7 @@ const { stripe } = require('../lib/stripeClient');
 const { STRIPE_WEBHOOK_SECRET } = require('../lib/config');
 const { ACTIONS, recordAudit } = require('../lib/audit');
 const { syncAccountToFarmer } = require('../lib/connect');
-const { transferCheckoutGroups } = require('../lib/transfers');
+const { holdCheckoutGroups } = require('../lib/transfers');
 const {
   notifyCustomerOrderConfirmed,
   notifyFarmerNewOrder,
@@ -18,8 +18,8 @@ const router = express.Router();
  * SEC-06 — Idempotency.
  *
  * Stripe redelivers an event until it gets a 2xx. Without a record of what we
- * already processed, a redelivery would mark the same payment twice — and now
- * that payment triggers transfers, twice would mean paying a farmer twice.
+ * already processed, a redelivery would mark the same payment twice, and every
+ * customer would get a second order confirmation for a card charged once.
  * The insert is the decision: the primary key on id makes the second attempt
  * fail with 23505, and we return without reprocessing.
  */
@@ -91,8 +91,14 @@ const announcePaidCheckout = async (checkoutId) => {
 };
 
 /**
- * Payment confirmed: flip the checkout and all its farmer groups to paid,
- * then push each farmer their share.
+ * Payment confirmed: flip the checkout and all its farmer groups to paid, and
+ * put each farmer's share into escrow.
+ *
+ * No money moves to a farmer here. Under the escrow model the charge settles
+ * on the platform balance and stays there, marked `held` against a specific
+ * order, until the customer confirms the order arrived — see
+ * `lib/transfers.js`. That is what makes an undelivered order refundable in
+ * full instead of a claw-back against a balance the farmer may have spent.
  *
  * `mark_checkout_paid` is idempotent and reports whether this call was the
  * one that changed the state, so the two events that can both signal success
@@ -134,18 +140,11 @@ const handlePaymentSucceeded = async ({ checkoutId, paymentIntentId, eventId }) 
     await announcePaidCheckout(checkoutId);
   }
 
-  // Transfers run on every delivery of the event, not only the first: if the
-  // first delivery marked the checkout paid and then crashed before paying
-  // the farmers, the redelivery has to finish the job. `order_transfers`
-  // makes the repeat harmless.
-  const summary = await transferCheckoutGroups({ checkoutId, eventId });
-
-  if (summary.failed > 0) {
-    console.error(
-      `[webhook] Checkout ${checkoutId}: ${summary.failed} of ${summary.attempted} transfers failed. ` +
-        'Farmers are unpaid — check order_transfers.last_error.',
-    );
-  }
+  // The hold is asserted on every delivery of the event, not only the first:
+  // if the first delivery marked the checkout paid and then crashed, the
+  // redelivery has to finish the job. Only groups still on `none` are
+  // promoted, so a repeat cannot disturb one already decided.
+  await holdCheckoutGroups({ checkoutId });
 };
 
 /**
