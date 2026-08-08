@@ -83,23 +83,46 @@ export default function EmailStatusBanner() {
   if (emailStatus === 'unverified') {
     return (
       <div className="email-banner is-soft" role="status">
-        <p>
-          Confirm your email address ({user.email}) so we can send you order updates.
-          {feedback.state === 'success' && ` ${feedback.message}`}
-          {feedback.state === 'error' && ` ${feedback.message}`}
-        </p>
-        <div className="email-banner-actions">
-          <button
-            className="button quiet small"
-            type="button"
-            onClick={handleResend}
-            disabled={feedback.state === 'loading'}
-          >
-            {feedback.state === 'loading' ? 'Sending...' : 'Resend link'}
-          </button>
-          <button className="button quiet small" type="button" onClick={() => setDismissed(true)}>
-            Later
-          </button>
+        <div className="email-banner-inner">
+          <span className="email-banner-icon" aria-hidden="true">
+            <EnvelopeIcon />
+          </span>
+          <div className="email-banner-copy">
+            <p className="email-banner-title">Confirm your email address</p>
+            <p className="email-banner-detail">
+              We sent a link to <span className="email-banner-address">{user.email}</span>. Open it
+              and we can keep you posted on your orders.
+            </p>
+            {feedback.message && (
+              <p
+                className={`email-banner-feedback${feedback.state === 'error' ? ' is-error' : ''}`}
+                role={feedback.state === 'error' ? 'alert' : 'status'}
+              >
+                {feedback.message}
+              </p>
+            )}
+          </div>
+          <div className="email-banner-actions">
+            <button
+              className="button ghost small"
+              type="button"
+              onClick={handleResend}
+              disabled={feedback.state === 'loading'}
+            >
+              {feedback.state === 'loading' ? 'Sending…' : 'Resend link'}
+            </button>
+            {/* Dismiss, not "Later": an X reads as "hide this", which is what
+                it does. "Later" reads like a promise to come back. */}
+            <button
+              className="email-banner-dismiss"
+              type="button"
+              onClick={() => setDismissed(true)}
+              aria-label="Dismiss this reminder"
+              title="Dismiss"
+            >
+              <CloseIcon />
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -107,58 +130,92 @@ export default function EmailStatusBanner() {
 
   return (
     <div className="email-banner is-hard" role="alert">
-      <p>
-        <strong>We have no email address for you.</strong> This account was created before we
-        collected one, so nothing we send can reach you — and we cannot take an order we are unable
-        to confirm. Add an address to carry on ordering.
-      </p>
+      <div className="email-banner-inner">
+        <span className="email-banner-icon" aria-hidden="true">
+          <AlertIcon />
+        </span>
+        <div className="email-banner-copy">
+          <p className="email-banner-title">We have no email address for you</p>
+          <p className="email-banner-detail">
+            This account was created before we collected one, so nothing we send can reach you —
+            and we cannot take an order we are unable to confirm.
+          </p>
 
-      {!formOpen && (
-        <div className="email-banner-actions">
-          <button className="button primary small" type="button" onClick={() => setFormOpen(true)}>
-            Add my email address
-          </button>
+          {formOpen && (
+            <form className="email-banner-form" onSubmit={handleSave}>
+              <label className="field">
+                Email address
+                <input
+                  type="email"
+                  value={email}
+                  autoComplete="email"
+                  onChange={(event) => setEmail(event.target.value)}
+                  required
+                />
+              </label>
+              <label className="field">
+                {/* Email is the password-reset channel, so changing it needs the
+                    password — otherwise a borrowed laptop is a takeover. */}
+                Your password
+                <input
+                  type="password"
+                  value={password}
+                  autoComplete="current-password"
+                  onChange={(event) => setPassword(event.target.value)}
+                  required
+                />
+              </label>
+              <button
+                className="button primary small"
+                type="submit"
+                disabled={feedback.state === 'loading'}
+              >
+                {feedback.state === 'loading' ? 'Saving…' : 'Save'}
+              </button>
+            </form>
+          )}
+
+          {feedback.message && (
+            <p
+              className={`email-banner-feedback${feedback.state === 'error' ? ' is-error' : ''}`}
+              role={feedback.state === 'error' ? 'alert' : 'status'}
+            >
+              {feedback.message}
+            </p>
+          )}
         </div>
-      )}
 
-      {formOpen && (
-        <form className="email-banner-form" onSubmit={handleSave}>
-          <label>
-            Email address
-            <input
-              type="email"
-              value={email}
-              autoComplete="email"
-              onChange={(event) => setEmail(event.target.value)}
-              required
-            />
-          </label>
-          <label>
-            {/* Email is the password-reset channel, so changing it needs the
-                password — otherwise a borrowed laptop is a takeover. */}
-            Your password
-            <input
-              type="password"
-              value={password}
-              autoComplete="current-password"
-              onChange={(event) => setPassword(event.target.value)}
-              required
-            />
-          </label>
-          <button className="button primary small" type="submit" disabled={feedback.state === 'loading'}>
-            {feedback.state === 'loading' ? 'Saving...' : 'Save'}
-          </button>
-        </form>
-      )}
-
-      {feedback.state === 'error' && (
-        <p className="email-banner-feedback is-error" role="alert">
-          {feedback.message}
-        </p>
-      )}
-      {feedback.state === 'success' && (
-        <p className="email-banner-feedback">{feedback.message}</p>
-      )}
+        {!formOpen && (
+          <div className="email-banner-actions">
+            <button className="button primary small" type="button" onClick={() => setFormOpen(true)}>
+              Add my email address
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
+
+/* Inline SVG rather than an emoji: it inherits `currentColor`, so one icon
+   works in both themes and in both banner variants without a second asset. */
+const EnvelopeIcon = () => (
+  <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.6">
+    <rect x="2.2" y="4.2" width="15.6" height="11.6" rx="2" />
+    <path d="m2.8 5.4 6.3 4.7a1.5 1.5 0 0 0 1.8 0l6.3-4.7" strokeLinecap="round" />
+  </svg>
+);
+
+const AlertIcon = () => (
+  <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.6">
+    <circle cx="10" cy="10" r="7.8" />
+    <path d="M10 6v4.6" strokeLinecap="round" />
+    <circle cx="10" cy="13.7" r="0.9" fill="currentColor" stroke="none" />
+  </svg>
+);
+
+const CloseIcon = () => (
+  <svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8">
+    <path d="m6 6 8 8M14 6l-8 8" strokeLinecap="round" />
+  </svg>
+);

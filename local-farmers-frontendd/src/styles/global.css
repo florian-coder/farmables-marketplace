@@ -4601,43 +4601,110 @@ a {
    amâna. Diferența e vizuală pentru că e și practică.
    ============================================================ */
 
+/* Aceeași gramatică ca restul site-ului: bară de accent la stânga, pastilă
+   de icon, titlu peste detaliu, acțiuni împinse la dreapta. Fundalul rămâne
+   hârtia cardurilor, nu un bloc colorat — culoarea stă în bară și în icon,
+   exact cât să spună „citește-mă", nu cât să țipe. */
+
 .email-banner {
-  padding: var(--s-4);
   margin: 0;
   border-bottom: 1px solid var(--line);
-  font-size: var(--t-1);
-  line-height: 1.55;
+  background: var(--paper-0);
+  font-size: var(--t-3);
+  line-height: 1.5;
 }
 
-.email-banner p {
+.email-banner-inner {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-3);
+  max-width: var(--w-wide);
   margin: 0 auto;
-  max-width: 60rem;
+  padding: var(--s-3) var(--s-5);
+  border-left: 3px solid var(--accent-rule);
 }
 
 .email-banner.is-soft {
-  background: var(--sun-lo);
-  color: var(--sun-dk);
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s-3);
-  align-items: center;
-  justify-content: center;
+  --accent-rule: var(--sun-dk);
+  --accent-wash: var(--sun-lo);
 }
 
 .email-banner.is-hard {
-  background: var(--bad-lo);
-  color: var(--bad);
+  --accent-rule: var(--bad);
+  --accent-wash: var(--bad-lo);
+}
+
+.email-banner-icon {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--r-pill);
+  background: var(--accent-wash);
+  color: var(--accent-rule);
+}
+
+.email-banner-copy {
+  flex: 1 1 20rem;
+  min-width: 0;
+}
+
+.email-banner-title {
+  margin: 0;
+  font-weight: 650;
+  font-size: var(--t-3);
+  color: var(--ink-1);
+}
+
+.email-banner-detail {
+  margin: 2px 0 0;
+  color: var(--ink-3);
+  font-size: var(--t-2);
+}
+
+/* Adresa e singurul lucru de verificat dintr-o privire: „e a mea?" */
+.email-banner-address {
+  font-weight: 600;
+  color: var(--ink-1);
+  overflow-wrap: anywhere;
 }
 
 .email-banner-actions {
+  flex: none;
   display: flex;
+  align-items: center;
   gap: var(--s-2);
-  justify-content: center;
-  margin-top: var(--s-3);
+  /* Aliniat optic cu titlul, nu cu marginea de sus a rândului flex. */
+  margin-top: 1px;
 }
 
-.email-banner.is-soft .email-banner-actions {
-  margin-top: 0;
+.email-banner-dismiss {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+  transition:
+    background-color 0.16s ease,
+    color 0.16s ease;
+}
+
+.email-banner-dismiss:hover {
+  background: var(--paper-2);
+  color: var(--ink-1);
+}
+
+.email-banner-dismiss:focus-visible {
+  outline: 2px solid var(--leaf);
+  outline-offset: 2px;
 }
 
 .email-banner-form {
@@ -4645,24 +4712,43 @@ a {
   flex-wrap: wrap;
   gap: var(--s-3);
   align-items: flex-end;
-  max-width: 60rem;
-  margin: var(--s-4) auto 0;
+  margin-top: var(--s-3);
 }
 
-.email-banner-form label {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-1);
-  font-weight: 600;
+.email-banner-form .field {
+  flex: 1 1 14rem;
+  margin: 0;
 }
 
 .email-banner-form input {
-  min-width: 15rem;
+  min-width: 0;
+  width: 100%;
 }
 
 .email-banner-feedback {
-  margin-top: var(--s-3) !important;
+  margin: var(--s-2) 0 0;
+  font-size: var(--t-2);
   font-weight: 600;
+  color: var(--ok);
+}
+
+.email-banner-feedback.is-error {
+  color: var(--bad);
+}
+
+@media (max-width: 640px) {
+  .email-banner-inner {
+    flex-wrap: wrap;
+    padding: var(--s-3) var(--s-4);
+  }
+
+  /* Butoanele se aliniază sub text, dincolo de icon, în loc să se rupă
+     într-un rând propriu, zdrențuit. */
+  .email-banner-actions {
+    width: 100%;
+    margin-left: calc(32px + var(--s-3));
+    margin-top: var(--s-2);
+  }
 }
 
 /* ============================================================
