@@ -191,8 +191,20 @@ Backendul porneste dar anularile dau eroare 500
   -> N-ai rulat RUN 1. Lipseste functia cancel_order_with_stock.
 
 Comenzile merg, dar nu pleaca niciun email
-  -> RESEND_API_KEY lipseste. Verifica /api/health/diagnostics -> emailsPending.
-     Mesajele sunt in coada, nu pierdute: se trimit cand pui cheia.
+  -> RESEND_API_KEY lipseste.
+
+     ATENTIE: mesajele NU raman in coada. Fara cheie, mailer-ul le scrie in
+     consola si outbox-ul le marcheaza `sent` (lib/outbox.js) — ca sa nu se
+     adune pe o masina de dezvoltare o coada care nu se goleste niciodata.
+     Consecinta: tot ce s-a intamplat cat timp cheia lipsea e pierdut. Nu se
+     retrimite nimic cand pui cheia dupa aceea.
+
+     Deci pune cheia INAINTE de prima comanda reala. Confirmarea de comanda e
+     obligatorie pe suport durabil (OUG 34/2014 art. 8), iar una nescrisa
+     niciodata nu poate fi reparata retroactiv.
+
+     /api/health/diagnostics -> emailsPending arata doar ce chiar a esuat la
+     un furnizor configurat, nu ce s-a scris in consola.
 
 Live updates nu mai merg dupa RUN 2
   -> Ai rulat RUN 2 inainte de a deploya frontendul. Deployeaza-l acum;
