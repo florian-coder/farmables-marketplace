@@ -75,20 +75,33 @@ local-farmers-backendd/
     privacy.js            LEG-03 — export, and what deletion does and does not erase
     traderDetails.js      LEG-07/OPS-05 — public identity vs private contact
     operator.js           who runs the site; footer + email footer
-    stripeClient.js       single Stripe client + error → user-message mapping
-    connect.js            Connect accounts, onboarding links, visibility gate
+    stripeClient.js       one Stripe client; separate error→message maps for
+                          payments and for Connect onboarding
+    connect.js            Connect accounts, onboarding links, visibility gate,
+                          recovery when a stored account id no longer resolves
+    mailer.js             Resend, or console when RESEND_API_KEY is unset
+    emailStatus.js        missing vs unverified vs verified, in one place
     platformSettings.js   commission_bps, min charge, weight tolerance; 60s cache
     legalDocuments.js     ⚠ authority on which legal version is in force
     legalAcceptance.js    writes consent records
     audit.js              recordAudit() — never throws; maskEmail()
-    domain.js             DB row → API shape mappers
+    domain.js             DB row → API shape mappers, plus DEFAULT_MARKETS
     productRating.js      internal sales score (NOT a customer rating)
     farmerRanking.js      farmer-of-the-month scoring
-  src/emails/             layout.js + templates.js — 14 templates, HTML and text
+    cacheStore.js         in-memory TTL cache (the path argument is only a key)
+    productMedia.js       Pexels fallback image for a product with no photo
+    external/             FAOSTAT, Pexels, SoilGrids, USDA — read-only, cached
+    legacyCleanup.js      deletes the pre-Supabase JSON files on boot
+    bootstrap.js          ⚠ DEAD. Creates the JSON files legacyCleanup deletes.
+    dataPaths.js          ⚠ DEAD. Paths for the same files. See §7.
+    fileStore.js          ⚠ DEAD. Reader/writer for the same files. See §7.
+  src/emails/             layout.js + templates.js — 13 templates, HTML and text
   src/middleware/         auth, adminAuth (scoped sessions), csrf, rateLimit
   src/routes/             19 routers, mounted under /api/*
-  sql/                    hand-run migrations, numbered 01–15 are current
-  tests/                  security/ + unit; helpers/fakeSupabase.js is an in-memory DB
+  sql/                    hand-run migrations; 01–16 are the current chain,
+                          plus RUN_1/RUN_2 bundles and pre-audit leftovers
+  tests/                  25 files, security/ + unit; helpers/fakeSupabase.js
+                          is an in-memory DB, helpers/fakeStripe.js a fake Stripe
 
 local-farmers-frontendd/
   src/App.jsx             nav + footer (operator identification) + all routes
@@ -98,10 +111,13 @@ local-farmers-frontendd/
   src/lib/operator.js     build-time operator identification (mirrors the backend)
   src/lib/legal.js        loads .md via ?raw, parses frontmatter
   src/content/legal/      7 versioned legal documents + REVIEW-NOTES.md
-  src/pages/              one file per route
-  src/components/         shared components incl. FoodLabel, ReportProblem,
-                          FulfilmentForm, PrivacyCard, EmailStatusBanner
-  src/styles/global.css   everything
+  src/pages/              19 files, one per route
+  src/components/         11 shared components incl. FoodLabel, ReportProblem,
+                          FulfilmentForm, PrivacyCard, EmailStatusBanner,
+                          PayoutSettingsCard, LabellingFields
+  src/__tests__/          6 Vitest files, one per component or page under test
+  src/main.jsx            entry; one-time purge of pre-SSE browser storage
+  src/styles/global.css   everything — tokens at the top, then components
 ```
 
 ## 4. Data model
@@ -123,6 +139,9 @@ checkouts          one card charge, one PaymentIntent, one transfer_group
 orders. Money frozen on each `orders` row at placement:
 `products_subtotal_bani`, `delivery_fee_bani`, `commission_bps`,
 `commission_bani`, `transfer_amount_bani`, `stripe_account_id`.
+
+Written later, as the money moves: `refunded_transfer_bani` (given back to the
+customer while still held), `payout_hold_started_at`, `payout_released_at`.
 
 ### Tables (`TABLES` registry in `src/lib/supabase.js`)
 
@@ -222,15 +241,30 @@ products + delivery — the commission is the platform's to forgo.
 **Migrations**
 - Hand-pasted into the Supabase SQL Editor. **Nothing runs automatically.**
 - Idempotent (`if not exists`, `drop policy if exists`), with backfill, destructive parts clearly marked.
-- ⚠ **Most must run BEFORE deploying the backend.** `09_rls_hardening.sql` is the
-  exception and must run **after** both apps are deployed — see `tasks.md`.
+- ⚠ **Most must run BEFORE deploying the backend.** Two exceptions, both about
+  RLS, must run **after** both apps are deployed — see `tasks.md`.
+- `15_escrow_payouts.sql` widens `orders.transfer_state` to accept `'held'`.
+  Deploying the backend before it runs breaks the first paid order.
+- `16_rls_all_tables.sql` supersedes the hand-written table list in `09` /
+  `RUN_2`. It reads `pg_class` instead, because a list is right exactly once:
+  migrations 10, 12 and 14 each added tables afterwards, and
+  `customer_farmer_distances` was never in anybody's list at all.
 
 **Testing**
 - `tests/helpers/fakeSupabase.js` is an in-memory Supabase stub, including the
   unique and partial-unique indexes that idempotency depends on. `buildApp(seed, opts)`
   boots the real app against it, optionally with a fake Stripe and real JS
   implementations of the SQL functions (`tests/helpers/fakeRpc.js`).
+- `tests/helpers/fakeRpc.js` reimplements the SQL functions in JS rather than
+  stubbing them. A cancellation test that returned `{success:true}` would prove
+  nothing about stock going back on the shelf.
 - Security tests are named after the audit finding they cover (`SEC-05 — ...`).
+- **Assert the effect, not the field.** The escrow suite checks that no Stripe
+  transfer call exists before confirmation and exactly one exists after, not
+  that a column says `'held'`. A test that reads back what the code just wrote
+  is a tautology.
+- Frontend tests mock `../lib/auth.jsx` and stub `fetch`; they render the real
+  component and query by role or label, never by class name.
 
 ## 6. Gotchas
 
@@ -251,3 +285,50 @@ products + delivery — the commission is the platform's to forgo.
   arranging a delivery legitimately swap phone numbers.
 - Email verification gates **paying**, not signing in. A legacy
   `@localfarmers.app` address is *missing*, not merely unverified.
+- **Without `RESEND_API_KEY`, queued email is marked `sent`, not retried.**
+  `outbox.js` treats `not_configured` as delivered so a development machine
+  does not build a queue that never drains. Everything that happened while the
+  key was missing is gone; adding the key later resends nothing.
+- **"Set up payouts" needs the platform itself to be signed up for Connect.**
+  Stripe's error names the farmer's account, which is misleading — only the
+  operator can fix it, at dashboard.stripe.com/connect.
+- **The platform's own Stripe payout schedule should be manual.** Escrow means
+  the balance now holds customers' money for up to 14 days. An automatic daily
+  sweep to the bank leaves nothing there when a release fires; the transfer
+  fails with `balance_insufficient` and waits for the hourly retry.
+- A **failed** transfer claim in `order_transfers` can be retaken; a `sent` one
+  never can. Without that the unique key on `order_id` would make one Stripe
+  failure permanent.
+
+
+## 7. Known debt — real, and none of it blocking
+
+Written down because each of these looks intentional from the outside.
+
+- **Product images are resolved but never stored.** `products."photo url"`
+  exists, but a product without an uploaded photo gets a Pexels image looked up
+  by name at request time and cached only in `cacheStore`'s in-memory Map.
+  A restart empties it, Pexels results drift, so **the same product can change
+  its picture between restarts**, and every cold start re-queries the API.
+  Fixing it means writing the URL back to the row — and dropping the `UNIQUE`
+  constraint on that column, which will collide as soon as two products resolve
+  to the same stock photo.
+- **`bootstrap.js`, `dataPaths.js` and `fileStore.js` are the pre-Supabase file
+  database.** `bootstrap.js` creates `data/users.json`, `products.json`,
+  `sessions.json` and friends; `legacyCleanup.js`, which *is* wired into
+  `app.js`, deletes exactly those files on every boot. Nothing calls
+  `bootstrapData()` any more, so the contradiction is dormant. Delete all three,
+  and the `data/` paragraph in the README with them — the folder is gone.
+- **`DEFAULT_MARKETS` is a hardcoded array in `lib/domain.js`.** One market,
+  "Central Market", Bucharest coordinates, id `m1`. Only the counts are computed
+  from the database. Fine while the platform is one city — which `tasks.md`
+  lists as an open decision — but it is the one place where something shaped
+  like data is not data.
+- **`customer_farmer_distances` is referenced by no migration and no code.** It
+  predates everything in `sql/` and maps customer ids to farm ids with
+  distances. `16_rls_all_tables.sql` is what finally secures it.
+- **Rate limiting is in-memory.** Correct for one instance; more than one needs
+  Redis or each counts separately.
+- **Comments are mixed Romanian and English.** New code is English; the older
+  files were not translated, and translating them wholesale would bury the
+  reasoning under a diff nobody can review.
