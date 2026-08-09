@@ -919,15 +919,14 @@ a {
 
 .upload-card {
   display: grid;
-  grid-template-columns: minmax(140px, 180px) 1fr;
-  gap: 16px;
-  padding: var(--s-3);
+  grid-template-columns: minmax(140px, 200px) 1fr;
+  gap: var(--s-4);
+  padding: var(--s-4);
   border-radius: var(--r-md);
   border: 1px dashed var(--line-2);
-  background: var(--paper-0);
+  background: var(--paper-1);
   align-items: center;
   width: 100%;
-  justify-self: stretch;
 }
 
 .upload-preview {
@@ -1900,11 +1899,13 @@ a {
 .filters-bar input[type="number"],
 .filters-bar select {
   width: 100%;
-  height: 42px;
-  padding: 0 var(--s-4);
+  height: 44px;
+  padding: 0 var(--s-5);
   border: 1px solid var(--line-2);
-  border-radius: var(--r-sm);
-  background: var(--paper-0);
+  /* Pastilă, ca orice alt input de pe site. Bara de filtre nu are motiv să
+     inventeze o a doua formă de câmp. */
+  border-radius: var(--r-pill);
+  background: var(--surface-strong);
   color: var(--ink-1);
   font-family: inherit;
   font-size: var(--t-3);
@@ -1915,14 +1916,14 @@ a {
 
 /* Selectul nu poate fi flex, deci înălțimea liniei e ce centrează textul. */
 .filters-bar select {
-  line-height: 40px;
+  line-height: 42px;
   appearance: none;
-  padding-right: var(--s-6);
+  padding-right: var(--s-7);
   background-image: linear-gradient(45deg, transparent 50%, var(--ink-3) 50%),
     linear-gradient(135deg, var(--ink-3) 50%, transparent 50%);
   background-position:
-    calc(100% - 18px) 18px,
-    calc(100% - 13px) 18px;
+    calc(100% - 25px) 19px,
+    calc(100% - 20px) 19px;
   background-size: 5px 5px, 5px 5px;
   background-repeat: no-repeat;
 }
@@ -2211,11 +2212,11 @@ a {
   display: flex;
   align-items: center;
   gap: var(--s-2);
-  height: 42px;
-  padding: 0 var(--s-4);
-  border-radius: var(--r-sm);
+  height: 44px;
+  padding: 0 var(--s-5);
+  border-radius: var(--r-pill);
   border: 1px solid var(--line-2);
-  background: var(--paper-0);
+  background: var(--surface-strong);
   transition:
     border-color 0.16s ease,
     box-shadow 0.16s ease;
@@ -5292,6 +5293,130 @@ a {
   grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
   gap: var(--s-2);
   margin-top: var(--s-3);
+}
+
+
+/* ============================================================
+   Încărcarea unui produs.
+
+   Era o singură coloană cu douăsprezece câmpuri puse cap la cap și două
+   `style=` scrise în JSX. Toate arătau la fel de importante, iar
+   informațiile obligatorii de etichetare — singurele fără de care serverul
+   refuză publicarea — ajungeau să pară o notă de subsol la preț.
+
+   Acum sunt patru carduri, aceleași cu cele din profil: ce vinzi, preț și
+   stoc, poză, informații despre aliment. Aceeași gramatică peste tot
+   înseamnă că nu trebuie învățată de două ori.
+   ============================================================ */
+
+.product-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+}
+
+/* Preț, unitate și cantitate se citesc împreună: „12 RON / kg, am 40". */
+@media (min-width: 760px) {
+  .profile-fields.product-form-money {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* Un preț fără monedă e doar un număr. */
+.input-affix {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  /* Aceleași cote ca `.field input`, ca să stea pe aceeași linie cu
+     „Unitate" și „Cantitate" din grilă. */
+  padding: var(--s-3) var(--s-5);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-pill);
+  background: var(--surface-strong);
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.input-affix:focus-within {
+  border-color: var(--leaf);
+  box-shadow: 0 0 0 3px rgba(24, 128, 66, 0.18);
+}
+
+.input-affix input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.input-affix input:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+.input-affix-unit {
+  flex: none;
+  font-size: var(--t-2);
+  font-weight: 600;
+  color: var(--ink-3);
+}
+
+.product-form-toggles {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--s-3);
+}
+
+@media (min-width: 760px) {
+  .product-form-toggles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.product-form-toggles .field.checkbox {
+  align-items: flex-start;
+  gap: var(--s-3);
+  padding: var(--s-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--paper-1);
+  font-weight: 600;
+}
+
+.product-form-toggles .field.checkbox .field-hint {
+  font-weight: 400;
+}
+
+/* Etichetarea are deja propriul chenar; în card ar fi două suprapuse. */
+.product-form .labelling-fields {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.product-form .labelling-fields > legend {
+  padding: 0;
+}
+
+.product-form-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--s-3);
+}
+
+.product-form-foot .notice {
+  flex: 1 1 18rem;
+  margin: 0;
+}
+
+.product-form-foot .button {
+  min-width: 12rem;
 }
 
 .field-hint {

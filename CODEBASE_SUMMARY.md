@@ -41,7 +41,7 @@ the platform takes a commission for the intermediation.
 | 2FA | `otplib` **v12** — v13 is ESM-only and Jest cannot require it |
 | Email | Resend, through an outbox table with retry/backoff |
 | Live updates | Server-Sent Events, `EventSource` in the browser |
-| Tests | Jest + supertest (backend, 333), Vitest + Testing Library (frontend, 3) |
+| Tests | Jest + supertest (backend, 380), Vitest + Testing Library (frontend, 38) |
 | Markdown | `react-markdown` + `remark-gfm`, **lazy-loaded** (legal pages only) |
 | Styling | One hand-written `global.css`. No CSS framework, no CSS-in-JS. |
 
@@ -87,7 +87,7 @@ local-farmers-backendd/
   src/emails/             layout.js + templates.js — 14 templates, HTML and text
   src/middleware/         auth, adminAuth (scoped sessions), csrf, rateLimit
   src/routes/             19 routers, mounted under /api/*
-  sql/                    hand-run migrations, numbered 01–14 are current
+  sql/                    hand-run migrations, numbered 01–15 are current
   tests/                  security/ + unit; helpers/fakeSupabase.js is an in-memory DB
 
 local-farmers-frontendd/

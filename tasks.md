@@ -158,7 +158,7 @@ written, so they are cheap to act on once decided.
 
 ## Done
 
-Every finding below is implemented and covered by tests (380 backend, 3
+Every finding below is implemented and covered by tests (380 backend, 38
 frontend). The commit for each explains the reasoning.
 
 **Blocking the first customer**

@@ -2,7 +2,7 @@
 FARMABLES — CE MAI AI DE FACUT
 ===============================================================================
 
-Codul e scris, testat (333 teste backend, 3 frontend) si urcat pe main.
+Codul e scris, testat (380 teste backend, 38 frontend) si urcat pe main.
 Ce urmeaza aici nu poate fi facut de cod: variabile de mediu, migrari rulate
 manual in Supabase, texte legale si cinci decizii de business.
 
