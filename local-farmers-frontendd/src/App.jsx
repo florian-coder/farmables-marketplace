@@ -306,48 +306,113 @@ function AppShell() {
           before the customer commits to anything, and the ANPC/SAL/SOL links
           have to be findable without asking us for them. */}
       <footer className="footer">
-        <nav className="footer-legal" aria-label="Legal documents">
-          <Link to="/legal/terms-customers">Terms &amp; Conditions</Link>
-          <Link to="/legal/terms-producers">Producer Terms</Link>
-          <Link to="/legal/privacy">Privacy</Link>
-          <Link to="/legal/returns">Returns &amp; Refunds</Link>
-          <Link to="/legal/cookies">Cookies</Link>
-          <Link to="/legal/ranking">How ranking works</Link>
-          <Link to="/legal/contact">Contact</Link>
-        </nav>
+        <div className="footer-top">
+          <div className="footer-brand">
+            <span className="footer-brand-name">{OPERATOR.brand}</span>
+            <p className="footer-role">
+              An intermediary marketplace. Each farm sells to you directly and is the seller of
+              the goods — we handle the payment and hold it until you confirm your order arrived.
+            </p>
+          </div>
 
-        <nav className="footer-legal" aria-label="Consumer protection">
-          <a href={OPERATOR.anpcUrl} target="_blank" rel="noreferrer noopener">
-            ANPC
-          </a>
-          <a href={OPERATOR.anpcSalUrl} target="_blank" rel="noreferrer noopener">
-            ANPC — SAL
-          </a>
-          <a href={OPERATOR.anpcSolUrl} target="_blank" rel="noreferrer noopener">
-            EU ODR
-          </a>
-        </nav>
+          {/* Grouped by what someone is actually looking for. Seven links in
+              one undifferentiated row is a list you scan and give up on. */}
+          <nav className="footer-group" aria-label="Legal documents">
+            <h2 className="footer-group-title">Legal</h2>
+            <ul>
+              <li>
+                <Link to="/legal/terms-customers">Terms &amp; Conditions</Link>
+              </li>
+              <li>
+                <Link to="/legal/terms-producers">Producer Terms</Link>
+              </li>
+              <li>
+                <Link to="/legal/privacy">Privacy</Link>
+              </li>
+              <li>
+                <Link to="/legal/returns">Returns &amp; Refunds</Link>
+              </li>
+              <li>
+                <Link to="/legal/cookies">Cookies</Link>
+              </li>
+            </ul>
+          </nav>
 
+          <nav className="footer-group" aria-label="Transparency">
+            <h2 className="footer-group-title">Transparency</h2>
+            <ul>
+              <li>
+                <Link to="/legal/ranking">How ranking works</Link>
+              </li>
+              <li>
+                <Link to="/legal/contact">Contact us</Link>
+              </li>
+            </ul>
+          </nav>
+
+          {/* LEG-02 — these three have to be findable without asking us for
+              them, which is the whole point of publishing them. */}
+          <nav className="footer-group" aria-label="Consumer protection">
+            <h2 className="footer-group-title">Consumer protection</h2>
+            <ul>
+              <li>
+                <a href={OPERATOR.anpcUrl} target="_blank" rel="noreferrer noopener">
+                  ANPC
+                  <ExternalMark />
+                </a>
+              </li>
+              <li>
+                <a href={OPERATOR.anpcSalUrl} target="_blank" rel="noreferrer noopener">
+                  ANPC — SAL
+                  <ExternalMark />
+                </a>
+              </li>
+              <li>
+                <a href={OPERATOR.anpcSolUrl} target="_blank" rel="noreferrer noopener">
+                  EU ODR
+                  <ExternalMark />
+                </a>
+              </li>
+            </ul>
+          </nav>
+        </div>
+
+        {/* The identification block. Discreet, never hidden — no accordion,
+            no "show more": it has to be readable on every page. */}
         <address className="footer-operator">
-          <strong>{OPERATOR.legalName}</strong>
-          <span>CUI {OPERATOR.cui}</span>
-          <span>{OPERATOR.tradeRegister}</span>
-          <span>{OPERATOR.address}</span>
-          <span>
+          <span className="footer-operator-name">{OPERATOR.legalName}</span>
+          <span className="footer-operator-facts">
+            <span>CUI {OPERATOR.cui}</span>
+            <span>{OPERATOR.tradeRegister}</span>
+            <span>{OPERATOR.address}</span>
+          </span>
+          <span className="footer-operator-contact">
             <a href={`mailto:${OPERATOR.email}`}>{OPERATOR.email}</a>
-            {' · '}
             <a href={`tel:${OPERATOR.phone.replace(/\s+/g, '')}`}>{OPERATOR.phone}</a>
           </span>
         </address>
-
-        <p className="footer-role">
-          {OPERATOR.brand} is an intermediary marketplace. Each farm sells to you directly and is
-          the seller of the goods.
-        </p>
       </footer>
     </div>
   );
 }
+
+/** Marks a link that leaves the site, so a new tab is never a surprise. */
+const ExternalMark = () => (
+  <svg
+    className="footer-external"
+    viewBox="0 0 12 12"
+    width="10"
+    height="10"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.4"
+    aria-hidden="true"
+  >
+    <path d="M4.5 2.5h5v5" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M9.5 2.5 5 7" strokeLinecap="round" />
+    <path d="M8 8.6v1.4a.9.9 0 0 1-.9.9H2.4a.9.9 0 0 1-.9-.9V5.2a.9.9 0 0 1 .9-.9h1.4" strokeLinecap="round" />
+  </svg>
+);
 
 function App() {
   return (

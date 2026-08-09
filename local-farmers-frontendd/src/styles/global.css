@@ -813,7 +813,6 @@ a {
 }
 
 .footer {
-  text-align: center;
   color: var(--ink-muted);
   font-size: var(--t-3);
 }
@@ -2281,7 +2280,8 @@ a {
 
 .footer {
   border-top: 3px solid var(--leaf);
-  padding-top: var(--s-4);
+  padding-top: var(--s-5);
+  padding-bottom: var(--s-6);
 }
 
 /* Prețul rămâne cel mai vizibil element dintr-un card. */
@@ -4430,52 +4430,149 @@ a {
   font-size: var(--t-2);
 }
 
-.footer-legal {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: var(--s-4);
-  margin-bottom: var(--s-3);
-  font-size: var(--t-1);
+/* ============================================================
+   Subsolul. Grupat pe ce caută omul, nu pe ordinea în care au fost
+   scrise documentele. Șapte linkuri într-un singur rând nediferențiat e o
+   listă pe care o scanezi și te lași.
+
+   LEG-02 — identificarea operatorului e cerință legală (OUG 34/2014 art. 6,
+   Legea 365/2002 art. 5): pe fiecare pagină, înainte ca utilizatorul să se
+   angajeze la ceva. Deci discretă, dar niciodată ascunsă — fără accordion,
+   fără „vezi mai mult".
+   ============================================================ */
+
+.footer-top {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--s-5);
+  padding-bottom: var(--s-5);
+  text-align: left;
 }
 
-/* ============================================================
-   LEG-02 — identificarea operatorului în subsol
-   Cerință legală (OUG 34/2014 art. 6, Legea 365/2002 art. 5): pe fiecare
-   pagină, înainte ca utilizatorul să se angajeze la ceva. Deci discret, dar
-   niciodată ascuns — fără accordion, fără „vezi mai mult".
-   ============================================================ */
+@media (min-width: 720px) {
+  .footer-top {
+    /* Brandul ia dublu: e coloană de text, nu de linkuri. */
+    grid-template-columns: 2fr 1fr 1fr 1fr;
+    gap: var(--s-6);
+  }
+}
+
+.footer-brand-name {
+  display: block;
+  font-family: var(--f-display);
+  font-size: var(--t-5);
+  font-weight: 600;
+  color: var(--field);
+}
+
+.footer-role {
+  max-width: 34ch;
+  margin: var(--s-2) 0 0;
+  font-size: var(--t-2);
+  line-height: 1.6;
+  color: var(--ink-muted);
+  text-align: left;
+}
+
+.footer-group-title {
+  margin: 0 0 var(--s-2);
+  font-family: var(--f-text);
+  font-size: var(--t-1);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-1);
+}
+
+.footer-group ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.footer-group a {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  font-size: var(--t-2);
+  color: var(--ink-muted);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition:
+    color 0.16s ease,
+    border-color 0.16s ease;
+}
+
+.footer-group a:hover {
+  color: var(--leaf-dk);
+  border-bottom-color: var(--leaf-line);
+}
+
+.footer-group a:focus-visible {
+  outline: 2px solid var(--leaf);
+  outline-offset: 2px;
+  border-radius: var(--r-xs);
+}
+
+.footer-external {
+  flex: none;
+  opacity: 0.7;
+}
+
+/* --- identificarea operatorului --- */
 
 .footer-operator {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  margin: 0 auto var(--s-3);
-  max-width: 46rem;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-2) var(--s-4);
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--line);
   font-size: var(--t-1);
   font-style: normal;
   line-height: 1.6;
   color: var(--ink-muted);
-  text-align: center;
+  text-align: left;
 }
 
-.footer-operator strong {
-  color: var(--ink);
-  font-weight: 600;
+.footer-operator-name {
+  font-weight: 700;
+  color: var(--ink-1);
+  letter-spacing: 0.01em;
+}
+
+/* Faptele de registru, separate cu puncte mediane care nu există în DOM —
+   ca să nu fie citite cu voce tare de un cititor de ecran. */
+.footer-operator-facts,
+.footer-operator-contact {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2) var(--s-3);
+}
+
+.footer-operator-facts > span + span::before,
+.footer-operator-contact > a + a::before {
+  content: '·';
+  margin-right: var(--s-3);
+  color: var(--line-2);
+}
+
+.footer-operator-contact {
+  margin-left: auto;
 }
 
 .footer-operator a {
-  color: inherit;
+  color: var(--ink-muted);
+  text-decoration: none;
+  border-bottom: 1px solid var(--line);
 }
 
-.footer-role {
-  max-width: 46rem;
-  margin: 0 auto var(--s-4);
-  font-size: var(--t-1);
-  line-height: 1.6;
-  color: var(--ink-muted);
-  text-align: center;
+.footer-operator a:hover {
+  color: var(--leaf-dk);
+  border-bottom-color: var(--leaf-line);
 }
 
 /* LEG-02 — acordul la plasarea comenzii.
