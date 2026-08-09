@@ -188,6 +188,38 @@ describe('Set up payouts — what the farmer is told when it fails', () => {
     expect(response.body.error).toMatch(/payout/i);
   });
 
+  /**
+   * The one the platform operator has to act on, not the farmer.
+   *
+   * Stripe's real wording is "You can only create new accounts if you've
+   * signed up for Connect, which you can do at
+   * https://dashboard.stripe.com/connect." The first version of this mapper
+   * looked for "not enabled" and "platform profile", matched neither, and
+   * handed the farmer a raw string about creating accounts they never asked
+   * to create.
+   */
+  it('names the platform’s own missing Connect signup instead of blaming the farmer', async () => {
+    const stripe = createFakeStripe();
+    stripe.accounts.create = async () => {
+      const error = new Error(
+        "You can only create new accounts if you've signed up for Connect, which you can do at " +
+          'https://dashboard.stripe.com/connect.',
+      );
+      error.type = 'StripeInvalidRequestError';
+      throw error;
+    };
+    const { app } = buildApp(seed(), { stripe });
+    const cookie = await sessionCookieFor(VENDOR);
+
+    const response = await onboard(app, cookie);
+
+    expect(response.status).toBe(502);
+    expect(response.body.error).toMatch(/on our side, not yours/i);
+    // And emphatically not the raw Stripe sentence, which reads to a farmer
+    // as though they did something wrong.
+    expect(response.body.error).not.toMatch(/you can only create new accounts/i);
+  });
+
   it('passes through Stripe’s own wording when it is the actionable part', async () => {
     const stripe = createFakeStripe({ failures: { accountCreate: 'parameter_invalid_empty' } });
     const { app } = buildApp(seed(), { stripe });

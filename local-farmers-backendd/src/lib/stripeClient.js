@@ -64,16 +64,28 @@ const describeConnectError = (error) => {
   const code = error?.code || '';
   const message = String(error?.message || '');
 
-  // The platform has not finished its own Connect application. Nothing the
-  // farmer does will help, and telling them to "try again" wastes their time.
+  // The platform has not signed up for Connect, or has not finished its
+  // application. Nothing the farmer does will help, and telling them to "try
+  // again" wastes their time — so this case is named rather than passed
+  // through as a raw Stripe string about "accounts" they did not ask to make.
+  //
+  // Matched on the phrases Stripe actually uses, one of which is
+  //   "You can only create new accounts if you've signed up for Connect,
+  //    which you can do at https://dashboard.stripe.com/connect."
+  // An earlier version of this looked for "not enabled" and "platform
+  // profile" and missed that wording entirely. The dashboard URL is the most
+  // reliable marker of the lot: Stripe only points you at the Connect
+  // settings page when the Connect settings page is the problem.
   if (
     code === 'account_invalid' ||
-    /connect/i.test(message) &&
-      /(not (been )?(enabled|activated)|complete your platform|platform profile)/i.test(message)
+    (/connect/i.test(message) &&
+      /(signed up for connect|sign up for connect|dashboard\.stripe\.com\/connect|not (been )?(enabled|activated)|complete your platform|platform profile)/i.test(
+        message,
+      ))
   ) {
     return (
-      'Payouts are not available yet: the platform\u2019s own Stripe Connect setup is incomplete. ' +
-      'This is on our side, not yours — we have been notified.'
+      'Payouts are not available yet: the platform\u2019s own Stripe Connect setup is not finished. ' +
+      'This is on our side, not yours — nothing you do here will change it, and we have been notified.'
     );
   }
   if (code === 'resource_missing') {
