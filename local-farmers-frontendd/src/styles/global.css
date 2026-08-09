@@ -28,8 +28,11 @@
   --lime: #a8e05f; /* lime, decorativ */
 
   /* --- accente vii: fiecare categorie își are culoarea --- */
-  --tomato: #c7301b; /* roșii, fructe, reduceri — 5,43:1 */
+  --tomato: #c7301b; /* roșu viu — rezervat semnalelor, nu decorului */
   --tomato-lo: #fde8e4;
+  --clay: #a84a28; /* teracotă: fructe și legume, epuizat — 5,68:1 */
+  --clay-lo: #f8e9e2;
+  --clay-line: #e6c4b4;
   --sun: #ffc72c; /* galben de gălbenuș, doar ca fundal */
   --sun-dk: #8a6100; /* text pe galben — 5,54:1 */
   --sun-lo: #fff4d6;
@@ -139,6 +142,9 @@
 
     --tomato: #ff7a63;
     --tomato-lo: #331813;
+    --clay: #e79372;
+    --clay-lo: #33201a;
+    --clay-line: #55372c;
     --sun: #ffce4d;
     --sun-dk: #ffd76b;
     --sun-lo: #33280d;
@@ -1747,7 +1753,7 @@ a {
 }
 
 .stock-badge-out {
-  color: var(--bad);
+  color: var(--clay);
 }
 
 .stock-badge-low {
@@ -1848,42 +1854,95 @@ a {
   margin: 0;
 }
 
-/* Search and Filters */
+/* ============================================================
+   Căutare și filtre.
+
+   Trei probleme rezolvate deodată:
+
+   1. `.filters-bar` n-avea layout deloc. `.search-input-wrapper` cerea
+      `flex: 1 1 280px` de la un părinte care nu era flex, deci cele trei
+      câmpuri se așezau unul sub altul pe toată lățimea. Acum e un grid:
+      căutarea sus, prețul și nota una lângă alta dedesubt.
+   2. Colțurile se băteau cap în cap. Inputul de căutare primea pastilă de
+      la regula `.filters-bar input[type="text"]` (specificitate mai mare,
+      tot cu `!important`) în interiorul casetei rotunjite desenate de
+      `.search-field` — un oval într-un dreptunghi. Toate controalele au
+      acum aceeași rază și un singur chenar, desenat o singură dată.
+   3. Inelul de focus era `rgba(39, 77, 60, ...)`, o culoare care nu mai
+      există în paletă. Acum e verdele din tokeni, ca peste tot.
+   ============================================================ */
 .filters-bar {
-  background-color: var(--canvas-deep) !important;
-  border: 1px solid var(--stroke);
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--s-4);
+  background: var(--paper-1);
+  border: 1px solid var(--line);
   border-radius: var(--r-md);
-  padding: var(--s-4) var(--s-5);
+  padding: var(--s-4);
+}
+
+@media (min-width: 640px) {
+  .filters-bar {
+    /* Căutarea ocupă rândul întreg; cele două filtre îngustă îl împart. */
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .search-input-wrapper {
+    grid-column: 1 / -1;
+  }
+}
+
+.filters-bar .field {
+  gap: var(--s-2);
 }
 
 .filters-bar input[type="text"],
 .filters-bar input[type="number"],
 .filters-bar select {
-  height: 44px;
-  padding: 0 1.1rem;
-  border-radius: var(--r-pill) !important;
-  border: 1px solid var(--line-2) !important;
-  background-color: var(--surface-strong);
-  color: var(--ink);
-  font-size: var(--t-4);
+  width: 100%;
+  height: 42px;
+  padding: 0 var(--s-4);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-sm);
+  background: var(--paper-0);
+  color: var(--ink-1);
   font-family: inherit;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
-  display: flex;
-  align-items: center;
+  font-size: var(--t-3);
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
 }
 
-/* Fix dropdown text alignment */
+/* Selectul nu poate fi flex, deci înălțimea liniei e ce centrează textul. */
 .filters-bar select {
-  padding-top: 0;
-  padding-bottom: 0;
-  line-height: 44px;
+  line-height: 40px;
+  appearance: none;
+  padding-right: var(--s-6);
+  background-image: linear-gradient(45deg, transparent 50%, var(--ink-3) 50%),
+    linear-gradient(135deg, var(--ink-3) 50%, transparent 50%);
+  background-position:
+    calc(100% - 18px) 18px,
+    calc(100% - 13px) 18px;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
 }
 
 .filters-bar input:focus,
 .filters-bar select:focus {
-  outline: none !important;
-  border-color: var(--accent) !important;
-  box-shadow: 0 0 0 3px rgba(39, 77, 60, 0.16) !important;
+  outline: none;
+  border-color: var(--leaf);
+  box-shadow: 0 0 0 3px rgba(24, 128, 66, 0.18);
+}
+
+/* Câmpul de căutare își desenează singur caseta, ca să încapă lupa în ea.
+   Inputul dinăuntru renunță la a lui — altfel sunt două chenare suprapuse. */
+.filters-bar .search-field input[type="text"] {
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 
@@ -2140,7 +2199,11 @@ a {
    centrată vertical, indiferent de înălțimea câmpului.
    ============================================================ */
 .search-input-wrapper {
-  flex: 1 1 280px;
+  min-width: 0;
+}
+
+/* Exista în markup de la început, fără nicio regulă în spate. */
+.filters-field-narrow {
   min-width: 0;
 }
 
@@ -2148,12 +2211,14 @@ a {
   display: flex;
   align-items: center;
   gap: var(--s-2);
-  height: 44px;
+  height: 42px;
   padding: 0 var(--s-4);
   border-radius: var(--r-sm);
   border: 1px solid var(--line-2);
   background: var(--paper-0);
-  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
 }
 
 .search-field:focus-within {
@@ -2201,8 +2266,10 @@ a {
 }
 
 .market-block[data-category='fruits_and_vegetables'] {
-  --cat: var(--tomato);
-  --cat-lo: var(--tomato-lo);
+  /* Teracotă, nu roșu de semnal: e o categorie, nu o eroare. Roșul viu
+     rămâne pentru lucrurile care chiar cer oprirea. */
+  --cat: var(--clay);
+  --cat-lo: var(--clay-lo);
 }
 
 .market-block[data-category='eggs'] {
