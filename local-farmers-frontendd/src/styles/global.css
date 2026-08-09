@@ -4592,18 +4592,28 @@ a {
 
 /* --- identificarea operatorului --- */
 
+/* Trei rânduri centrate: numele, faptele de registru, contactul.
+
+   Înainte era un rând orizontal cu contactul împins la dreapta de
+   `margin-left: auto`. Merge cât timp valorile sunt scurte; cu
+   „[REGISTERED OFFICE NOT CONFIGURED]" și frații lui, rândul se rupe, iar
+   `auto` împinge contactul singur pe o linie proprie, lipit de marginea
+   dreaptă. Rezultatul e o scară, nu un bloc de identificare.
+
+   Centrat rezolvă și cazul lung, și cazul scurt, și e compoziția obișnuită
+   pentru identificarea comerciantului sub coloanele de linkuri. */
 .footer-operator {
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--s-2) var(--s-4);
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-1);
   padding-top: var(--s-4);
   border-top: 1px solid var(--line);
   font-size: var(--t-1);
   font-style: normal;
   line-height: 1.6;
   color: var(--ink-muted);
-  text-align: left;
+  text-align: center;
 }
 
 .footer-operator-name {
@@ -4612,24 +4622,40 @@ a {
   letter-spacing: 0.01em;
 }
 
-/* Faptele de registru, separate cu puncte mediane care nu există în DOM —
-   ca să nu fie citite cu voce tare de un cititor de ecran. */
 .footer-operator-facts,
 .footer-operator-contact {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--s-2) var(--s-3);
+  justify-content: center;
+  align-items: baseline;
+  /* Fără gap pe verticală: distanța dintre rânduri o dă `line-height`. */
+  gap: 0 var(--s-3);
 }
 
-.footer-operator-facts > span + span::before,
-.footer-operator-contact > a + a::before {
+/* Punctul median stă în `::after`-ul elementului dinaintea lui, nu în
+   `::before`-ul celui de după. Diferența contează doar când rândul se rupe:
+   un punct agățat la începutul unei linii noi arată ca o eroare, unul lăsat
+   la capătul liniei precedente arată ca punctuație. */
+.footer-operator-facts > span:not(:last-child)::after,
+.footer-operator-contact > a:not(:last-child)::after {
   content: '·';
-  margin-right: var(--s-3);
+  margin-left: var(--s-3);
   color: var(--line-2);
 }
 
-.footer-operator-contact {
-  margin-left: auto;
+/* Sub pragul ăsta orice set realist de date se rupe oricum, așa că fiecare
+   fapt primește rândul lui și separatorii dispar cu totul. */
+@media (max-width: 560px) {
+  .footer-operator-facts,
+  .footer-operator-contact {
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .footer-operator-facts > span:not(:last-child)::after,
+  .footer-operator-contact > a:not(:last-child)::after {
+    content: none;
+  }
 }
 
 .footer-operator a {
