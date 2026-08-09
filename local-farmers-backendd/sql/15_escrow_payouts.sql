@@ -34,10 +34,50 @@
 -- Dropping and re-adding is the only way to widen a check constraint. The
 -- `not valid` / `validate` pair keeps the table readable throughout: the
 -- add takes no full-table lock, the validate takes only a share lock.
+--
+-- The old constraint is found by what it checks, not by what it is called.
+-- `drop constraint if exists orders_transfer_state_check` assumes Postgres
+-- used the conventional name, and if it did not — a name collision at
+-- creation time appends a digit — the drop silently does nothing, the new
+-- constraint is added beside the old one, and every write of 'held' is
+-- still rejected by a constraint nobody thought to look for. Searching
+-- `pg_constraint` for the column costs one query and removes the guess.
 -- ---------------------------------------------------------------------
 
-alter table public.orders
-  drop constraint if exists orders_transfer_state_check;
+do $$
+declare
+  v_name text;
+begin
+  for v_name in
+    select con.conname
+      from pg_constraint con
+      join pg_class rel on rel.oid = con.conrelid
+      join pg_namespace nsp on nsp.oid = rel.relnamespace
+     where nsp.nspname = 'public'
+       and rel.relname = 'orders'
+       and con.contype = 'c'
+       and pg_get_constraintdef(con.oid) like '%transfer_state%'
+  loop
+    execute format('alter table public.orders drop constraint %I', v_name);
+  end loop;
+
+  for v_name in
+    select con.conname
+      from pg_constraint con
+      join pg_class rel on rel.oid = con.conrelid
+      join pg_namespace nsp on nsp.oid = rel.relnamespace
+     where nsp.nspname = 'public'
+       and rel.relname = 'order_transfers'
+       and con.contype = 'c'
+       and pg_get_constraintdef(con.oid) like '%state%'
+       -- `order_transfers` has no other text column ending in _state, but be
+       -- explicit rather than rely on that staying true.
+       and pg_get_constraintdef(con.oid) not like '%amount_bani%'
+  loop
+    execute format('alter table public.order_transfers drop constraint %I', v_name);
+  end loop;
+end;
+$$;
 
 alter table public.orders
   add constraint orders_transfer_state_check
@@ -46,9 +86,6 @@ alter table public.orders
 
 alter table public.orders
   validate constraint orders_transfer_state_check;
-
-alter table public.order_transfers
-  drop constraint if exists order_transfers_state_check;
 
 alter table public.order_transfers
   add constraint order_transfers_state_check
